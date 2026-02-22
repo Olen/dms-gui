@@ -178,7 +178,7 @@ export const getRoles = async (credential=null) => {
 
 // mailserver used to be containerName, now we want configID
 export const addLogin = async (mailbox, username, password='', email='', isAdmin=0, isAccount=0, isActive=1, mailserver=null, roles=[]) => {
-  debugLog(mailbox, username, password, email, isAdmin, isActive, isAccount, mailserver, roles);
+  debugLog(mailbox, username, '[REDACTED]', email, isAdmin, isActive, isAccount, mailserver, roles);
 
   try {
     // even when password is undefined, we can get a hash value
