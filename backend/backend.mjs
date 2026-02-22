@@ -300,7 +300,11 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
         };
         
       } else {
-        successLog('command:', command);              // WARNING this will show cleartext passwords when loggin in users
+        // Redact passwords from logged commands (email add/update, auth test)
+        const redactedCommand = command
+          .replace(/((?:email\s+(?:add|update)\s+)\S+\s+)\S+/i, '$1[REDACTED]')
+          .replace(/(auth\s+test\s+\S+\s+)\S+/i, '$1[REDACTED]');
+        successLog('command:', redactedCommand);
         return {
           returncode: response.returncode,
           stdout: response.stdout.toString('utf8'),

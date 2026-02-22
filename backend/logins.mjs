@@ -25,6 +25,9 @@
 //   moveKeyToLast,
 // } from '../common.mjs'
 import {
+  escapeShellArg,
+} from '../common.mjs';
+import {
   debugLog,
   errorLog,
   execCommand,
@@ -213,7 +216,7 @@ export const loginUser = async (credential=null, password='') => {
           if (login.message.mailserver) {
             const targetDict = getTargetDict('mailserver', login.message.mailserver);
             targetDict.timeout = 5;
-            let command = `doveadm auth test ${login.message.mailbox} "${password}"`;
+            let command = `doveadm auth test ${escapeShellArg(login.message.mailbox)} ${escapeShellArg(password)}`;
             results = await execCommand(command, targetDict);
             if (!results.returncode) {
               successLog(`${credential} logged in successfully`);

@@ -1,4 +1,5 @@
 import {
+  escapeShellArg,
   reduxArrayOfObjByValue,
   regexEmailStrict,
   regexMatchPostfix,
@@ -258,7 +259,7 @@ export const addAlias = async (containerName=null, source=null, destination=null
     if (source.match(regexEmailStrict)) {
       debugLog(`Adding new alias: ${source} -> ${destination}`);
     
-      results = await execSetup(`alias add ${source} ${destination}`, targetDict);
+      results = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(destination)}`, targetDict);
       if (!results.returncode) {
         
         result = dbRun(sql.aliases.insert.alias, {source:source, destination:destination, regex:0}, containerName);
@@ -276,7 +277,7 @@ export const addAlias = async (containerName=null, source=null, destination=null
       
     // this is a regex
     } else {
-      let command = `echo '${source} ${destination}' >>${env.DMS_CONFIG_PATH}/postfix-regexp.cf`;
+      let command = `echo ${escapeShellArg(source + ' ' + destination)} >>${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
       debugLog(`Adding new regex: ${source} -> ${destination}`);
       
       results = await execCommand(command, targetDict);
@@ -329,7 +330,7 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
     if (source.match(regexEmailStrict)) {
       debugLog(`Deleting alias: ${source} -> ${destination}`);
       
-      results = await execSetup(`alias del ${source} ${destination}`, targetDict);
+      results = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(destination)}`, targetDict);
       debugLog(`------------------------------- Alias deleted results:`, results);
       if (!results.returncode) {
         result = deleteEntry('aliases', source, 'bySource', containerName);
@@ -351,7 +352,7 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
       source = JSON.stringify(source);
       debugLog(`Deleting alias regex: ${source}`);
       
-      let command = `grep -Fv '${source} ${destination}' ${env.DMS_CONFIG_PATH}/postfix-regexp.cf >/tmp/postfix-regexp.cf && mv /tmp/postfix-regexp.cf ${env.DMS_CONFIG_PATH}/postfix-regexp.cf`;
+      let command = `grep -Fv ${escapeShellArg(source + ' ' + destination)} ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')} >/tmp/postfix-regexp.cf && mv /tmp/postfix-regexp.cf ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
       results = await execCommand(command, targetDict);
       debugLog(`------------------------------- Alias regex deleted results:`, results);
       if (!results.returncode) {

@@ -25,6 +25,7 @@
 //   moveKeyToLast,
 // } from '../common.mjs'
 import {
+  escapeShellArg,
   reduxArrayOfObjByValue,
 } from '../common.mjs';
 import {
@@ -281,7 +282,7 @@ export const addAccount = async (schema='dms', containerName=null, mailbox=null,
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`Adding new mailbox account for ${containerName}: ${mailbox}`);
-    if (schema == 'dms') results = await execSetup(`email add ${mailbox} ${password}`, targetDict);
+    if (schema == 'dms') results = await execSetup(`email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`, targetDict);
 
     if (!results.returncode) {
       
@@ -330,7 +331,7 @@ export const deleteAccount = async (schema='dms', containerName=null, mailbox=nu
 
     // dms setup could take who know how long when mailbox is large
     targetDict.timeout = 60;
-    if (schema == 'dms') results = await execSetup(`email del -y ${mailbox}`, targetDict);
+    if (schema == 'dms') results = await execSetup(`email del -y ${escapeShellArg(mailbox)}`, targetDict);
     debugLog('ddebug execSetup', results)
 
     if (!results.returncode) {

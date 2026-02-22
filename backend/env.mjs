@@ -137,6 +137,7 @@ export const mailserverRESTAPI = {
 import http.server
 import socketserver
 import subprocess
+import shlex
 import json
 import os
 import datetime
@@ -194,8 +195,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             # from here we could analyze and limit commands to be executed like remove unlink and rm, etc
             
             logger(f"Executing command: {command}")
-            result = subprocess.run(command, 
-                                    shell=True, 
+            result = subprocess.run(shlex.split(command),
                                     capture_output=True, # Capture stdout and stderr
                                     text=True,           # Decode stdout and stderr as text
                                     check=False,         # Do not raise an exception for non-zero exit codes

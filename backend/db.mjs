@@ -3,6 +3,7 @@ import { promisify } from 'node:util';
 const exec = promisify(execCb);
 
 import {
+  escapeShellArg,
   getValueFromArrayOfObj,
   reduxPropertiesOfObj,
 } from '../common.mjs';
@@ -995,7 +996,7 @@ export const changePassword = async (table, id, password, schema, containerName)
       const targetDict = getTargetDict('mailserver', containerName);
 
       debugLog(`Updating password for ${id} in ${table} for ${containerName}...`);
-      results = await execSetup(`email update ${id} "${password}"`, targetDict);
+      results = await execSetup(`email update ${escapeShellArg(id)} ${escapeShellArg(password)}`, targetDict);
       if (!results.returncode) {
         
         debugLog(`Updating password for ${id} in ${table} with scope=${containerName}...`);

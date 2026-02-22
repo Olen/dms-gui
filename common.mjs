@@ -286,6 +286,15 @@ export const humanSize2ByteSize = humanBytes => {
 };
 
 
+// Escape a string for safe use as a shell argument by wrapping in single quotes
+// and escaping any embedded single quotes. Handles empty strings too.
+export const escapeShellArg = (arg) => {
+  if (arg === undefined || arg === null) return "''";
+  const str = String(arg);
+  return "'" + str.replace(/'/g, "'\\''") + "'";
+};
+
+
 export const moveKeyToLast = (obj, keyToMove) => {
   // Check if the key exists in the object
   if (Object.prototype.hasOwnProperty.call(obj, keyToMove)) {
