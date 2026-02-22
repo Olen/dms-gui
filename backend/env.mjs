@@ -192,25 +192,41 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
           
         else:
           try:
-            # from here we could analyze and limit commands to be executed like remove unlink and rm, etc
-            
             logger(f"Executing command: {command}")
-            result = subprocess.run(shlex.split(command),
-                                    capture_output=True, # Capture stdout and stderr
-                                    text=True,           # Decode stdout and stderr as text
-                                    check=False,         # Do not raise an exception for non-zero exit codes
-                                    timeout=timeout,     # timeout in seconds
-                                    )
-            debugg("result: {result}")  #  CompletedProcess(args='/usr/local/bin/setup alias list', returncode=0, stdout='...
-            
+
+            # Support shell pipes without shell=True: split on |,
+            # shlex.split() each stage, chain via subprocess.Popen
+            stages = [s.strip() for s in command.split('|')]
+            prev_proc = None
+            procs = []
+
+            for stage in stages:
+              stdin = prev_proc.stdout if prev_proc else None
+              proc = subprocess.Popen(shlex.split(stage),
+                                      stdin=stdin,
+                                      stdout=subprocess.PIPE,
+                                      stderr=subprocess.PIPE,
+                                      text=True)
+              if prev_proc:
+                prev_proc.stdout.close()
+              procs.append(proc)
+              prev_proc = proc
+
+            stdout, stderr = prev_proc.communicate(timeout=timeout)
+            returncode = prev_proc.returncode
+
+            for p in procs[:-1]:
+              p.wait()
+
+            debugg(f"result returncode: {returncode}")
+
             response_message = {
               "status": "success",
-              'returncode': result.returncode,
-              'stdout': result.stdout,
-              'stderr': result.stderr
+              'returncode': returncode,
+              'stdout': stdout,
+              'stderr': stderr
             }
             debugg(f"response_message: {response_message}")
-            
 
           except Exception as e:
             response_message = {"status": "error", "error": str(e)}
@@ -252,6 +268,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       self.wfile.write(json.dumps(response_message).encode('utf-8'))
 
 
+socketserver.TCPServer.allow_reuse_address = True
 with socketserver.TCPServer((DMS_API_HOST, DMS_API_PORT), APIHandler) as httpd:
   logger(f"Serving at port {DMS_API_HOST}:{DMS_API_PORT}")
   httpd.serve_forever()
