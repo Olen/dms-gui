@@ -27,6 +27,8 @@ import {
   getConfigs,
   getDomains,
   getNodeInfos,
+  getRspamdCounters,
+  getRspamdStats,
   getServerEnvs,
   getServerStatus,
   getSettings,
@@ -1671,6 +1673,84 @@ async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Endpoint for rspamd statistics
+/**
+ * @swagger
+ * /api/rspamd/{containerName}/stat:
+ *   get:
+ *     summary: Get rspamd statistics
+ *     description: Retrieve rspamd stat data via internal API
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *     responses:
+ *       200:
+ *         description: Rspamd statistics
+ *       500:
+ *         description: Unable to retrieve rspamd stats
+ */
+app.get('/api/rspamd/:containerName/stat',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getRspamdStats('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index GET /api/rspamd/stat: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for rspamd top symbol counters
+/**
+ * @swagger
+ * /api/rspamd/{containerName}/counters:
+ *   get:
+ *     summary: Get rspamd symbol counters
+ *     description: Retrieve top rspamd symbol counters sorted by frequency
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *     responses:
+ *       200:
+ *         description: Top rspamd symbol counters
+ *       500:
+ *         description: Unable to retrieve rspamd counters
+ */
+app.get('/api/rspamd/:containerName/counters',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getRspamdCounters('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index GET /api/rspamd/counters: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Endpoint for retrieving count of any table
 /**

@@ -1380,5 +1380,72 @@ export const killContainer = async (plugin='dms-gui', schema='dms-gui', containe
 
   }
   return {success: true, message: "reboot initiated"};  // fails silently in all other cases
-  
+
+};
+
+
+// Rspamd stats via internal HTTP API (port 11334 inside container)
+export const getRspamdStats = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getRspamdStats containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getRspamdStats: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const result = await execCommand('curl -sf http://localhost:11334/stat', targetDict, { timeout: 5 });
+
+    if (!result.returncode && result.stdout) {
+      const stat = JSON.parse(result.stdout);
+      return { success: true, message: stat };
+    }
+    return { success: false, error: result.stderr || 'rspamd stat request failed' };
+
+  } catch (error) {
+    errorLog(`getRspamdStats error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
+// Rspamd top symbol counters (aggregated from history)
+export const getRspamdCounters = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getRspamdCounters containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getRspamdCounters: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const result = await execCommand('curl -sf http://localhost:11334/history', targetDict, { timeout: 5 });
+
+    if (!result.returncode && result.stdout) {
+      const history = JSON.parse(result.stdout);
+      const rows = history.rows || [];
+
+      // Aggregate symbol hits and average weight from history
+      const symData = {};
+      for (const row of rows) {
+        for (const [name, info] of Object.entries(row.symbols || {})) {
+          if (!symData[name]) symData[name] = { symbol: name, hits: 0, weight: 0, time: 0 };
+          symData[name].hits += 1;
+          symData[name].weight += (info.score || 0);
+          symData[name].time += (info.time || 0);
+        }
+      }
+      // Compute averages and sort by hits
+      const sorted = Object.values(symData)
+        .map(s => ({
+          symbol: s.symbol,
+          hits: s.hits,
+          weight: s.hits > 0 ? s.weight / s.hits : 0,
+          time: s.hits > 0 ? s.time / s.hits : 0,
+          frequency: rows.length > 0 ? s.hits / rows.length : 0,
+        }))
+        .sort((a, b) => b.hits - a.hits)
+        .slice(0, 25);
+      return { success: true, message: sorted };
+    }
+    return { success: false, error: result.stderr || 'rspamd history request failed' };
+
+  } catch (error) {
+    errorLog(`getRspamdCounters error:`, error.message);
+    return { success: false, error: error.message };
+  }
 };

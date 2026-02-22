@@ -4,6 +4,7 @@ import { NavLink } from 'react-router-dom';
 import { Nav } from 'react-bootstrap';
 import { useAuth } from '../hooks/useAuth';
 import { useLocalStorage } from '../hooks/useLocalStorage';
+import { getServerEnvs } from '../services/api.mjs';
 
 import {
   Button,
@@ -21,6 +22,7 @@ const LeftSidebar = () => {
   const [containerName] = useLocalStorage("containerName", '');
   
   const [showMailMenus, setShowMailMenus] = useState(false);
+  const [enableRspamd, setEnableRspamd] = useState(false);
   const [isSidebarCollapsed, setSidebarCollapsed] = useState(false);
   // const [isDropdownActive, setDropdownActive] = useState("false");  // we don't use it yet
   
@@ -28,6 +30,19 @@ const LeftSidebar = () => {
       debugLog('LeftSidebar user:', user);
       debugLog('LeftSidebar containerName:', containerName);
       if (containerName) setShowMailMenus(true);
+    }, [containerName]);
+
+    useEffect(() => {
+      if (!containerName) return;
+      getServerEnvs('mailserver', containerName, false, 'ENABLE_RSPAMD')
+        .then(result => {
+          if (result.success && (result.message === '1' || result.message === 1)) {
+            setEnableRspamd(true);
+          } else {
+            setEnableRspamd(false);
+          }
+        })
+        .catch(() => setEnableRspamd(false));
     }, [containerName]);
   
   
@@ -81,6 +96,13 @@ const LeftSidebar = () => {
             <i className="bi bi-gear-fill me-2"></i>
             <span> {Translate('settings.sidebar')}</span>
           </Nav.Link>
+
+          {enableRspamd && (
+            <Nav.Link as={NavLink} to="/rspamd" style={getNavLinkStyle}>
+              <i className="bi bi-shield-check me-2"></i>
+              <span> {Translate('rspamd.sidebar')}</span>
+            </Nav.Link>
+          )}
         </>)}
       </>)}
 
