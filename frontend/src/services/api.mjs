@@ -403,6 +403,30 @@ export const getDomains = async (containerName=null, name) => {
   }
 };
 
+export const getRspamdStats = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/rspamd/${containerName}/stat`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const getRspamdCounters = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/rspamd/${containerName}/counters`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getCount = async (table, containerName) => {
   if (!table) return {success: false, error: 'table is required'};
 
