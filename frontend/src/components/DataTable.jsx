@@ -236,7 +236,7 @@ const DataTable = ({
               <tr key={keyExtractor(item)} className={item?.color}>
                 {columns.map((column) => (
                   <td key={`${keyExtractor(item)}-${column.key}`} className={(previousItem && previousItem.value !== item.value) ? "highlight-change" : ""}>
-                    {column.render ? column.render(item) : <span>{item[column.key]}</span>}
+                    {column.render ? column.render(item) : <span>{typeof item[column.key] === 'boolean' ? String(item[column.key]) : item[column.key]}</span>}
                   </td>
                 ))}
               </tr>
