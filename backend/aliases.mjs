@@ -156,7 +156,7 @@ export const parseAliasesFromDMS = async (stdout='') => {
   debugLog(`Raw alias list response:`, lines);
 
   // Modified regex to be more tolerant of control characters that might appear in the output
-  const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%]/g;
+  const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%,]/g;
   const regexAliasDMS = /\*\s+(\S+@\S+)\s+(\S+@\S+)/;
 
   for (let i = 0; i < lines.length; i++) {
