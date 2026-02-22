@@ -225,7 +225,7 @@ DATABASE=${DMSGUI_CONFIG_PATH}/dms-gui.sqlite3
 ##           │ │ │  │ │ │
 ##           │ │ │  │ │ │
 ##           * * *  * * *
-DMSGUI_CRON="* 1 23 * * *"
+DMSGUI_CRON="0 1 23 * * *"
 
 # make this a demo server
 # isDEMO=true
@@ -241,7 +241,7 @@ All is optional, as they will be superseeded by the ones defined and saved withi
 - `DEBUG`: Node.js environment: (*production or development)
 - `ACCESS_TOKEN_EXPIRY`: lifetime of the generated HTTPonly token (1h)
 - `REFRESH_TOKEN_EXPIRY`: lifetime of the generated HTTPonly refresh token (1d)
-- `DMSGUI_CRON`: crontab format for daily restarts ("* 1 23 * * *")
+- `DMSGUI_CRON`: crontab format for daily restarts ("0 1 23 * * *")
 - `LOG_COLORS`: set false to disable colors in backend logs (*true)
 - `isDEMO`: set false to disable colors in backend logs (*false)
 The ones you should never alter unless you want to develop:

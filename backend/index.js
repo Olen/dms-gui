@@ -1864,9 +1864,18 @@ app.listen(env.PORT_NODEJS, async () => {
   debugLog('🐞 debug mode is ENABLED');
 
   // https://github.com/ncb000gt/node-cron    // internal crontan
+  // node-cron uses 6 fields: second minute hour day month weekday
+  // Prevent reboot storms when seconds field is wildcard (e.g. "* 1 23 * * *" fires 60 times)
   debugLog('DMSGUI_CRON',env.DMSGUI_CRON)
   if (env.DMSGUI_CRON) {
-    cron.schedule(env.DMSGUI_CRON, () => {
+    let cronExpr = env.DMSGUI_CRON;
+    const fields = cronExpr.trim().split(/\s+/);
+    if (fields.length === 6 && fields[0] === '*') {
+      fields[0] = '0';
+      cronExpr = fields.join(' ');
+      warnLog(`DMSGUI_CRON: seconds field was *, defaulting to 0: ${cronExpr}`);
+    }
+    cron.schedule(cronExpr, () => {
         killContainer('dms-gui', 'dms-gui', 'dms-gui');    // no await
     });
   };
