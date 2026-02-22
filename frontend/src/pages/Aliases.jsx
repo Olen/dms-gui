@@ -2,6 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Row from 'react-bootstrap/Row'; // Import Row
 import Col from 'react-bootstrap/Col'; // Import Col
+import Form from 'react-bootstrap/Form';
+import CreatableSelect from 'react-select/creatable';
 
 import {
   debugLog,
@@ -27,7 +29,6 @@ import {
   DataTable,
   FormField,
   LoadingSpinner,
-  SelectField,
   Translate,
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -49,7 +50,7 @@ const Aliases = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [formData, setFormData] = useState({
     source: '',
-    destination: '',
+    destination: [],
   });
   const [formErrors, setFormErrors] = useState({});
 
@@ -139,6 +140,18 @@ const Aliases = () => {
     }
   };
 
+  const handleDestinationChange = (newValue) => {
+    setFormData({
+      ...formData,
+      destination: newValue || [],
+    });
+    if (formErrors.destination) {
+      setFormErrors({
+        ...formErrors,
+        destination: null,
+      });
+    }
+  };
 
   const validateForm = () => {
     const errors = {};
@@ -158,7 +171,7 @@ const Aliases = () => {
       setErrorMessage(errors.source);
     }
 
-    if (!formData.destination.trim()) {
+    if (!formData.destination.length) {
       errors.destination = 'aliases.destinationRequired';
       setErrorMessage(errors.destination);
     }
@@ -185,11 +198,12 @@ const Aliases = () => {
 
     try {
       // const result = await addAlias(getValueFromArrayOfObj(mailservers, containerName, 'value', 'schema'), containerName, formData.source.trim(), formData.destination.trim());
-      const result = await addAlias(containerName, formData.source.trim(), formData.destination.trim());
+      const destinationStr = formData.destination.map(d => d.value).join(',');
+      const result = await addAlias(containerName, formData.source.trim(), destinationStr);
       if (result.success) {
         setFormData({
           source: '',
-          destination: '',
+          destination: [],
         });
         fetchAliases(true); // Refresh the aliases list
         setSuccessMessage('aliases.aliasCreated');
@@ -286,18 +300,50 @@ const Aliases = () => {
                 required
               />
 
-              <SelectField
-                id="destination"
-                name="destination"
-                label="aliases.destinationAddress"
-                value={formData.destination}
-                onChange={handleInputChange}
-                options={accountOptions}
-                placeholder="aliases.selectDestination"
-                error={formErrors.destination}
-                helpText="aliases.destinationInfo"
-                required
-              />
+              <Form.Group className="mb-3" controlId="destination">
+                <Form.Label>
+                  {t('aliases.destinationAddress')}
+                  <span className="text-danger ms-1">*</span>
+                </Form.Label>
+                <CreatableSelect
+                  isMulti
+                  name="destination"
+                  value={formData.destination}
+                  onChange={handleDestinationChange}
+                  options={accountOptions}
+                  placeholder={t('aliases.selectDestination')}
+                  formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
+                  noOptionsMessage={() => t('aliases.typeToAdd')}
+                  styles={{
+                    control: (base, state) => ({
+                      ...base,
+                      borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
+                      boxShadow: formErrors.destination
+                        ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+                        : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
+                      '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
+                    }),
+                    multiValue: (base) => ({
+                      ...base,
+                      backgroundColor: '#e7f1ff',
+                      borderRadius: '4px',
+                    }),
+                    multiValueLabel: (base) => ({
+                      ...base,
+                      color: '#0d6efd',
+                    }),
+                    multiValueRemove: (base) => ({
+                      ...base,
+                      color: '#0d6efd',
+                      '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
+                    }),
+                  }}
+                />
+                {formErrors.destination && (
+                  <div className="text-danger small mt-1">{t(formErrors.destination)}</div>
+                )}
+                <Form.Text muted>{t('aliases.destinationInfo')}</Form.Text>
+              </Form.Group>
 
               <Button type="submit" variant="primary" text="aliases.addAlias" />
             </form>
