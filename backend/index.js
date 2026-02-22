@@ -60,6 +60,7 @@ import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import * as crypto from 'crypto';
 import express from 'express';
+import rateLimit from 'express-rate-limit';
 import jwt from 'jsonwebtoken';
 // import jwt from 'express-jwt';
 import cron from 'node-cron';
@@ -114,8 +115,12 @@ debugLog('env.FRONTEND_URL',env.FRONTEND_URL)
 //   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
 //   allowedHeaders: ['Content-Type', 'Authorization', Accept-Language'] X-Requested-With
 // };
+// CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
+const corsOriginsList = process.env.CORS_ORIGINS
+  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  : null;
 const corsOptions = {
-  origin: true,       // reflect the request origin, as defined by req.header('Origin')
+  origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language']
@@ -219,6 +224,15 @@ const requireActive = (req, res, next) => {
   next();
 };
 
+
+// Rate limiter for auth endpoints (login + refresh)
+const authLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 15,                   // limit each IP to 15 requests per window
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many authentication attempts, please try again later' },
+});
 
 app.use(express.json());
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(oasDefinition));
@@ -1350,7 +1364,9 @@ async (req, res) => {
       result = await updateDB('logins', id, req.body);
 
     } else {
-      result = (id == req.user.id) ? await updateDB('logins', id, req.body) : {success:false, message: 'Permission denied'};
+      // Non-admins: strip privilege fields to prevent escalation
+      const { isAdmin, isActive, roles, ...safeBody } = req.body;
+      result = (id == req.user.id) ? await updateDB('logins', id, safeBody) : {success:false, message: 'Permission denied'};
     }
     debugLog(`index PATCH /api/logins/${id}`, result)
     res.json(result);
@@ -1439,7 +1455,7 @@ async (req, res) => {
  *       500:
  *         description: Unable to validate credentials
  */
-app.post('/api/loginUser', async (req, res, next) => {
+app.post('/api/loginUser', authLimiter, async (req, res, next) => {
   try {
     const { credential, password, test } = req.body;
     if (!credential)  return res.status(400).json({ error: 'credential is missing' });
@@ -1510,7 +1526,7 @@ app.post('/api/loginUser', async (req, res, next) => {
  *       403:
  *         description: token invalid or hack attempt
  */
-app.post('/api/refresh', async (req, res) => {
+app.post('/api/refresh', authLimiter, async (req, res) => {
   try {
     const refreshToken = req.cookies.refreshToken;
 
