@@ -1,3 +1,11 @@
+:root {
+  --navbar-height: 56px;
+}
+
+.navbar {
+  height: var(--navbar-height);
+}
+
 body {
   margin: 0;
   font-family:
@@ -38,12 +46,14 @@ tr .MuiChip-root  {
   padding-top: 20px;
   min-width: 50px;
   display: inline-flex;
+  position: sticky;
+  top: var(--navbar-height);
 }
 
 /* The "min-width" comes from the "min-width" media attribute on "main-content" */
 @media (min-width: 768px) {
   .leftsidebar {
-    min-height: calc(100vh - 56px);
+    min-height: calc(100vh - var(--navbar-height));
   }
 }
 
@@ -75,9 +85,7 @@ tr .MuiChip-root  {
 }
 
 .leftsidebar-collapse-footer{
-  position: absolute;
-  bottom: 0em;
-  width: inherit;
+  margin-top: auto;
 }
 .leftsidebar-collapse-btn{
   /* position: absolute; */

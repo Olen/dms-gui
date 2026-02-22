@@ -76,7 +76,7 @@ const Navbar = ({
   ];
 
   return (
-    <RBNavbar bg="dark" variant="dark" expand="lg">
+    <RBNavbar bg="dark" variant="dark" expand="lg" sticky="top">
       <Container fluid>
         <RBNavbar.Brand as={Link} to="/">
           <i className="bi bi-envelope-fill me-2"></i>
