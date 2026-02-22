@@ -341,12 +341,15 @@ export const deleteAccount = async (schema='dms', containerName=null, mailbox=nu
       if (result.success) {
         successLog(`db entry deleted: ${mailbox}`);
 
-        // now delete aliases too
-        result = await getAliases(containerName, false, [mailbox]);
+        // now delete aliases where this mailbox is source or destination
+        result = await getAliases(containerName, false);
         debugLog('ddebug getAliases',result)
         if (result.success && result.message.length) {
+          const aliasesToDelete = result.message.filter(alias =>
+            alias.source === mailbox || alias.destination?.split(',').map(d => d.trim()).includes(mailbox)
+          );
 
-          for (const alias of result.message) {
+          for (const alias of aliasesToDelete) {
             result = await deleteAlias(containerName, alias.source, alias.destination);
             debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
             if (result.success) {
