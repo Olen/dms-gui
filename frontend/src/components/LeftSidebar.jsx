@@ -81,6 +81,11 @@ const LeftSidebar = () => {
             <i className="bi bi-gear-fill me-2"></i>
             <span> {Translate('settings.sidebar')}</span>
           </Nav.Link>
+
+          <Nav.Link as={NavLink} to="/domains" style={getNavLinkStyle}>
+            <i className="bi bi-globe me-2"></i>
+            <span> {Translate('domains.sidebar')}</span>
+          </Nav.Link>
         </>)}
       </>)}
     </Nav>

@@ -464,11 +464,11 @@ domains: {
   },
   
   insert: {
-    domain:   `REPLACE INTO domains (domain, dkim, keytype, keysize, path, scope) VALUES (@domain, @dkim, @keytype, @keysize, @path, @scope)`,
+    domain:   `REPLACE INTO domains (domain, dkim, keytype, keysize, path, configID) VALUES (@domain, @dkim, @keytype, @keysize, @path, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
   },
   
   delete: {
-    domain:   `DELETE FROM domains WHERE 1=1 AND scope = @scope AND domain = ?`,
+    domain:   `DELETE FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,
   },
   
   init:  `BEGIN TRANSACTION;

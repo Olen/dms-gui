@@ -283,6 +283,27 @@
       "updateLogin": "Error updating login"
     }
   },
+  "domains": {
+    "sidebar": "Domains & DNS",
+    "title": "Domains & DNS",
+    "domain": "Domain",
+    "dkim": "DKIM Selector",
+    "keytype": "Key Type",
+    "keysize": "Key Size",
+    "dnsStatus": "DNS Status",
+    "checkDns": "Check DNS",
+    "checkAllDns": "Check All DNS",
+    "aRecord": "A Records",
+    "mxRecord": "MX Records",
+    "spfRecord": "SPF Record",
+    "dkimRecord": "DKIM Record",
+    "dmarcRecord": "DMARC Record",
+    "found": "Found",
+    "missing": "Not found",
+    "noDomains": "No domains found. Refresh environment from Settings to populate the domains list.",
+    "noDnsData": "No DNS data available. Click Check DNS first.",
+    "dnsDetails": "DNS Details"
+  },
   "language": {
     "select": "Select Language",
     "en": "English",
