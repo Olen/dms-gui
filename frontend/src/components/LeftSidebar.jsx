@@ -83,20 +83,19 @@ const LeftSidebar = () => {
           </Nav.Link>
         </>)}
       </>)}
-    </Nav>
 
-    <div className="leftsidebar-collapse-footer">
-      <Button
-        id="leftsidebar-collapse-btn"
-        variant="outline-secondary"
-        size="lg"
-        icon="list"
-        title={"common.collapse"}
-        onClick={() => setSidebarCollapsed(!isSidebarCollapsed)}
-        className="leftsidebar-collapse-btn"
-      />
-    </div>
-    </>
+      <div className="leftsidebar-collapse-footer">
+        <Button
+          id="leftsidebar-collapse-btn"
+          variant="outline-secondary"
+          size="lg"
+          icon="list"
+          title={"common.collapse"}
+          onClick={() => setSidebarCollapsed(!isSidebarCollapsed)}
+          className="leftsidebar-collapse-btn"
+        />
+      </div>
+    </Nav>
 
   );
 };
