@@ -329,23 +329,26 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
     // this is normal email format
     if (source.match(regexEmailStrict)) {
       debugLog(`Deleting alias: ${source} -> ${destination}`);
-      
-      results = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(destination)}`, targetDict);
-      debugLog(`------------------------------- Alias deleted results:`, results);
-      if (!results.returncode) {
-        result = deleteEntry('aliases', source, 'bySource', containerName);
-        if (result.success) {
-          successLog(`Alias deleted: ${source}`);
-          return { success: true, message: `Alias deleted: ${source}` };
-          
+
+      // DMS setup alias del only removes one destination at a time,
+      // so split comma-separated destinations and delete each
+      const destinations = destination.split(',').map(d => d.trim()).filter(Boolean);
+      for (const dest of destinations) {
+        results = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+        debugLog(`------------------------------- Alias deleted results (${dest}):`, results);
+        if (results.returncode) {
+          let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+          errorLog(ErrorMsg);
+          return { success: false, error: ErrorMsg };
         }
-        return result;
-        
-      } else {
-        let ErrorMsg = await formatDMSError('execSetup', results.stderr);
-        errorLog(ErrorMsg);
-        return { success: false, error: ErrorMsg };
       }
+
+      result = deleteEntry('aliases', source, 'bySource', containerName);
+      if (result.success) {
+        successLog(`Alias deleted: ${source}`);
+        return { success: true, message: `Alias deleted: ${source}` };
+      }
+      return result;
     
     // this is regex, must stringify
     } else {
