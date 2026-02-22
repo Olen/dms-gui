@@ -42,6 +42,7 @@ vi.mock('./aliases.mjs', () => ({
 }));
 
 vi.mock('../common.mjs', () => ({
+  escapeShellArg: (arg) => `'${arg}'`,
   reduxArrayOfObjByValue: (array, key, values) =>
     array.filter(item => values.includes(item[key])),
 }));
