@@ -41,6 +41,7 @@ import {
 
 // const path = require('node:path');
 import * as childProcess from 'child_process';
+import dns from 'node:dns';
 import path from 'path';
 
 // returns a string
@@ -860,6 +861,7 @@ return envs;
 
 
 export const pullDkimRspamd = async (targetDict={}) => {
+  const cName = typeof targetDict === 'string' ? targetDict : targetDict?.containerName;
 
   // we pull only if ENABLE_RSPAMD=1 because we don't know what the openDKIM config looks like
   let envs = {};
@@ -873,7 +875,7 @@ export const pullDkimRspamd = async (targetDict={}) => {
       debugLog(`dkim file content:`, results.stdout);
       dkimConfig = await readDkimFile(results.stdout);
       debugLog(`dkim json:`, dkimConfig);
-      
+
       envs.DKIM_ENABLED   = dkimConfig?.enabled;
       envs.DKIM_SELECTOR  = dkimConfig?.selector || env.DKIM_SELECTOR_DEFAULT;
       envs.DKIM_PATH      = dkimConfig?.path;
@@ -887,7 +889,29 @@ export const pullDkimRspamd = async (targetDict={}) => {
             keysize = split[1];
           }
           if (item?.selector) {
-            results = dbRun(sql.domains.insert.domain, {domain:domain, dkim:item?.selector, keytype:keytype, keysize:keysize, path:(item?.path || envs.DKIM_PATH),scope:containerName});
+            results = dbRun(sql.domains.insert.domain, {domain:domain, dkim:item?.selector, keytype:keytype, keysize:keysize, path:(item?.path || envs.DKIM_PATH)}, cName);
+          }
+        }
+      } else if (envs.DKIM_PATH) {
+        // No per-domain config — discover domains from DKIM key directory
+        const dkimKeysDir = path.dirname(envs.DKIM_PATH.replace('$selector', envs.DKIM_SELECTOR).replace('$domain', ''));
+        const lsResult = await execCommand(`ls -1 ${dkimKeysDir}`, targetDict, { timeout: 5 });
+        if (!lsResult.returncode && lsResult.stdout) {
+          const domains = lsResult.stdout.trim().split('\n').filter(d => d && d.includes('.'));
+          infoLog(`Discovered ${domains.length} DKIM domains from ${dkimKeysDir}`);
+          for (const domain of domains) {
+            const keyPath = envs.DKIM_PATH.replace('$domain', domain).replace('$selector', envs.DKIM_SELECTOR);
+            // Detect key type and size
+            let keytype = '', keysize = '';
+            const keyInfo = await execCommand(`openssl pkey -in ${keyPath} -text -noout | head -1`, targetDict, { timeout: 5 });
+            if (!keyInfo.returncode && keyInfo.stdout) {
+              const match = keyInfo.stdout.match(/(?:(RSA|EC|ED25519)\s+)?Private-Key:\s*\((\d+)\s*bit/i);
+              if (match) {
+                keysize = match[2];
+                keytype = (match[1] || 'rsa').toLowerCase();
+              }
+            }
+            results = dbRun(sql.domains.insert.domain, {domain:domain, dkim:envs.DKIM_SELECTOR, keytype:keytype, keysize:keysize, path:keyPath}, cName);
           }
         }
       }
@@ -1163,7 +1187,7 @@ export const getDomain = async (containerName=null, name=null) => {
 
   try {
     
-    const domain = dbGet(sql.domains.select.domain, {scope:containerName}, name);
+    const domain = dbGet(sql.domains.select.domain, {name:containerName}, name);
     return {success: true, message: domain};
     
   } catch (error) {
@@ -1185,7 +1209,7 @@ export const getDomains = async (containerName=null, name=null) => {
   
   try {
     
-    const domains = dbAll(sql.domains.select.domains, {scope:containerName});
+    const domains = dbAll(sql.domains.select.domains, {name:containerName});
     if (domains.success) {
       debugLog(`domains: domains (${typeof domains.message})`);
       
@@ -1446,6 +1470,46 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
 
   } catch (error) {
     errorLog(`getRspamdCounters error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
+// DNS lookup for a domain: A, MX, SPF, DKIM, DMARC records
+export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
+  debugLog(`dnsLookup domain=${domain} selector=${dkimSelector}`);
+  if (!domain) return { success: false, error: 'dnsLookup: domain is required' };
+
+  const result = { domain, a: [], mx: [], spf: null, dkim: null, dmarc: null };
+
+  try {
+    try { result.a = await dns.promises.resolve4(domain); } catch (e) { /* no A records */ }
+
+    try {
+      const mx = await dns.promises.resolveMx(domain);
+      result.mx = mx.sort((a, b) => a.priority - b.priority);
+    } catch (e) { /* no MX records */ }
+
+    try {
+      const txtRecords = await dns.promises.resolveTxt(domain);
+      const spfRecord = txtRecords.find(r => r.join('').startsWith('v=spf1'));
+      if (spfRecord) result.spf = spfRecord.join('');
+    } catch (e) { /* no TXT records */ }
+
+    try {
+      const dkimRecords = await dns.promises.resolveTxt(`${dkimSelector}._domainkey.${domain}`);
+      if (dkimRecords.length) result.dkim = dkimRecords[0].join('');
+    } catch (e) { /* no DKIM record */ }
+
+    try {
+      const dmarcRecords = await dns.promises.resolveTxt(`_dmarc.${domain}`);
+      if (dmarcRecords.length) result.dmarc = dmarcRecords[0].join('');
+    } catch (e) { /* no DMARC record */ }
+
+    return { success: true, message: result };
+
+  } catch (error) {
+    errorLog(`dnsLookup error:`, error.message);
     return { success: false, error: error.message };
   }
 };

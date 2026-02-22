@@ -149,6 +149,27 @@
     "hits": "Trafienia",
     "time": "Śr. czas"
   },
+  "domains": {
+    "sidebar": "Domeny i DNS",
+    "title": "Domeny i DNS",
+    "domain": "Domena",
+    "dkim": "Selektor DKIM",
+    "keytype": "Typ klucza",
+    "keysize": "Rozmiar klucza",
+    "dnsStatus": "Status DNS",
+    "checkDns": "Sprawdź DNS",
+    "checkAllDns": "Sprawdź wszystkie DNS",
+    "aRecord": "Rekordy A",
+    "mxRecord": "Rekordy MX",
+    "spfRecord": "Rekord SPF",
+    "dkimRecord": "Rekord DKIM",
+    "dmarcRecord": "Rekord DMARC",
+    "found": "Znaleziono",
+    "missing": "Nie znaleziono",
+    "noDomains": "Nie znaleziono domen. Odśwież środowisko w Ustawieniach, aby wypełnić listę domen.",
+    "noDnsData": "Brak danych DNS. Kliknij Sprawdź DNS.",
+    "dnsDetails": "Szczegóły DNS"
+  },
   "language": {
     "select": "Wybierz Język",
     "en": "Angielski",

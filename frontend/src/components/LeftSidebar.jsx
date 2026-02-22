@@ -97,6 +97,11 @@ const LeftSidebar = () => {
             <span> {Translate('settings.sidebar')}</span>
           </Nav.Link>
 
+          <Nav.Link as={NavLink} to="/domains" style={getNavLinkStyle}>
+            <i className="bi bi-globe me-2"></i>
+            <span> {Translate('domains.sidebar')}</span>
+          </Nav.Link>
+
           {enableRspamd && (
             <Nav.Link as={NavLink} to="/rspamd" style={getNavLinkStyle}>
               <i className="bi bi-shield-check me-2"></i>

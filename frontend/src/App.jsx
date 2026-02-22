@@ -8,6 +8,7 @@ import Aliases from './pages/Aliases';
 import Settings from './pages/Settings';
 import Logins from './pages/Logins';
 import Profile from './pages/Profile';
+import Domains from './pages/Domains';
 import Rspamd from './pages/Rspamd';
 
 import Container from 'react-bootstrap/Container'; // Import Container
@@ -58,6 +59,7 @@ function App() {
                 <Route path="/aliases"    element={<ProtectedRoute        ><Aliases   key="aliases"   /></ProtectedRoute>} />
                 <Route path="/settings"   element={<ProtectedRoute isAdmin><Settings  key="settings"  /></ProtectedRoute>} />
                 <Route path="/profile"    element={<ProtectedRoute        ><Profile   key="profile"   /></ProtectedRoute>} />
+                <Route path="/domains"    element={<ProtectedRoute isAdmin><Domains   key="domains"   /></ProtectedRoute>} />
                 <Route path="/rspamd"     element={<ProtectedRoute isAdmin><Rspamd    key="rspamd"    /></ProtectedRoute>} />
               </Routes>
           </Col>{' '}

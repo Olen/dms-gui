@@ -395,7 +395,22 @@ export const getDomains = async (containerName=null, name) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 
   try {
-    const response = await api.get(`/getDomains/${containerName}/${name}`);
+    let path = `/domains/${containerName}`;
+    if (name) path += `/${name}`;
+    const response = await api.get(path);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const getDnsLookup = async (containerName=null, domain) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!domain) return {success: false, error: 'domain is required'};
+
+  try {
+    const response = await api.get(`/dns/${containerName}/${domain}`);
     return response.data;
   } catch (error) {
     errorLog(error.message);

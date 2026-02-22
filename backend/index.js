@@ -24,6 +24,7 @@ import {
 } from './logins.mjs';
 
 import {
+  dnsLookup,
   getConfigs,
   getDomains,
   getNodeInfos,
@@ -1673,6 +1674,62 @@ async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
+// Endpoint for DNS lookup of a domain
+/**
+ * @swagger
+ * /api/dns/{containerName}/{domain}:
+ *   get:
+ *     summary: DNS lookup for a domain
+ *     description: Retrieve A, MX, SPF, DKIM, DMARC records for a domain
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Domain to look up
+ *     responses:
+ *       200:
+ *         description: DNS records for the domain
+ *       400:
+ *         description: Something is missing
+ *       500:
+ *         description: Unable to perform DNS lookup
+ */
+app.get('/api/dns/:containerName/:domain',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, domain } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+
+    // Try to get DKIM selector from domain DB entry
+    let dkimSelector = 'dkim';
+    try {
+      const domainInfo = await getDomains(containerName, domain);
+      const dkim = domainInfo?.message?.message?.dkim || domainInfo?.message?.dkim;
+      if (dkim) dkimSelector = dkim;
+    } catch (e) { /* fall back to default selector */ }
+
+    const result = await dnsLookup(domain, dkimSelector);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index GET /api/dns: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 
 // Endpoint for rspamd statistics
 /**
