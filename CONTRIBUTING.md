@@ -274,7 +274,7 @@ docker buildx build --builder=multiarch --platform linux/amd64,linux/arm64/v8 -t
 * [x] 1.4.9 - getScopes now takes roles to spit out only containers associated with roles
 * [x] 1.4.8 - upgraded all modules
 * [x] 1.4.8 - frontend/Settings: introduce restart dms-gui button and added killMe(errorcode)
-* [x] 1.4.8 - introduce DMSGUI_CRON=`* 1 23 * * *` to alter the daily container restart set at 11PM
+* [x] 1.4.8 - introduce DMSGUI_CRON=`0 1 23 * * *` to alter the daily container restart set at 11PM
 * [x] 1.4.8 - npm install --save node-cron
 * [x] 1.4.7 - security: backend actually checks for user roles and whatnot
 * [x] 1.4.7 - added refreshToken column to logins table
