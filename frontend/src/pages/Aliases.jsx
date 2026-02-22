@@ -226,7 +226,9 @@ const Aliases = () => {
   // Column definitions for aliases table
   const columns = [
     { key: 'source', label: 'aliases.sourceAddress' },
-    { key: 'destination', label: 'aliases.destinationAddress' },
+    { key: 'destination', label: 'aliases.destinationAddress',
+      render: (alias) => alias.destination?.split(',').join(', '),
+    },
     {
       key: 'actions',
       label: 'common.actions',
