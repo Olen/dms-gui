@@ -88,8 +88,9 @@ export const fixStringType = string => {
 
 
 export const jsonFixTrailingCommas = (jsonString, returnJson=false) => {
-  var jsonObj;
-  eval('jsonObj = ' + jsonString);
+  // Strip trailing commas before ] or } (with optional whitespace)
+  const cleaned = jsonString.replace(/,\s*([}\]])/g, '$1');
+  const jsonObj = JSON.parse(cleaned);
   if (returnJson) return jsonObj;
   else return JSON.stringify(jsonObj);
 };
