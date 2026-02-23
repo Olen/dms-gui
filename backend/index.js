@@ -872,8 +872,11 @@ async (req, res) => {
 
     } else {
       // Check if alias creation is allowed for non-admin users
-      const allowSetting = await getSetting('userconfig', containerName, 'ALLOW_USER_ALIASES');
-      if (!allowSetting.success || allowSetting.message !== 'true') {
+      const allowResult = dbGet(
+        `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
+        {}, 'userconfig', containerName, 'ALLOW_USER_ALIASES'
+      );
+      if (!allowResult.success || allowResult.message?.value !== 'true') {
         return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
       }
 
@@ -949,8 +952,11 @@ async (req, res) => {
 
     } else {
       // Check if alias management is allowed for non-admin users
-      const allowSetting = await getSetting('userconfig', containerName, 'ALLOW_USER_ALIASES');
-      if (!allowSetting.success || allowSetting.message !== 'true') {
+      const allowResult = dbGet(
+        `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
+        {}, 'userconfig', containerName, 'ALLOW_USER_ALIASES'
+      );
+      if (!allowResult.success || allowResult.message?.value !== 'true') {
         return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
       }
 
@@ -1033,13 +1039,22 @@ async (req, res) => {
     const { containerName } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
 
-    const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES'];
+    const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES', 'RSPAMD_URL'];
     const settings = {};
 
-    for (const name of publicKeys) {
-      const result = await getSetting('userconfig', containerName, name);
-      if (result.success && result.message) {
-        settings[name] = result.message;
+    // Read directly from DB — getSetting's SQL has a correlated subquery bug
+    // that fails when multiple configs share the same plugin name
+    const allSettings = dbAll(
+      `SELECT s.name, s.value FROM settings s
+       JOIN configs c ON s.configID = c.id
+       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
+      {}, 'userconfig', containerName
+    );
+    if (allSettings.success && allSettings.message) {
+      for (const row of allSettings.message) {
+        if (publicKeys.includes(row.name)) {
+          settings[row.name] = row.value;
+        }
       }
     }
 

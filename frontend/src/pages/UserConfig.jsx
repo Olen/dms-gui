@@ -10,7 +10,7 @@ import {
 } from '../../frontend.mjs';
 
 import {
-  getSettings,
+  getUserSettings,
   getServerEnvs,
   saveSettings,
 } from '../services/api.mjs';
@@ -55,16 +55,15 @@ function UserConfig() {
       setLoading(true);
       setErrorMessage(null);
 
-      // Load existing settings from DB
-      const result = await getSettings('userconfig', containerName);
+      // Load existing settings from DB via user-settings endpoint (bypasses broken getSetting SQL)
+      const result = await getUserSettings(containerName);
       debugLog('UserConfig loadSettings result:', result);
 
       const loaded = { ...formData };
       if (result.success && result.message) {
-        const settings = Array.isArray(result.message) ? result.message : [result.message];
-        for (const s of settings) {
-          if (s.name && settingNames.includes(s.name)) {
-            loaded[s.name] = s.value || '';
+        for (const name of settingNames) {
+          if (result.message[name] !== undefined) {
+            loaded[name] = result.message[name];
           }
         }
       }
