@@ -1051,9 +1051,10 @@ async (req, res) => {
     const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
     if (mailbox) {
       try {
+        const mb = mailbox.replace(/[%_\\]/g, '\\$&');
         const aliasRows = dbAll(
-          `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? OR destination LIKE ? OR destination LIKE ?`,
-          {}, mailbox, `${mailbox},%`, `%,${mailbox},%`, `%,${mailbox}`
+          `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
+          {}, mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`
         );
         if (aliasRows.success && aliasRows.message?.[0]) {
           settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
@@ -1087,9 +1088,10 @@ async (req, res) => {
     // Use exact or comma-delimited match (not LIKE substring) to prevent cross-user data leakage
     const addresses = [mailbox];
     try {
+      const mb = mailbox.replace(/[%_\\]/g, '\\$&');
       const aliasRows = dbAll(
-        `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? OR destination LIKE ? OR destination LIKE ?`,
-        {}, mailbox, `${mailbox},%`, `%,${mailbox},%`, `%,${mailbox}`
+        `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
+        {}, mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`
       );
       if (aliasRows.success && aliasRows.message) {
         for (const row of aliasRows.message) {
