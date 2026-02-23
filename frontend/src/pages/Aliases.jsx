@@ -281,11 +281,36 @@ const Aliases = () => {
     },
   ];
 
-  const isAdmin = user.isAdmin == 1;
+  const isAdmin = Boolean(user.isAdmin);
 
   // Prepare account options for the select field
   // Admin: all accounts + can type external emails
   // Non-admin: only their own roles (mailboxes they have access to)
+  const selectStyles = {
+    control: (base, state) => ({
+      ...base,
+      borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
+      boxShadow: formErrors.destination
+        ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+        : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
+      '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
+    }),
+    multiValue: (base) => ({
+      ...base,
+      backgroundColor: '#e7f1ff',
+      borderRadius: '4px',
+    }),
+    multiValueLabel: (base) => ({
+      ...base,
+      color: '#0d6efd',
+    }),
+    multiValueRemove: (base) => ({
+      ...base,
+      color: '#0d6efd',
+      '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
+    }),
+  };
+
   const accountOptions = isAdmin
     ? accounts.map((account) => ({ value: account.mailbox, label: account.mailbox }))
     : (user.roles || []).map((mailbox) => ({ value: mailbox, label: mailbox }));
@@ -343,30 +368,7 @@ const Aliases = () => {
                     placeholder={t('aliases.selectDestination')}
                     formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
                     noOptionsMessage={() => t('aliases.typeToAdd')}
-                    styles={{
-                      control: (base, state) => ({
-                        ...base,
-                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
-                        boxShadow: formErrors.destination
-                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
-                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
-                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
-                      }),
-                      multiValue: (base) => ({
-                        ...base,
-                        backgroundColor: '#e7f1ff',
-                        borderRadius: '4px',
-                      }),
-                      multiValueLabel: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                      }),
-                      multiValueRemove: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
-                      }),
-                    }}
+                    styles={selectStyles}
                   />
                 ) : (
                   <Select
@@ -377,30 +379,7 @@ const Aliases = () => {
                     options={accountOptions}
                     placeholder={t('aliases.selectDestination')}
                     noOptionsMessage={() => t('aliases.noRoles')}
-                    styles={{
-                      control: (base, state) => ({
-                        ...base,
-                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
-                        boxShadow: formErrors.destination
-                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
-                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
-                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
-                      }),
-                      multiValue: (base) => ({
-                        ...base,
-                        backgroundColor: '#e7f1ff',
-                        borderRadius: '4px',
-                      }),
-                      multiValueLabel: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                      }),
-                      multiValueRemove: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
-                      }),
-                    }}
+                    styles={selectStyles}
                   />
                 )}
                 {formErrors.destination && (
