@@ -97,51 +97,7 @@ const LeftSidebar = () => {
       />
     </div>
     </>
-
   );
 };
 
 export default LeftSidebar;
-
-            // <Nav.Link as={NavLink} to="/" style={getNavLinkStyle} end>
-              // <i className="bi bi-speedometer2 me-2"></i> {t('sidebar.dashboard')}
-            // </Nav.Link>
-
-
-// https://arkumari2000.medium.com/responsive-partially-opened-sidebar-in-ractjs-using-bootstrap-7b1ef5c7ea60
-          // <div className="leftsidebar-header">
-            // <img
-              // src={image}
-              // className="rounded-circle usr-image"
-              // height={isNotActive ? "20" : "70"}
-              // width={isNotActive ? "20" : "70"}
-            // ></img>
-            // <h3>User Name</h3>
-          // </div>
-          
-          // <ul className="list-unstyled components">
-            // <li className="list-item">
-              // <i className="fas fa-sitemap icon-color"></i>
-              // <Link to="/organization-profile">Organization</Link>
-            // </li>
-
-              // <ul
-                // className={
-                  // isDropdownActive ? "list-unstyled  dropdown-collapsed" : "list-unstyled"
-                // }
-                // id="homeSubmenu"
-              // >
-                // <li className="dropdown-item">
-                  // <Link to="/portfolio">Portfolio</Link>
-                  // <a href="#">Portfolio</a>
-                // </li>
-                // <li className="dropdown-item">
-                  // <Link to="/personal-details">Personal Details</Link>
-                // </li>
-                // <li className="dropdown-item">
-                  // <Link to="/additional-info">Additional Info</Link>
-                // </li>
-                // <li className="dropdown-item">
-                  // <Link to="/personal-background">Personal Background</Link>
-                // </li>
-              // </ul>
