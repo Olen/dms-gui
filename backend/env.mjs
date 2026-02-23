@@ -195,29 +195,67 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
           try:
             logger(f"Executing command: {command}")
 
-            # Support shell pipes without shell=True: split on |,
-            # shlex.split() each stage, chain via subprocess.Popen
-            stages = [s.strip() for s in command.split('|')]
-            prev_proc = None
-            procs = []
+            def run_pipeline(cmd):
+              """Run a single command or pipeline (supports | and > / >>)."""
+              # Split on pipe
+              stages = [s.strip() for s in cmd.split('|')]
+              last_stage = stages[-1]
+              redir_file = None
+              redir_mode = None
 
-            for stage in stages:
-              stdin = prev_proc.stdout if prev_proc else None
-              proc = subprocess.Popen(shlex.split(stage),
-                                      stdin=stdin,
-                                      stdout=subprocess.PIPE,
-                                      stderr=subprocess.PIPE,
-                                      text=True)
-              if prev_proc:
-                prev_proc.stdout.close()
-              procs.append(proc)
-              prev_proc = proc
+              # Check last stage for output redirection (>> or >)
+              if '>>' in last_stage:
+                parts = last_stage.split('>>', 1)
+                stages[-1] = parts[0].strip()
+                redir_file = parts[1].strip()
+                redir_mode = 'a'
+              elif '>' in last_stage:
+                parts = last_stage.split('>', 1)
+                stages[-1] = parts[0].strip()
+                redir_file = parts[1].strip()
+                redir_mode = 'w'
 
-            stdout, stderr = prev_proc.communicate(timeout=timeout)
-            returncode = prev_proc.returncode
+              # Remove empty stages (e.g. "echo foo >> file" leaves empty after split)
+              stages = [s for s in stages if s]
 
-            for p in procs[:-1]:
-              p.wait()
+              prev_proc = None
+              procs = []
+              for stage in stages:
+                stdin_src = prev_proc.stdout if prev_proc else None
+                proc = subprocess.Popen(shlex.split(stage),
+                                        stdin=stdin_src,
+                                        stdout=subprocess.PIPE,
+                                        stderr=subprocess.PIPE,
+                                        text=True)
+                if prev_proc:
+                  prev_proc.stdout.close()
+                procs.append(proc)
+                prev_proc = proc
+
+              out, err = prev_proc.communicate(timeout=timeout)
+              for p in procs[:-1]:
+                p.wait()
+
+              # Handle file redirection
+              if redir_file and prev_proc.returncode == 0:
+                with open(redir_file, redir_mode) as f:
+                  f.write(out)
+                out = ''
+
+              return prev_proc.returncode, out, err
+
+            # Split on && for command chaining
+            chain = [c.strip() for c in command.split('&&')]
+            stdout = ''
+            stderr = ''
+            returncode = 0
+
+            for sub_cmd in chain:
+              returncode, out, err = run_pipeline(sub_cmd)
+              stdout += out
+              stderr += err
+              if returncode != 0:
+                break
 
             debugg(f"result returncode: {returncode}")
 
