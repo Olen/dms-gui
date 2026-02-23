@@ -27,6 +27,9 @@ vi.mock('react-i18next', () => ({
         'aliases.invalidSourceDomain': 'Domain not managed',
         'aliases.addExternal': 'Add',
         'aliases.typeToAdd': 'Type an email address and press Enter',
+        'aliases.sourceAlreadyExists': 'An alias with this source address already exists',
+        'aliases.sourceIsAccount': 'This address is already a mailbox account',
+        'aliases.noRoles': 'No mailboxes available',
         'common.for': `for ${opts?.what || ''}`,
         'common.actions': 'Actions',
       };
@@ -43,6 +46,7 @@ vi.mock('../../frontend.mjs', () => ({
 vi.mock('../../../common.mjs', () => ({
   regexEmailRegex: /^\/[\S]+@[\S]+\/$/,
   regexEmailStrict: /^([\w.\-_]+)@([\w.\-_]+)$/,
+  regexEmailLax: /^([\S]+)@([\S]+)$/,
   pluck: (array, key) => [...new Set(array.map(item => item[key]))].sort(),
 }));
 
@@ -93,8 +97,9 @@ vi.mock('../hooks/useLocalStorage', () => ({
   },
 }));
 
+let mockUser = { isAdmin: true };
 vi.mock('../hooks/useAuth', () => ({
-  useAuth: () => ({ user: { isAdmin: true } }),
+  useAuth: () => ({ user: mockUser }),
 }));
 
 import Aliases from './Aliases.jsx';
@@ -166,6 +171,7 @@ async function renderAliases() {
 describe('Aliases — multi-destination CreatableSelect', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockUser = { isAdmin: true };
     setupMocks();
   });
 
@@ -215,9 +221,9 @@ describe('Aliases — multi-destination CreatableSelect', () => {
   it('submits comma-separated destinations to addAlias', async () => {
     await renderAliases();
 
-    // Fill source
+    // Fill source (use address that doesn't exist as alias or account)
     const sourceInput = screen.getByPlaceholderText('alias@domain.com');
-    fireEvent.change(sourceInput, { target: { value: 'info@example.com', name: 'source', type: 'text' } });
+    fireEvent.change(sourceInput, { target: { value: 'sales@example.com', name: 'source', type: 'text' } });
 
     // Select two destinations
     await selectOption('alice@example.com');
@@ -231,7 +237,7 @@ describe('Aliases — multi-destination CreatableSelect', () => {
     await waitFor(() => {
       expect(mockAddAlias).toHaveBeenCalledWith(
         'test-mailserver',
-        'info@example.com',
+        'sales@example.com',
         'alice@example.com,bob@example.com'
       );
     });
@@ -240,9 +246,9 @@ describe('Aliases — multi-destination CreatableSelect', () => {
   it('submits with a mix of existing and custom destinations', async () => {
     await renderAliases();
 
-    // Fill source
+    // Fill source (use address that doesn't exist as alias or account)
     const sourceInput = screen.getByPlaceholderText('alias@domain.com');
-    fireEvent.change(sourceInput, { target: { value: 'info@example.com', name: 'source', type: 'text' } });
+    fireEvent.change(sourceInput, { target: { value: 'sales@example.com', name: 'source', type: 'text' } });
 
     // Select an existing account
     await selectOption('alice@example.com');
@@ -258,7 +264,7 @@ describe('Aliases — multi-destination CreatableSelect', () => {
     await waitFor(() => {
       expect(mockAddAlias).toHaveBeenCalledWith(
         'test-mailserver',
-        'info@example.com',
+        'sales@example.com',
         'alice@example.com,external@other.com'
       );
     });
@@ -286,9 +292,9 @@ describe('Aliases — multi-destination CreatableSelect', () => {
   it('resets destination after successful submit', async () => {
     await renderAliases();
 
-    // Fill source
+    // Fill source (use address that doesn't exist as alias or account)
     const sourceInput = screen.getByPlaceholderText('alias@domain.com');
-    fireEvent.change(sourceInput, { target: { value: 'info@example.com', name: 'source', type: 'text' } });
+    fireEvent.change(sourceInput, { target: { value: 'sales@example.com', name: 'source', type: 'text' } });
 
     // Select a destination
     await selectOption('alice@example.com');
@@ -342,6 +348,43 @@ describe('Aliases — multi-destination CreatableSelect', () => {
     });
   });
 
+  it('shows error when source already exists as an alias', async () => {
+    await renderAliases();
+
+    const sourceInput = screen.getByPlaceholderText('alias@domain.com');
+    fireEvent.change(sourceInput, { target: { value: 'info@example.com', name: 'source', type: 'text' } });
+
+    await selectOption('alice@example.com');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('aliases.addAlias'));
+    });
+
+    // AlertMessage renders the translation key directly
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-danger')).toHaveTextContent('aliases.sourceAlreadyExists');
+    });
+    expect(mockAddAlias).not.toHaveBeenCalled();
+  });
+
+  it('shows error when source already exists as an account', async () => {
+    await renderAliases();
+
+    const sourceInput = screen.getByPlaceholderText('alias@domain.com');
+    fireEvent.change(sourceInput, { target: { value: 'alice@example.com', name: 'source', type: 'text' } });
+
+    await selectOption('bob@example.com');
+
+    await act(async () => {
+      fireEvent.click(screen.getByText('aliases.addAlias'));
+    });
+
+    await waitFor(() => {
+      expect(screen.getByTestId('alert-danger')).toHaveTextContent('aliases.sourceIsAccount');
+    });
+    expect(mockAddAlias).not.toHaveBeenCalled();
+  });
+
   it('clears destination error when a destination is selected', async () => {
     await renderAliases();
 
@@ -363,5 +406,42 @@ describe('Aliases — multi-destination CreatableSelect', () => {
     await waitFor(() => {
       expect(screen.queryByText('Destination address is required')).not.toBeInTheDocument();
     });
+  });
+});
+
+
+describe('Aliases — non-admin user restrictions', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser = { isAdmin: false, roles: ['alice@example.com'] };
+    setupMocks();
+  });
+
+  it('shows only user roles as destination options (not all accounts)', async () => {
+    await renderAliases();
+    await openSelectMenu();
+
+    await waitFor(() => {
+      expect(screen.getByText('alice@example.com')).toBeInTheDocument();
+    });
+    // bob@example.com is an account but not in user's roles
+    expect(screen.queryByText('bob@example.com')).not.toBeInTheDocument();
+  });
+
+  it('does not allow typing custom external addresses', async () => {
+    await renderAliases();
+
+    const input = getSelectInput();
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: 'external@other.com' } });
+    });
+
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 50));
+    });
+
+    // The "Add: ..." create label should not appear for non-admin
+    expect(screen.queryByText(/Add.*external@other\.com/)).not.toBeInTheDocument();
   });
 });

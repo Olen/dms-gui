@@ -155,6 +155,9 @@
     "sourceRegex": "Source Address (<strong>Regex</strong>)",
     "sourceInfo": "This is the address mail will be sent to.",
     "sourceRequired": "Source address is required",
+    "sourceAlreadyExists": "An alias with this source address already exists",
+    "sourceIsAccount": "This address is already a mailbox account — use a different source",
+    "noRoles": "No mailboxes available",
     "sidebar": "Aliases",
     "title": "Aliases Management"
   },
