@@ -1043,6 +1043,17 @@ async (req, res) => {
       }
     }
 
+    // Count aliases for this user
+    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+    if (mailbox) {
+      try {
+        const aliasRows = dbAll(`SELECT COUNT(*) as count FROM aliases WHERE destination LIKE ?`, {}, `%${mailbox}%`);
+        if (aliasRows.success && aliasRows.message?.[0]) {
+          settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
+        }
+      } catch (e) { /* non-critical */ }
+    }
+
     res.json({ success: true, message: settings });
 
   } catch (error) {
