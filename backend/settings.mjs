@@ -1399,10 +1399,14 @@ export const getRspamdUserHistory = async (plugin = 'mailserver', containerName 
       const rows = history.rows || [];
 
       // Filter rows where recipient matches user's mailbox
-      const userRows = rows.filter(row =>
-        (row.rcpt_smtp && row.rcpt_smtp.toLowerCase().includes(mailbox.toLowerCase())) ||
-        (row.rcpt_mime && row.rcpt_mime.toLowerCase().includes(mailbox.toLowerCase()))
-      );
+      // rcpt_smtp and rcpt_mime are arrays of strings
+      const mb = mailbox.toLowerCase();
+      const matchesMailbox = (field) => {
+        if (!field) return false;
+        if (Array.isArray(field)) return field.some(r => r.toLowerCase().includes(mb));
+        return String(field).toLowerCase().includes(mb);
+      };
+      const userRows = rows.filter(row => matchesMailbox(row.rcpt_smtp) || matchesMailbox(row.rcpt_mime));
 
       const total = userRows.length;
       const spam = userRows.filter(r => r.action === 'add header' || r.action === 'reject' || r.action === 'rewrite subject').length;
