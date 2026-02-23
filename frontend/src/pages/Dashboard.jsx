@@ -10,6 +10,7 @@ import {
 import {
   getServerStatus,
   getUserSettings,
+  getRspamdUserSummary,
   killContainer,
 } from '../services/api.mjs';
 
@@ -52,6 +53,7 @@ const Dashboard = () => {
   const [isStatusLoading, setStatusLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
+  const [spamSummary, setSpamSummary] = useState(null);
 
   useEffect(() => {
     fetchAll();
@@ -64,7 +66,10 @@ const Dashboard = () => {
 
   const fetchAll = async () => {
     fetchDashboard();
-    if (user?.isAdmin != 1) fetchUserSettings();
+    if (user?.isAdmin != 1) {
+      fetchUserSettings();
+      fetchSpamSummary();
+    }
   };
 
   const fetchUserSettings = async () => {
@@ -74,6 +79,16 @@ const Dashboard = () => {
       if (result.success) setUserSettings(result.message);
     } catch (error) {
       // Non-critical - settings may not be configured yet
+    }
+  };
+
+  const fetchSpamSummary = async () => {
+    if (!containerName) return;
+    try {
+      const result = await getRspamdUserSummary(containerName);
+      if (result.success) setSpamSummary(result.message);
+    } catch (error) {
+      // Non-critical - rspamd may not be enabled
     }
   };
 
@@ -329,6 +344,44 @@ const Dashboard = () => {
                   </tr>
                 </tbody>
               </table>
+            </Card>
+          </Col>
+        </Row>
+      )}
+
+      {/* Spam summary */}
+      {spamSummary && (
+        <Row>
+          <Col md={12} className="mb-3">
+            <Card title="dashboard.user.spamSummary" icon="shield-check">
+              <p className="mb-2">
+                {t('dashboard.user.messagesScanned', { total: spamSummary.total })} &mdash;{' '}
+                <span className="text-success">{t('dashboard.user.hamCount', { count: spamSummary.ham })}</span>,{' '}
+                <span className="text-danger">{t('dashboard.user.spamCount', { count: spamSummary.spam })}</span>
+              </p>
+              {spamSummary.recentSpam && spamSummary.recentSpam.length > 0 && (
+                <>
+                  <h6 className="mb-2">{t('dashboard.user.recentSpam')}</h6>
+                  <table className="table table-sm mb-0">
+                    <thead>
+                      <tr>
+                        <th>{t('dashboard.user.subject')}</th>
+                        <th>{t('dashboard.user.score')}</th>
+                        <th>{t('dashboard.user.action')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {spamSummary.recentSpam.map((item, i) => (
+                        <tr key={i}>
+                          <td className="text-truncate" style={{maxWidth:'400px'}}>{item.subject}</td>
+                          <td><span className="text-danger">{item.score?.toFixed(1)}</span></td>
+                          <td>{item.action}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              )}
             </Card>
           </Col>
         </Row>

@@ -32,7 +32,15 @@
       "profile": "Mój profil",
       "mailConfig": "Konfiguracja klienta poczty",
       "username": "Nazwa użytkownika",
-      "yourEmail": "Twój adres email"
+      "yourEmail": "Twój adres email",
+      "spamSummary": "Podsumowanie spamu",
+      "messagesScanned": "{{total}} wiadomości przeskanowanych",
+      "hamCount": "{{count}} czystych",
+      "spamCount": "{{count}} spam",
+      "recentSpam": "Ostatni spam",
+      "subject": "Temat",
+      "score": "Wynik",
+      "action": "Akcja"
     }
   },
   "accounts": {

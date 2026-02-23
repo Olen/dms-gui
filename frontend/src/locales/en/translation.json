@@ -55,7 +55,15 @@
       "profile": "My Profile",
       "mailConfig": "Mail Client Configuration",
       "username": "Username",
-      "yourEmail": "Your email address"
+      "yourEmail": "Your email address",
+      "spamSummary": "Spam Summary",
+      "messagesScanned": "{{total}} messages scanned",
+      "hamCount": "{{count}} clean",
+      "spamCount": "{{count}} spam",
+      "recentSpam": "Recent spam",
+      "subject": "Subject",
+      "score": "Score",
+      "action": "Action"
     }
   },
   "logins": {

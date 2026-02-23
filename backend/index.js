@@ -27,6 +27,7 @@ import {
   getConfigs,
   getDomains,
   getNodeInfos,
+  getRspamdUserHistory,
   getSetting,
   getServerEnvs,
   getServerStatus,
@@ -1028,6 +1029,29 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`GET /api/user-settings: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for per-user rspamd summary (no admin required)
+app.get('/api/rspamd/:containerName/user-summary',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    // Determine the user's mailbox
+    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+    if (!mailbox) return res.status(400).json({ success: false, error: 'No mailbox associated with this user' });
+
+    const result = await getRspamdUserHistory('mailserver', containerName, mailbox);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/rspamd/user-summary: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
