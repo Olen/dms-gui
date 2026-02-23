@@ -27,6 +27,7 @@ import {
   getConfigs,
   getDomains,
   getNodeInfos,
+  getSetting,
   getServerEnvs,
   getServerStatus,
   getSettings,
@@ -991,6 +992,34 @@ async (req, res) => {
   } catch (error) {
     errorLog(`GET /api/settings: ${error.message}`);
     // res.status(500).json({ error: 'Unable to retrieve settings' });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for retrieving public user-facing settings (no admin required)
+app.get('/api/user-settings/:containerName',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES'];
+    const settings = {};
+
+    for (const name of publicKeys) {
+      const result = await getSetting('dms-gui', containerName, name);
+      if (result.success && result.message) {
+        settings[name] = result.message;
+      }
+    }
+
+    res.json({ success: true, message: settings });
+
+  } catch (error) {
+    errorLog(`GET /api/user-settings: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

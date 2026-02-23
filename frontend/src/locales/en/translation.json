@@ -222,9 +222,27 @@
     "name": "Name",
     "sidebar": "Settings",
     "titleDMSselector": "Select current DMS",
+    "titleUserConfig": "User Settings",
     "title": "Settings",
     "value": "Value",
-    "version": "Version"
+    "version": "Version",
+    "userConfig": {
+      "webmail": "Webmail",
+      "webmailUrl": "Webmail URL",
+      "webmailUrlHelp": "URL to your webmail interface (e.g. Roundcube). Shown to non-admin users on their dashboard.",
+      "mailConfig": "Mail Client Configuration",
+      "imapHost": "IMAP Host",
+      "imapPort": "IMAP Port",
+      "smtpHost": "SMTP Host",
+      "smtpPort": "SMTP Port",
+      "pop3Host": "POP3 Host",
+      "pop3Port": "POP3 Port",
+      "permissions": "User Permissions",
+      "allowUserAliases": "Allow non-admin users to create and delete aliases",
+      "rspamd": "Rspamd",
+      "rspamdUrl": "Rspamd Web UI URL",
+      "rspamdUrlHelp": "URL to the rspamd web interface. Stored in database (shared across all browsers)."
+    }
   },
   "common": {
     "actions": "Actions",

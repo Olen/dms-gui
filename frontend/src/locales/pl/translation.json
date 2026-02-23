@@ -94,7 +94,25 @@
     "setupPath": "Ścieżka do skryptu setup.sh",
     "setupPathHelp": "Pełna ścieżka do skryptu setup.sh w instalacji docker-mailserver.",
     "title": "Ustawienia",
-    "version": "Wersja"
+    "titleUserConfig": "Ustawienia użytkownika",
+    "version": "Wersja",
+    "userConfig": {
+      "webmail": "Webmail",
+      "webmailUrl": "URL Webmail",
+      "webmailUrlHelp": "URL interfejsu webmail (np. Roundcube). Wyświetlany użytkownikom na ich pulpicie.",
+      "mailConfig": "Konfiguracja klienta poczty",
+      "imapHost": "Host IMAP",
+      "imapPort": "Port IMAP",
+      "smtpHost": "Host SMTP",
+      "smtpPort": "Port SMTP",
+      "pop3Host": "Host POP3",
+      "pop3Port": "Port POP3",
+      "permissions": "Uprawnienia użytkownika",
+      "allowUserAliases": "Pozwól użytkownikom na tworzenie i usuwanie aliasów",
+      "rspamd": "Rspamd",
+      "rspamdUrl": "URL interfejsu Rspamd",
+      "rspamdUrlHelp": "URL interfejsu rspamd. Przechowywany w bazie danych."
+    }
   },
   "common": {
     "loading": "Ładowanie...",

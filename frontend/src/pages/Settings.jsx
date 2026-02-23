@@ -39,6 +39,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 // https://www.google.com/search?client=firefox-b-1-d&q=react+page+with+two+independent+form++onSubmit+&sei=U53haML6LsfYkPIP9ofv2AM
 import FormContainerAdd from './FormContainerAdd';
 import ServerInfos from './ServerInfos';
+import UserConfig from './UserConfig';
 
 
 const Settings = () => {
@@ -52,18 +53,18 @@ const Settings = () => {
   const handleInfosReceived = (infos) => {
     try {
       setLoading(true);
-      
+
       debugLog('handleInfosReceived infos=', infos);
       debugLog('handleInfosReceived infos.internals=', infos.internals);
       debugLog('handleInfosReceived infos.env=', infos.env);
-      
+
       // first we reformat the environment object into an array of objects
       infos['envTable'] = obj2ArrayOfObj(infos.env);
       setReceivedServerInfos(infos);
       setErrorMessage(null);
-      
+
       debugLog('handleInfosReceived infos.envTable=', infos.envTable);
-      
+
     } catch (error) {
       errorLog(t('api.errors.fetchServerInfos'), error);
       setErrorMessage('api.errors.fetchServerInfos');
@@ -77,7 +78,8 @@ const Settings = () => {
   const settingTabs = [
     { id: 1, title: "settings.titleContainerAdd", icon: "house-add",  content: FormContainerAdd(),  },
     { id: 2, title: "settings.titleServerInfos",  icon: "house-fill", content: ServerInfos(),       titleExtra:t('common.for', {what:containerName}) },
-    { id: 3, title: "settings.titleContainers",   icon: "houses-fill",content: <></>,                  },
+    { id: 3, title: "settings.titleUserConfig",   icon: "people-fill",content: UserConfig(),        titleExtra:t('common.for', {what:containerName}) },
+    { id: 4, title: "settings.titleContainers",   icon: "houses-fill",content: <></>,                  },
   ];
 
   // to handle data coming from the child form: <FormContainerAdd onInfosSubmit={handleInfosReceived} />
