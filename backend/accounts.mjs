@@ -29,6 +29,7 @@ import {
   reduxArrayOfObjByValue,
 } from '../common.mjs';
 import {
+  addAlias,
   deleteAlias,
   getAliases,
 } from './aliases.mjs';
@@ -342,20 +343,43 @@ export const deleteAccount = async (schema='dms', containerName=null, mailbox=nu
       if (result.success) {
         successLog(`db entry deleted: ${mailbox}`);
 
-        // now delete aliases where this mailbox is source or destination
+        // now clean up aliases where this mailbox is source or destination
         result = await getAliases(containerName, false);
         debugLog('ddebug getAliases',result)
         if (result.success && result.message.length) {
-          const aliasesToDelete = result.message.filter(alias =>
-            alias.source === mailbox || alias.destination?.split(',').map(d => d.trim()).includes(mailbox)
-          );
+          for (const alias of result.message) {
+            const destinations = alias.destination?.split(',').map(d => d.trim()) || [];
 
-          for (const alias of aliasesToDelete) {
-            result = await deleteAlias(containerName, alias.source, alias.destination);
-            debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
-            if (result.success) {
-              successLog(`alias deleted: ${alias.source} -> ${alias.destination}`);
-            } else warnLog(`alias delete failed: ${alias.source} -> ${alias.destination}`);
+            if (alias.source === mailbox) {
+              // Source is the deleted user — delete entire alias
+              result = await deleteAlias(containerName, alias.source, alias.destination);
+              debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
+              if (result.success) {
+                successLog(`alias deleted: ${alias.source} -> ${alias.destination}`);
+              } else warnLog(`alias delete failed: ${alias.source} -> ${alias.destination}`);
+
+            } else if (destinations.includes(mailbox)) {
+              const remaining = destinations.filter(d => d !== mailbox);
+              if (remaining.length === 0) {
+                // Deleted user was the only destination — delete entire alias
+                result = await deleteAlias(containerName, alias.source, alias.destination);
+                debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
+                if (result.success) {
+                  successLog(`alias deleted: ${alias.source} -> ${alias.destination}`);
+                } else warnLog(`alias delete failed: ${alias.source} -> ${alias.destination}`);
+              } else {
+                // Multi-destination: remove just this user, keep the rest
+                // Delete old alias and re-add with remaining destinations
+                result = await deleteAlias(containerName, alias.source, alias.destination);
+                if (result.success) {
+                  const newDest = remaining.join(',');
+                  result = await addAlias(containerName, alias.source, newDest);
+                  if (result.success) {
+                    successLog(`alias updated: ${alias.source} -> ${newDest} (removed ${mailbox})`);
+                  } else warnLog(`alias re-add failed: ${alias.source} -> ${newDest}`);
+                } else warnLog(`alias delete failed for update: ${alias.source}`);
+              }
+            }
           }
         }
         
