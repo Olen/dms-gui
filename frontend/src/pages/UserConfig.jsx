@@ -56,7 +56,7 @@ function UserConfig() {
       setErrorMessage(null);
 
       // Load existing settings from DB
-      const result = await getSettings('dms-gui', containerName);
+      const result = await getSettings('userconfig', containerName);
       debugLog('UserConfig loadSettings result:', result);
 
       const loaded = { ...formData };
@@ -124,7 +124,7 @@ function UserConfig() {
       }));
 
       debugLog('UserConfig saveSettings:', jsonArrayOfObjects);
-      const result = await saveSettings('dms-gui', 'dms-gui', 'dms-gui', containerName, jsonArrayOfObjects);
+      const result = await saveSettings('userconfig', 'userconfig', 'userconfig', containerName, jsonArrayOfObjects);
 
       if (result.success) {
         setSuccessMessage('settings.saveSuccess');
