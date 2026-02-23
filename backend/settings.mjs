@@ -1385,10 +1385,11 @@ export const killContainer = async (plugin='dms-gui', schema='dms-gui', containe
 
 
 // Per-user rspamd history summary from /history endpoint
-export const getRspamdUserHistory = async (plugin = 'mailserver', containerName = null, mailbox = null) => {
-  debugLog(`getRspamdUserHistory containerName=${containerName} mailbox=${mailbox}`);
+// addresses: array of email addresses to match (mailbox + aliases)
+export const getRspamdUserHistory = async (plugin = 'mailserver', containerName = null, addresses = []) => {
+  debugLog(`getRspamdUserHistory containerName=${containerName} addresses=${addresses.length}`);
   if (!containerName) return { success: false, error: 'getRspamdUserHistory: containerName is required' };
-  if (!mailbox) return { success: false, error: 'getRspamdUserHistory: mailbox is required' };
+  if (!addresses.length) return { success: false, error: 'getRspamdUserHistory: addresses is required' };
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
@@ -1398,15 +1399,15 @@ export const getRspamdUserHistory = async (plugin = 'mailserver', containerName 
       const history = JSON.parse(result.stdout);
       const rows = history.rows || [];
 
-      // Filter rows where recipient matches user's mailbox
+      // Filter rows where any recipient matches user's mailbox or aliases
       // rcpt_smtp and rcpt_mime are arrays of strings
-      const mb = mailbox.toLowerCase();
-      const matchesMailbox = (field) => {
+      const addrSet = new Set(addresses.map(a => a.toLowerCase()));
+      const matchesUser = (field) => {
         if (!field) return false;
-        if (Array.isArray(field)) return field.some(r => r.toLowerCase().includes(mb));
-        return String(field).toLowerCase().includes(mb);
+        if (Array.isArray(field)) return field.some(r => addrSet.has(r.toLowerCase()));
+        return addrSet.has(String(field).toLowerCase());
       };
-      const userRows = rows.filter(row => matchesMailbox(row.rcpt_smtp) || matchesMailbox(row.rcpt_mime));
+      const userRows = rows.filter(row => matchesUser(row.rcpt_smtp) || matchesUser(row.rcpt_mime));
 
       const total = userRows.length;
       const spam = userRows.filter(r => r.action === 'add header' || r.action === 'reject' || r.action === 'rewrite subject').length;
