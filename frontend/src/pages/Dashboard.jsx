@@ -289,7 +289,6 @@ const Dashboard = () => {
               title="dashboard.user.webmail"
               icon="envelope-open"
               iconColor="primary"
-              value=" "
             >
               <a href={userSettings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
                 {t('dashboard.user.openWebmail')}
@@ -303,7 +302,6 @@ const Dashboard = () => {
             icon="arrow-left-right"
             iconColor="success"
             href="/aliases"
-            value=" "
           />
         </Col>
         <Col md={3} className="mb-3">
@@ -312,7 +310,6 @@ const Dashboard = () => {
             icon="person-gear"
             iconColor="info"
             href="/profile"
-            value=" "
           />
         </Col>
       </Row>
@@ -358,13 +355,21 @@ const Dashboard = () => {
                 {t('dashboard.user.messagesScanned', { total: spamSummary.total })} &mdash;{' '}
                 <span className="text-success">{t('dashboard.user.hamCount', { count: spamSummary.ham })}</span>,{' '}
                 <span className="text-danger">{t('dashboard.user.spamCount', { count: spamSummary.spam })}</span>
+                {spamSummary.since && (
+                  <span className="text-muted ms-2">
+                    ({t('dashboard.user.since')} {new Date(spamSummary.since * 1000).toLocaleDateString()})
+                  </span>
+                )}
               </p>
+              <p className="text-muted small mb-2">{t('dashboard.user.actionHelp')}</p>
               {spamSummary.recentSpam && spamSummary.recentSpam.length > 0 && (
                 <>
                   <h6 className="mb-2">{t('dashboard.user.recentSpam')}</h6>
                   <table className="table table-sm mb-0">
                     <thead>
                       <tr>
+                        <th>{t('dashboard.user.date')}</th>
+                        <th>{t('dashboard.user.to')}</th>
                         <th>{t('dashboard.user.subject')}</th>
                         <th>{t('dashboard.user.score')}</th>
                         <th>{t('dashboard.user.action')}</th>
@@ -373,7 +378,9 @@ const Dashboard = () => {
                     <tbody>
                       {spamSummary.recentSpam.map((item, i) => (
                         <tr key={i}>
-                          <td className="text-truncate" style={{maxWidth:'400px'}}>{item.subject}</td>
+                          <td className="text-muted text-nowrap">{item.time ? new Date(item.time * 1000).toLocaleString() : ''}</td>
+                          <td className="text-truncate" style={{maxWidth:'200px'}}>{item.rcpt}</td>
+                          <td className="text-truncate" style={{maxWidth:'300px'}}>{item.subject}</td>
                           <td><span className="text-danger">{item.score?.toFixed(1)}</span></td>
                           <td>{item.action}</td>
                         </tr>

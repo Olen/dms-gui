@@ -37,7 +37,11 @@
       "messagesScanned": "{{total}} wiadomości przeskanowanych",
       "hamCount": "{{count}} czystych",
       "spamCount": "{{count}} spam",
+      "since": "od",
+      "actionHelp": "Akcje: \"no action\" = czysta, \"add header\" = oznaczona jako spam, \"reject\" = zablokowana, \"rewrite subject\" = temat oznaczony jako spam.",
       "recentSpam": "Ostatni spam",
+      "date": "Data",
+      "to": "Do",
       "subject": "Temat",
       "score": "Wynik",
       "action": "Akcja"

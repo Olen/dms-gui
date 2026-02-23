@@ -1507,19 +1507,36 @@ export const getRspamdUserHistory = async (plugin = 'mailserver', containerName 
       const scores = userRows.map(r => r.score || 0);
       const avgScore = total > 0 ? scores.reduce((a, b) => a + b, 0) / total : 0;
 
-      // Recent spam (last 5 items with positive score)
+      // Oldest entry timestamp
+      const since = userRows.length > 0
+        ? Math.min(...userRows.map(r => r.unix_time || Infinity))
+        : null;
+
+      // Find which address matched for a row
+      const getMatchedRcpt = (row) => {
+        for (const r of (row.rcpt_smtp || [])) {
+          if (addrSet.has(r.toLowerCase())) return r;
+        }
+        for (const r of (row.rcpt_mime || [])) {
+          if (addrSet.has(r.toLowerCase())) return r;
+        }
+        return (row.rcpt_smtp || [])[0] || '';
+      };
+
+      // Recent spam (last 10 items with positive score)
       const recentSpam = userRows
         .filter(r => (r.score || 0) > 0 && r.action !== 'no action')
         .sort((a, b) => (b.unix_time || 0) - (a.unix_time || 0))
-        .slice(0, 5)
+        .slice(0, 10)
         .map(r => ({
           subject: r.subject || '(no subject)',
           score: r.score,
           time: r.unix_time,
           action: r.action,
+          rcpt: getMatchedRcpt(r),
         }));
 
-      return { success: true, message: { total, ham, spam, avgScore, recentSpam } };
+      return { success: true, message: { total, ham, spam, avgScore, since, recentSpam } };
     }
     return { success: false, error: result.stderr || 'rspamd history request failed' };
 
