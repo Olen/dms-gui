@@ -1911,7 +1911,14 @@ app.listen(env.PORT_NODEJS, async () => {
   // https://github.com/ncb000gt/node-cron    // internal crontan
   debugLog('DMSGUI_CRON',env.DMSGUI_CRON)
   if (env.DMSGUI_CRON) {
-    cron.schedule(env.DMSGUI_CRON, () => {
+    let cronExpr = env.DMSGUI_CRON;
+    const fields = cronExpr.trim().split(/\s+/);
+    if (fields.length === 6 && fields[0] === '*') {
+      fields[0] = '0';
+      cronExpr = fields.join(' ');
+      debugLog(`DMSGUI_CRON: seconds field was *, defaulting to 0: ${cronExpr}`);
+    }
+    cron.schedule(cronExpr, () => {
         killContainer('dms-gui', 'dms-gui', 'dms-gui');    // no await
     });
   };
