@@ -37,9 +37,9 @@ const Domains = () => {
       if (result.success) {
         const domainList = result.message || [];
         setDomains(domainList);
-        // Auto-check DNS for all domains on load
+        // Auto-check DNS for all domains on load (sequential to avoid overwhelming backend)
         for (const d of domainList) {
-          checkDns(d.domain);
+          await checkDns(d.domain);
         }
       } else {
         setError(result.error || 'api.errors.fetchDomains');
