@@ -302,6 +302,7 @@ const Dashboard = () => {
             icon="arrow-left-right"
             iconColor="success"
             href="/aliases"
+            value={status.db.aliases}
           />
         </Col>
         <Col md={3} className="mb-3">
@@ -310,6 +311,7 @@ const Dashboard = () => {
             icon="person-gear"
             iconColor="info"
             href="/profile"
+            value={user.mailbox}
           />
         </Col>
       </Row>
