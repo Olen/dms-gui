@@ -3,6 +3,7 @@ import { useTranslation } from 'react-i18next';
 import Row from 'react-bootstrap/Row'; // Import Row
 import Col from 'react-bootstrap/Col'; // Import Col
 import Form from 'react-bootstrap/Form';
+import Select from 'react-select';
 import CreatableSelect from 'react-select/creatable';
 
 import {
@@ -161,6 +162,11 @@ const Aliases = () => {
     }
   };
 
+  // Only allow creating custom options that look like valid email addresses
+  const isValidNewOption = (inputValue) => {
+    return inputValue.trim().length > 0 && regexEmailStrict.test(inputValue.trim());
+  };
+
   const validateForm = () => {
     const errors = {};
     
@@ -182,12 +188,30 @@ const Aliases = () => {
     if (!formData.destination.length) {
       errors.destination = 'aliases.destinationRequired';
       setErrorMessage(errors.destination);
+    } else {
+      const invalidDest = formData.destination.find(d => !regexEmailStrict.test(d.value.trim()));
+      if (invalidDest) {
+        errors.destination = 'aliases.invalidDestination';
+        setErrorMessage(errors.destination);
+      }
     }
 
     // Also test if source domain exist in domains when it's a mailbox match
     // I can't see how to really test for regex as the domain part can be regex too but let's do our best
     if (matchEmailStrict && !pluck(accounts, 'domain').includes(matchEmailStrict[2])) {
       errors.source = 'aliases.invalidSourceDomain';
+      setErrorMessage(errors.source);
+    }
+
+    // Check if source already exists as an alias
+    if (!errors.source && aliases.some(a => a.source === formData.source.trim())) {
+      errors.source = 'aliases.sourceAlreadyExists';
+      setErrorMessage(errors.source);
+    }
+
+    // Check if source already exists as an account (mailbox)
+    if (!errors.source && accounts.some(a => a.mailbox === formData.source.trim())) {
+      errors.source = 'aliases.sourceIsAccount';
       setErrorMessage(errors.source);
     }
 
@@ -270,11 +294,14 @@ const Aliases = () => {
     }] : []),
   ];
 
+  const isAdmin = user.isAdmin == 1;
+
   // Prepare account options for the select field
-  const accountOptions = accounts.map((account) => ({
-    value: account.mailbox,
-    label: account.mailbox,
-  }));
+  // Admin: all accounts + can type external emails
+  // Non-admin: only their own roles (mailboxes they have access to)
+  const accountOptions = isAdmin
+    ? accounts.map((account) => ({ value: account.mailbox, label: account.mailbox }))
+    : (user.roles || []).map((mailbox) => ({ value: mailbox, label: mailbox }));
 
 
   // if (isLoading && !aliases && !aliases.length) {
@@ -317,40 +344,77 @@ const Aliases = () => {
                   {t('aliases.destinationAddress')}
                   <span className="text-danger ms-1">*</span>
                 </Form.Label>
-                <CreatableSelect
-                  isMulti
-                  name="destination"
-                  value={formData.destination}
-                  onChange={handleDestinationChange}
-                  options={accountOptions}
-                  placeholder={t('aliases.selectDestination')}
-                  formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
-                  noOptionsMessage={() => t('aliases.typeToAdd')}
-                  styles={{
-                    control: (base, state) => ({
-                      ...base,
-                      borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
-                      boxShadow: formErrors.destination
-                        ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
-                        : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
-                      '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
-                    }),
-                    multiValue: (base) => ({
-                      ...base,
-                      backgroundColor: '#e7f1ff',
-                      borderRadius: '4px',
-                    }),
-                    multiValueLabel: (base) => ({
-                      ...base,
-                      color: '#0d6efd',
-                    }),
-                    multiValueRemove: (base) => ({
-                      ...base,
-                      color: '#0d6efd',
-                      '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
-                    }),
-                  }}
-                />
+                {isAdmin ? (
+                  <CreatableSelect
+                    isMulti
+                    name="destination"
+                    value={formData.destination}
+                    onChange={handleDestinationChange}
+                    options={accountOptions}
+                    isValidNewOption={isValidNewOption}
+                    placeholder={t('aliases.selectDestination')}
+                    formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
+                    noOptionsMessage={() => t('aliases.typeToAdd')}
+                    styles={{
+                      control: (base, state) => ({
+                        ...base,
+                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
+                        boxShadow: formErrors.destination
+                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
+                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
+                      }),
+                      multiValue: (base) => ({
+                        ...base,
+                        backgroundColor: '#e7f1ff',
+                        borderRadius: '4px',
+                      }),
+                      multiValueLabel: (base) => ({
+                        ...base,
+                        color: '#0d6efd',
+                      }),
+                      multiValueRemove: (base) => ({
+                        ...base,
+                        color: '#0d6efd',
+                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
+                      }),
+                    }}
+                  />
+                ) : (
+                  <Select
+                    isMulti
+                    name="destination"
+                    value={formData.destination}
+                    onChange={handleDestinationChange}
+                    options={accountOptions}
+                    placeholder={t('aliases.selectDestination')}
+                    noOptionsMessage={() => t('aliases.noRoles')}
+                    styles={{
+                      control: (base, state) => ({
+                        ...base,
+                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
+                        boxShadow: formErrors.destination
+                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
+                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
+                      }),
+                      multiValue: (base) => ({
+                        ...base,
+                        backgroundColor: '#e7f1ff',
+                        borderRadius: '4px',
+                      }),
+                      multiValueLabel: (base) => ({
+                        ...base,
+                        color: '#0d6efd',
+                      }),
+                      multiValueRemove: (base) => ({
+                        ...base,
+                        color: '#0d6efd',
+                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
+                      }),
+                    }}
+                  />
+                )}
                 {formErrors.destination && (
                   <div className="text-danger small mt-1">{t(formErrors.destination)}</div>
                 )}
