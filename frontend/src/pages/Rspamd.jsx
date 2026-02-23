@@ -164,9 +164,9 @@ const Rspamd = () => {
         {scanned > 0 && (
           <ProgressBar className="mb-2" style={{height: '24px'}}>
             <ProgressBar variant="success" now={pct(ham, scanned)} key="ham" label={`${t('rspamd.ham')} ${pct(ham, scanned)}%`} />
-            <ProgressBar variant="warning" now={pct(addHeader, scanned)} key="header" label={addHeader > 0 ? `${pct(addHeader, scanned)}%` : ''} />
-            <ProgressBar variant="info" now={pct(greylist, scanned)} key="grey" label={greylist > 0 ? `${pct(greylist, scanned)}%` : ''} />
-            <ProgressBar variant="danger" now={pct(reject, scanned)} key="reject" label={reject > 0 ? `${pct(reject, scanned)}%` : ''} />
+            <ProgressBar variant="warning" now={pct(addHeader, scanned)} key="header" label={addHeader > 0 ? `${t('rspamd.addHeader')} ${pct(addHeader, scanned)}%` : ''} />
+            <ProgressBar variant="info" now={pct(greylist, scanned)} key="grey" label={greylist > 0 ? `${t('rspamd.greylist')} ${pct(greylist, scanned)}%` : ''} />
+            <ProgressBar variant="danger" now={pct(reject, scanned)} key="reject" label={reject > 0 ? `${t('rspamd.reject')} ${pct(reject, scanned)}%` : ''} />
           </ProgressBar>
         )}
         <Row className="mb-4">
