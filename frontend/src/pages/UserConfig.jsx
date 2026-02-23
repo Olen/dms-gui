@@ -69,16 +69,23 @@ function UserConfig() {
         }
       }
 
-      // Auto-populate host fields from DMS HOSTNAME if empty
+      // Auto-populate fields from DMS HOSTNAME if empty
       if (!loaded.IMAP_HOST || !loaded.SMTP_HOST) {
         try {
-          const envResult = await getServerEnvs('mailserver', containerName, false, 'HOSTNAME');
-          debugLog('UserConfig HOSTNAME result:', envResult);
-          const hostname = envResult?.message?.value || envResult?.message || '';
+          // Try cached first, then force refresh if empty
+          let envResult = await getServerEnvs('mailserver', containerName, false, 'HOSTNAME');
+          let hostname = envResult?.message?.value || envResult?.message || '';
+          if (!hostname || typeof hostname !== 'string') {
+            envResult = await getServerEnvs('mailserver', containerName, true, 'HOSTNAME');
+            hostname = envResult?.message?.value || envResult?.message || '';
+          }
+          debugLog('UserConfig HOSTNAME result:', hostname);
           if (hostname && typeof hostname === 'string') {
             if (!loaded.IMAP_HOST) loaded.IMAP_HOST = hostname;
             if (!loaded.SMTP_HOST) loaded.SMTP_HOST = hostname;
             if (!loaded.POP3_HOST) loaded.POP3_HOST = hostname;
+            if (!loaded.WEBMAIL_URL) loaded.WEBMAIL_URL = `https://webmail.${hostname}`;
+            if (!loaded.RSPAMD_URL) loaded.RSPAMD_URL = `https://rspamd.${hostname}`;
           }
         } catch (e) {
           debugLog('Could not fetch HOSTNAME for auto-populate:', e.message);
@@ -225,7 +232,7 @@ function UserConfig() {
           id="ALLOW_USER_ALIASES"
           name="ALLOW_USER_ALIASES"
           label="settings.userConfig.allowUserAliases"
-          defaultChecked={formData.ALLOW_USER_ALIASES === 'true'}
+          isChecked={formData.ALLOW_USER_ALIASES === 'true'}
           onChange={handleInputChange}
         />
 
