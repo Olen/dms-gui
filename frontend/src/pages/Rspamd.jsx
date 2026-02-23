@@ -153,7 +153,7 @@ const Rspamd = () => {
             <div className="border rounded p-3 text-center">
               <div className="text-muted small">{Translate('rspamd.scanTime')}</div>
               <div className="fw-bold fs-5">
-                {stat.scan_times ? `${(stat.scan_times.reduce((a, b) => a + b, 0) / stat.scan_times.length).toFixed(3)}s` : '—'}
+                {stat.scan_times?.length ? `${(stat.scan_times.reduce((a, b) => a + b, 0) / stat.scan_times.length).toFixed(3)}s` : '—'}
               </div>
             </div>
           </Col>

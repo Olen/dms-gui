@@ -34,13 +34,17 @@ const LeftSidebar = () => {
 
     useEffect(() => {
       if (!containerName) return;
+      // Check sessionStorage cache first to avoid API call on every page refresh
+      const cached = sessionStorage.getItem(`rspamd_enabled_${containerName}`);
+      if (cached !== null) {
+        setEnableRspamd(cached === '1');
+        return;
+      }
       getServerEnvs('mailserver', containerName, false, 'ENABLE_RSPAMD')
         .then(result => {
-          if (result.success && (result.message === '1' || result.message === 1)) {
-            setEnableRspamd(true);
-          } else {
-            setEnableRspamd(false);
-          }
+          const enabled = result.success && (result.message === '1' || result.message === 1);
+          setEnableRspamd(enabled);
+          sessionStorage.setItem(`rspamd_enabled_${containerName}`, enabled ? '1' : '0');
         })
         .catch(() => setEnableRspamd(false));
     }, [containerName]);
