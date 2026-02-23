@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Row, Col, Badge, ProgressBar, Table, Form } from 'react-bootstrap';
+import { Row, Col, Badge, ProgressBar, Table } from 'react-bootstrap';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { getRspamdStats, getRspamdCounters } from '../services/api.mjs';
 
@@ -40,8 +40,8 @@ const pct = (n, total) => total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
 const Rspamd = () => {
   const { t } = useTranslation();
   const [containerName] = useLocalStorage('containerName', '');
-  const [rspamdUrl, setRspamdUrl] = useLocalStorage('rspamdUrl', '');
-  const [urlInput, setUrlInput] = useState(rspamdUrl || '');
+  const [rspamdUrl] = useLocalStorage('rspamdUrl', '');
+  const [adminRspamdUrl, setAdminRspamdUrl] = useState('');
   const [stat, setStat] = useState(null);
   const [counters, setCounters] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -59,6 +59,15 @@ const Rspamd = () => {
       if (statResult.success) setStat(statResult.message);
       else setError(statResult.error);
       if (countersResult.success) setCounters(countersResult.message || []);
+
+      // Use admin-configured RSPAMD_URL if available (from user-experience PR)
+      try {
+        const api = await import('../services/api.mjs');
+        if (typeof api.getUserSettings === 'function') {
+          const settings = await api.getUserSettings(containerName);
+          if (settings.success && settings.message?.RSPAMD_URL) setAdminRspamdUrl(settings.message.RSPAMD_URL);
+        }
+      } catch (e) { /* getUserSettings not available */ }
     } catch (err) {
       setError('Failed to fetch rspamd data');
     } finally {
@@ -66,12 +75,9 @@ const Rspamd = () => {
     }
   };
 
-  useEffect(() => { fetchData(); }, [containerName]);
+  const externalUrl = adminRspamdUrl || rspamdUrl;
 
-  const handleSaveUrl = (e) => {
-    e.preventDefault();
-    setRspamdUrl(urlInput.trim());
-  };
+  useEffect(() => { fetchData(); }, [containerName]);
 
   if (loading) return <LoadingSpinner />;
   if (error) return <Card title="rspamd.title"><AlertMessage type="danger" message={error} /></Card>;
@@ -99,33 +105,13 @@ const Rspamd = () => {
             text="common.refresh"
             onClick={fetchData}
           />
-          {rspamdUrl ? (
-            <>
-              <Button
-                variant="outline-primary"
-                icon="box-arrow-up-right"
-                text="rspamd.openExternal"
-                onClick={() => window.open(rspamdUrl, '_blank')}
-              />
-              <Button
-                variant="outline-secondary"
-                icon="x-circle"
-                text="rspamd.clearUrl"
-                onClick={() => { setRspamdUrl(''); setUrlInput(''); }}
-              />
-            </>
-          ) : (
-            <Form onSubmit={handleSaveUrl} className="d-flex gap-2 align-items-center flex-grow-1" style={{maxWidth: '500px'}}>
-              <Form.Control
-                type="url"
-                size="sm"
-                placeholder="https://rspamd.example.com"
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                required
-              />
-              <Button type="submit" variant="outline-primary" size="sm" text="rspamd.saveUrl" />
-            </Form>
+          {externalUrl && (
+            <Button
+              variant="outline-primary"
+              icon="box-arrow-up-right"
+              text="rspamd.openExternal"
+              onClick={() => window.open(externalUrl, '_blank')}
+            />
           )}
         </div>
 
