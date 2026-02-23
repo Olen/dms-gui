@@ -159,7 +159,7 @@ export const parseAliasesFromDMS = async (stdout='') => {
 
   // Modified regex to be more tolerant of control characters that might appear in the output
   const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%,]/g;
-  const regexAliasDMS = /\*\s+(\S+@\S+)\s+(\S+@\S+)/;
+  const regexAliasDMS = /\*\s+(\S*@\S+)\s+(\S+@\S+)/;
 
   // Parse each line and merge destinations for the same source
   const aliasMap = new Map();
