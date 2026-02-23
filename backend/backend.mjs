@@ -104,7 +104,7 @@ export const execSetup = async (setupCommand=null, targetDict={}, ...rest) => {
   
   // const command = `${env.DMS_SETUP_SCRIPT} ${setupCommand}`;
   const command = `${targetDict.setupPath} ${setupCommand}`;
-  debugLog(`Executing setup command: ${setupCommand}`);
+  debugLog(`Executing setup command: ${setupCommand.replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/g, '$1 ********')}`);
   return execCommand(command, targetDict, ...rest);
 };
 
@@ -112,7 +112,7 @@ export const execSetup = async (setupCommand=null, targetDict={}, ...rest) => {
 export const execCommand = async (command=null, targetDict={}, ...rest) => {
   // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
   
-  debugLog(`Executing system command: ${command}`);
+  debugLog(`Executing system command: ${command.replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/g, '$1 ********')}`);
   const result = await execInContainerAPI(command, targetDict, ...rest);
   // debugLog('ddebug result', result)
   return result;
@@ -300,7 +300,7 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
         };
         
       } else {
-        successLog('command:', command);              // WARNING this will show cleartext passwords when loggin in users
+        successLog('command:', command.replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/g, '$1 ********'));
         return {
           returncode: response.returncode,
           stdout: response.stdout.toString('utf8'),
