@@ -73,7 +73,8 @@ export const getAliases = async (containerName=null, refresh=false, roles=[]) =>
           aliases = [ ...aliases, ...regexes ];
           
           // now save aliases in db ----------------------
-          // alias:    `REPLACE INTO aliases (source, destination, regex, configID) VALUES (@source, @destination, @regex, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
+          // Clear stale aliases before inserting fresh set from DMS
+          deleteEntry('aliases', containerName, 'byConfig', containerName);
           result = dbRun(sql.aliases.insert.alias, aliases, containerName);
           if (!result.success) {
             errorLog(result?.error);
@@ -160,6 +161,8 @@ export const parseAliasesFromDMS = async (stdout='') => {
   const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%,]/g;
   const regexAliasDMS = /\*\s+(\S+@\S+)\s+(\S+@\S+)/;
 
+  // Parse each line and merge destinations for the same source
+  const aliasMap = new Map();
   for (let i = 0; i < lines.length; i++) {
     // Clean the line from binary control characters
     const line = lines[i].replace(emailLineValidChars, '').trim();
@@ -171,14 +174,28 @@ export const parseAliasesFromDMS = async (stdout='') => {
         const destination = match[2];
         debugLog(`Parsed alias: ${source} -> ${destination}`);
 
-        aliases.push({
-          source,
-          destination,
-        });
+        // Merge destinations: DMS lists one line per destination,
+        // but we store as comma-separated in a single DB row
+        if (aliasMap.has(source)) {
+          const existing = aliasMap.get(source);
+          // Avoid duplicating destinations already in the string
+          const existingDests = existing.split(',').map(d => d.trim());
+          const newDests = destination.split(',').map(d => d.trim());
+          for (const d of newDests) {
+            if (!existingDests.includes(d)) existingDests.push(d);
+          }
+          aliasMap.set(source, existingDests.join(','));
+        } else {
+          aliasMap.set(source, destination);
+        }
       } else {
         warnLog(`Failed to parse alias line: ${line}`);
       }
     }
+  }
+
+  for (const [source, destination] of aliasMap) {
+    aliases.push({ source, destination });
   }
 
   return aliases;
