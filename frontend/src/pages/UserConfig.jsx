@@ -84,8 +84,11 @@ function UserConfig() {
             if (!loaded.IMAP_HOST) loaded.IMAP_HOST = hostname;
             if (!loaded.SMTP_HOST) loaded.SMTP_HOST = hostname;
             if (!loaded.POP3_HOST) loaded.POP3_HOST = hostname;
-            if (!loaded.WEBMAIL_URL) loaded.WEBMAIL_URL = `https://webmail.${hostname}`;
-            if (!loaded.RSPAMD_URL) loaded.RSPAMD_URL = `https://rspamd.${hostname}`;
+            // Extract base domain (e.g. "mail.nytt.no" -> "nytt.no")
+            const parts = hostname.split('.');
+            const domain = parts.length > 2 ? parts.slice(1).join('.') : hostname;
+            if (!loaded.WEBMAIL_URL) loaded.WEBMAIL_URL = `https://webmail.${domain}`;
+            if (!loaded.RSPAMD_URL) loaded.RSPAMD_URL = `https://rspamd.${domain}`;
           }
         } catch (e) {
           debugLog('Could not fetch HOSTNAME for auto-populate:', e.message);

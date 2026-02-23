@@ -30,6 +30,7 @@ export const env = {
   // variables we will capture from DMS 
   DMS_OPTIONS  : [
     'TZ',
+    'HOSTNAME',
     'DMS_RELEASE',
     'ENABLE_RSPAMD',
     'ENABLE_XAPIAN',
