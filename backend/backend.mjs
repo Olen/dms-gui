@@ -94,6 +94,11 @@ export const infoLog = async (message, ...data) => { logger('info', message, ...
 export const debugLog = async (message, ...data) => { if (env.debug) logger('debug', message, ...data) };
 
 
+/** Redact passwords from command strings before logging */
+const redactCommand = (cmd) => cmd
+  .replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/gi, '$1 ********')
+  .replace(/(auth\s+test\s+\S+)\s+\S+/gi, '$1 ********');
+
 /**
  * Executes a setup.sh command in the docker-mailserver container
  * @param {string} setupCommand Command to pass to setup.sh
@@ -104,7 +109,7 @@ export const execSetup = async (setupCommand=null, targetDict={}, ...rest) => {
   
   // const command = `${env.DMS_SETUP_SCRIPT} ${setupCommand}`;
   const command = `${targetDict.setupPath} ${setupCommand}`;
-  debugLog(`Executing setup command: ${setupCommand.replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/g, '$1 ********')}`);
+  debugLog(`Executing setup command: ${redactCommand(setupCommand)}`);
   return execCommand(command, targetDict, ...rest);
 };
 
@@ -112,7 +117,7 @@ export const execSetup = async (setupCommand=null, targetDict={}, ...rest) => {
 export const execCommand = async (command=null, targetDict={}, ...rest) => {
   // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
   
-  debugLog(`Executing system command: ${command.replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/g, '$1 ********')}`);
+  debugLog(`Executing system command: ${redactCommand(command)}`);
   const result = await execInContainerAPI(command, targetDict, ...rest);
   // debugLog('ddebug result', result)
   return result;
@@ -300,11 +305,7 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
         };
         
       } else {
-        // Redact passwords from logged commands (email add/update, auth test)
-        const redactedCommand = command
-          .replace(/((?:email\s+(?:add|update)\s+)\S+\s+)\S+/i, '$1[REDACTED]')
-          .replace(/(auth\s+test\s+\S+\s+)\S+/i, '$1[REDACTED]');
-        successLog('command:', redactedCommand);
+        successLog('command:', redactCommand(command));
         return {
           returncode: response.returncode,
           stdout: response.stdout.toString('utf8'),
