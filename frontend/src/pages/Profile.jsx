@@ -321,38 +321,42 @@ const Profile = () => {
       <AlertMessage type="success" message={successMessage} />
       
       <Form onSubmit={handleLoginSave} className="form-wrapper">
-        <FormField
-          type="checkbox"
-          id="isAdmin"
-          name="isAdmin"
-          label="logins.isAdmin"
-          error={loginFormErrors.isAdmin}
-          defaultChecked={loginFormData.isAdmin}
-          disabled
-        />
+        {user?.isAdmin == 1 && (
+          <>
+            <FormField
+              type="checkbox"
+              id="isAdmin"
+              name="isAdmin"
+              label="logins.isAdmin"
+              error={loginFormErrors.isAdmin}
+              defaultChecked={loginFormData.isAdmin}
+              disabled
+            />
 
-        <FormField
-          type="checkbox"
-          id="isAccount"
-          name="isAccount"
-          label="logins.isAccountChoice"
-          error={loginFormErrors.isAccount}
-          defaultChecked={loginFormData.isAccount && !loginFormData.isAdmin}
-          disabled
-        />
+            <FormField
+              type="checkbox"
+              id="isAccount"
+              name="isAccount"
+              label="logins.isAccountChoice"
+              error={loginFormErrors.isAccount}
+              defaultChecked={loginFormData.isAccount && !loginFormData.isAdmin}
+              disabled
+            />
 
-        <SelectField
-          id="mailserver"
-          name="mailserver"
-          label="logins.mailserver"
-          value={loginFormData?.mailserver || mailservers[0]?.containerName || null}
-          onChange={handleLoginInputChange}
-          options={mailservers}
-          placeholder="logins.mailserverRequired"
-          error={loginFormErrors.mailserver}
-          helpText="logins.mailserverRequired"
-          required
-        />
+            <SelectField
+              id="mailserver"
+              name="mailserver"
+              label="logins.mailserver"
+              value={loginFormData?.mailserver || mailservers[0]?.containerName || null}
+              onChange={handleLoginInputChange}
+              options={mailservers}
+              placeholder="logins.mailserverRequired"
+              error={loginFormErrors.mailserver}
+              helpText="logins.mailserverRequired"
+              required
+            />
+          </>
+        )}
 
         {!loginFormData.isAccount && (
           <FormField
@@ -381,6 +385,7 @@ const Profile = () => {
           error={loginFormErrors.username}
           helpText="logins.usernameHelp"
           required
+          disabled={user?.isAdmin != 1}
         />
 
         <FormField
@@ -393,17 +398,20 @@ const Profile = () => {
           placeholder="user@domain.com"
           error={loginFormErrors.email}
           helpText="logins.emailHelp"
+          disabled={user?.isAdmin != 1}
         />
 
-        <FormField
-          type="checkbox"
-          id="isActive"
-          name="isActive"
-          label="logins.isActive"
-          error={loginFormErrors.isActive}
-          defaultChecked={loginFormData.isActive}
-          disabled
-        />
+        {user?.isAdmin == 1 && (
+          <FormField
+            type="checkbox"
+            id="isActive"
+            name="isActive"
+            label="logins.isActive"
+            error={loginFormErrors.isActive}
+            defaultChecked={loginFormData.isActive}
+            disabled
+          />
+        )}
 
         <Button
           variant="primary"

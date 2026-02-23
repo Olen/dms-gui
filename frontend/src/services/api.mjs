@@ -391,6 +391,30 @@ export const deleteAlias = async (containerName=null, source, destination) => {
   }
 };
 
+export const getRspamdUserSummary = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/rspamd/${containerName}/user-summary`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const getUserSettings = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/user-settings/${containerName}`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getDomains = async (containerName=null, name) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 

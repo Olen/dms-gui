@@ -18,6 +18,7 @@ import {
 import {
   getAccounts,
   getAliases,
+  getUserSettings,
   addAlias,
   deleteAlias,
 } from '../services/api.mjs';
@@ -41,7 +42,8 @@ const Aliases = () => {
   const [mailservers] = useLocalStorage("mailservers", []);
 
   const [isLoading, setLoading] = useState(true);
-  
+  const [allowUserAliases, setAllowUserAliases] = useState(null); // null = not loaded yet
+
   const [aliases, setAliases] = useState([]);
   const [isSource, setIsSource] = useState({valid:true, alias:true});
   const [accounts, setAccounts] = useState([]);
@@ -71,6 +73,12 @@ const Aliases = () => {
   // https://www.w3schools.com/react/react_useeffect.asp
   useEffect(() => {
     fetchAliases(false);
+    if (user?.isAdmin != 1 && containerName) {
+      getUserSettings(containerName).then(result => {
+        if (result.success) setAllowUserAliases(result.message?.ALLOW_USER_ALIASES === 'true');
+        else setAllowUserAliases(false);
+      }).catch(() => setAllowUserAliases(false));
+    }
   }, [mailservers, containerName]);
 
   const fetchAliases = async (refresh=false) => {
@@ -237,13 +245,16 @@ const Aliases = () => {
     }
   };
 
+  // Can the current user create/delete aliases?
+  const canModify = user?.isAdmin == 1 || allowUserAliases === true;
+
   // Column definitions for aliases table
   const columns = [
     { key: 'source', label: 'aliases.sourceAddress' },
     { key: 'destination', label: 'aliases.destinationAddress',
       render: (alias) => alias.destination?.split(',').join(', '),
     },
-    {
+    ...(canModify ? [{
       key: 'actions',
       label: 'common.actions',
       noSort: true,
@@ -256,7 +267,7 @@ const Aliases = () => {
           onClick={() => handleDelete(alias.source, alias.destination)}
         />
       ),
-    },
+    }] : []),
   ];
 
   // Prepare account options for the select field
@@ -278,15 +289,14 @@ const Aliases = () => {
       
       <AlertMessage type="danger" message={errorMessage} />
       <AlertMessage type="success" message={successMessage} />
+      {user?.isAdmin != 1 && !canModify && allowUserAliases !== null && (
+        <AlertMessage type="info" message="aliases.readOnly" />
+      )}
       
       <Row>
-        {' '}
-        
+        {canModify && (
         <Col md={5} className="mb-4">
-          {' '}
-          {/* Use Col component */}
-          <Card title="aliases.newAlias" icon="person-plus-fill">{' '}
-            {/* Removed mb-4 from Card, added to Col */}
+          <Card title="aliases.newAlias" icon="person-plus-fill">
             <form onSubmit={handleSubmit} className="form-wrapper">
               <FormField
                 type="text"
@@ -350,9 +360,10 @@ const Aliases = () => {
               <Button type="submit" variant="primary" text="aliases.addAlias" />
             </form>
           </Card>
-        </Col>{' '}
-        
-        <Col md={7}>
+        </Col>
+        )}
+
+        <Col md={canModify ? 7 : 12}>
           {' '}
           {/* Use Col component */}
           <Card 

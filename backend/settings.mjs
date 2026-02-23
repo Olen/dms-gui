@@ -1475,6 +1475,56 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
 };
 
 
+// Per-user rspamd history summary from /history endpoint
+export const getRspamdUserHistory = async (plugin = 'mailserver', containerName = null, mailbox = null) => {
+  debugLog(`getRspamdUserHistory containerName=${containerName} mailbox=${mailbox}`);
+  if (!containerName) return { success: false, error: 'getRspamdUserHistory: containerName is required' };
+  if (!mailbox) return { success: false, error: 'getRspamdUserHistory: mailbox is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const result = await execCommand('curl -sf http://localhost:11334/history', targetDict, { timeout: 10 });
+
+    if (!result.returncode && result.stdout) {
+      const history = JSON.parse(result.stdout);
+      const rows = history.rows || [];
+
+      // Filter rows where recipient matches user's mailbox
+      const userRows = rows.filter(row =>
+        (row.rcpt_smtp && row.rcpt_smtp.toLowerCase().includes(mailbox.toLowerCase())) ||
+        (row.rcpt_mime && row.rcpt_mime.toLowerCase().includes(mailbox.toLowerCase()))
+      );
+
+      const total = userRows.length;
+      const spam = userRows.filter(r => r.action === 'add header' || r.action === 'reject' || r.action === 'rewrite subject').length;
+      const ham = userRows.filter(r => r.action === 'no action').length;
+
+      const scores = userRows.map(r => r.score || 0);
+      const avgScore = total > 0 ? scores.reduce((a, b) => a + b, 0) / total : 0;
+
+      // Recent spam (last 5 items with positive score)
+      const recentSpam = userRows
+        .filter(r => (r.score || 0) > 0 && r.action !== 'no action')
+        .sort((a, b) => (b.unix_time || 0) - (a.unix_time || 0))
+        .slice(0, 5)
+        .map(r => ({
+          subject: r.subject || '(no subject)',
+          score: r.score,
+          time: r.unix_time,
+          action: r.action,
+        }));
+
+      return { success: true, message: { total, ham, spam, avgScore, recentSpam } };
+    }
+    return { success: false, error: result.stderr || 'rspamd history request failed' };
+
+  } catch (error) {
+    errorLog(`getRspamdUserHistory error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
 // DNS lookup for a domain: A, MX, SPF, DKIM, DMARC records
 export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
   debugLog(`dnsLookup domain=${domain} selector=${dkimSelector}`);

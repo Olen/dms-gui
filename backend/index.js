@@ -30,6 +30,8 @@ import {
   getNodeInfos,
   getRspamdCounters,
   getRspamdStats,
+  getRspamdUserHistory,
+  getSetting,
   getServerEnvs,
   getServerStatus,
   getSettings,
@@ -868,9 +870,12 @@ async (req, res) => {
       result = await addAlias(containerName, source, destination);
 
     } else {
-      // const roles = await getRoles(req.user.mailbox);
-      // TODO: find a way to analyze regex so users do not hijack others
-      
+      // Check if alias creation is allowed for non-admin users
+      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      if (!allowSetting.success || allowSetting.message !== 'true') {
+        return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
+      }
+
       // check source for obvious hack attempt. extract domains and see that they match. Only admins can create aliases for different domain then destination
       let domainSource = source.match(/.*@([\_\-\.\w]+)/);
       let domainDest = destination.match(/.*@([\_\-\.\w]+)/);
@@ -942,7 +947,12 @@ async (req, res) => {
       result = await deleteAlias(containerName, source, destination);
 
     } else {
-      // const roles = await getRoles(req.user.mailbox);
+      // Check if alias management is allowed for non-admin users
+      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      if (!allowSetting.success || allowSetting.message !== 'true') {
+        return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
+      }
+
       result = (req.user.roles.includes(destination)) ? await deleteAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
     }
     res.json(result);
@@ -1008,6 +1018,57 @@ async (req, res) => {
   } catch (error) {
     errorLog(`GET /api/settings: ${error.message}`);
     // res.status(500).json({ error: 'Unable to retrieve settings' });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for retrieving public user-facing settings (no admin required)
+app.get('/api/user-settings/:containerName',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES'];
+    const settings = {};
+
+    for (const name of publicKeys) {
+      const result = await getSetting('dms-gui', containerName, name);
+      if (result.success && result.message) {
+        settings[name] = result.message;
+      }
+    }
+
+    res.json({ success: true, message: settings });
+
+  } catch (error) {
+    errorLog(`GET /api/user-settings: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for per-user rspamd summary (no admin required)
+app.get('/api/rspamd/:containerName/user-summary',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    // Determine the user's mailbox
+    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+    if (!mailbox) return res.status(400).json({ success: false, error: 'No mailbox associated with this user' });
+
+    const result = await getRspamdUserHistory('mailserver', containerName, mailbox);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/rspamd/user-summary: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

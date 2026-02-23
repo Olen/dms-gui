@@ -25,7 +25,23 @@
       "stopped": "Zatrzymany",
       "unknown": "Nieznany"
     },
-    "error": "Nie można załadować danych dashboard. Sprawdź połączenie z serwerem."
+    "error": "Nie można załadować danych dashboard. Sprawdź połączenie z serwerem.",
+    "user": {
+      "webmail": "Webmail",
+      "openWebmail": "Otwórz Webmail",
+      "profile": "Mój profil",
+      "mailConfig": "Konfiguracja klienta poczty",
+      "username": "Nazwa użytkownika",
+      "yourEmail": "Twój adres email",
+      "spamSummary": "Podsumowanie spamu",
+      "messagesScanned": "{{total}} wiadomości przeskanowanych",
+      "hamCount": "{{count}} czystych",
+      "spamCount": "{{count}} spam",
+      "recentSpam": "Ostatni spam",
+      "subject": "Temat",
+      "score": "Wynik",
+      "action": "Akcja"
+    }
   },
   "accounts": {
     "title": "Zarządzanie Kontami Email",
@@ -76,7 +92,8 @@
     "aliasDeleted": "Alias został pomyślnie usunięty!",
     "cannotCreateAlias": "Nie można utworzyć aliasu. Spróbuj ponownie.",
     "cannotDeleteAlias": "Nie można usunąć aliasu. Spróbuj ponownie.",
-    "confirmDelete": "Czy na pewno chcesz usunąć alias {{source}} => {{destination}}?"
+    "confirmDelete": "Czy na pewno chcesz usunąć alias {{source}} => {{destination}}?",
+    "readOnly": "Aliasy są tylko do odczytu. Skontaktuj się z administratorem, aby wprowadzić zmiany."
   },
   "settings": {
     "aboutDescription": "Docker Mailserver GUI to interfejs graficzny do zarządzania serwerem pocztowym Docker Mailserver. Aplikacja umożliwia łatwe zarządzanie kontami email, aliasami oraz monitorowanie statusu serwera.",
@@ -96,7 +113,25 @@
     "setupPath": "Ścieżka do skryptu setup.sh",
     "setupPathHelp": "Pełna ścieżka do skryptu setup.sh w instalacji docker-mailserver.",
     "title": "Ustawienia",
-    "version": "Wersja"
+    "titleUserConfig": "Ustawienia użytkownika",
+    "version": "Wersja",
+    "userConfig": {
+      "webmail": "Webmail",
+      "webmailUrl": "URL Webmail",
+      "webmailUrlHelp": "URL interfejsu webmail (np. Roundcube). Wyświetlany użytkownikom na ich pulpicie.",
+      "mailConfig": "Konfiguracja klienta poczty",
+      "imapHost": "Host IMAP",
+      "imapPort": "Port IMAP",
+      "smtpHost": "Host SMTP",
+      "smtpPort": "Port SMTP",
+      "pop3Host": "Host POP3",
+      "pop3Port": "Port POP3",
+      "permissions": "Uprawnienia użytkownika",
+      "allowUserAliases": "Pozwól użytkownikom na tworzenie i usuwanie aliasów",
+      "rspamd": "Rspamd",
+      "rspamdUrl": "URL interfejsu Rspamd",
+      "rspamdUrlHelp": "URL interfejsu rspamd. Przechowywany w bazie danych."
+    }
   },
   "common": {
     "loading": "Ładowanie...",

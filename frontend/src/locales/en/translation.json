@@ -48,7 +48,23 @@
       "missing": "containerName not found or DNS error",
       "unknown": "Unknown error: cannot tell what the proble is, open the browser debugger and look for clues."
     },
-    "error": "Unable to load dashboard data. Please check server connection."
+    "error": "Unable to load dashboard data. Please check server connection.",
+    "user": {
+      "webmail": "Webmail",
+      "openWebmail": "Open Webmail",
+      "profile": "My Profile",
+      "mailConfig": "Mail Client Configuration",
+      "username": "Username",
+      "yourEmail": "Your email address",
+      "spamSummary": "Spam Summary",
+      "messagesScanned": "{{total}} messages scanned",
+      "hamCount": "{{count}} clean",
+      "spamCount": "{{count}} spam",
+      "recentSpam": "Recent spam",
+      "subject": "Subject",
+      "score": "Score",
+      "action": "Action"
+    }
   },
   "logins": {
     "activate": "Activate {{username}}",
@@ -155,6 +171,7 @@
     "sourceRegex": "Source Address (<strong>Regex</strong>)",
     "sourceInfo": "This is the address mail will be sent to.",
     "sourceRequired": "Source address is required",
+    "readOnly": "Aliases are read-only. Contact your administrator to make changes.",
     "sidebar": "Aliases",
     "title": "Aliases Management"
   },
@@ -224,9 +241,27 @@
     "name": "Name",
     "sidebar": "Settings",
     "titleDMSselector": "Select current DMS",
+    "titleUserConfig": "User Settings",
     "title": "Settings",
     "value": "Value",
-    "version": "Version"
+    "version": "Version",
+    "userConfig": {
+      "webmail": "Webmail",
+      "webmailUrl": "Webmail URL",
+      "webmailUrlHelp": "URL to your webmail interface (e.g. Roundcube). Shown to non-admin users on their dashboard.",
+      "mailConfig": "Mail Client Configuration",
+      "imapHost": "IMAP Host",
+      "imapPort": "IMAP Port",
+      "smtpHost": "SMTP Host",
+      "smtpPort": "SMTP Port",
+      "pop3Host": "POP3 Host",
+      "pop3Port": "POP3 Port",
+      "permissions": "User Permissions",
+      "allowUserAliases": "Allow non-admin users to create and delete aliases",
+      "rspamd": "Rspamd",
+      "rspamdUrl": "Rspamd Web UI URL",
+      "rspamdUrlHelp": "URL to the rspamd web interface. Stored in database (shared across all browsers)."
+    }
   },
   "common": {
     "actions": "Actions",
