@@ -421,6 +421,7 @@ aliases: {
   
   delete: {
     bySource: `DELETE FROM aliases WHERE 1=1 AND source = ? AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @scope)`,
+    byConfig: `DELETE FROM aliases WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?)`,
   },
   
   init:  `BEGIN TRANSACTION;
