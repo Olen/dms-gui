@@ -872,7 +872,7 @@ async (req, res) => {
 
     } else {
       // Check if alias creation is allowed for non-admin users
-      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      const allowSetting = await getSetting('userconfig', containerName, 'ALLOW_USER_ALIASES');
       if (!allowSetting.success || allowSetting.message !== 'true') {
         return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
       }
@@ -949,7 +949,7 @@ async (req, res) => {
 
     } else {
       // Check if alias management is allowed for non-admin users
-      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      const allowSetting = await getSetting('userconfig', containerName, 'ALLOW_USER_ALIASES');
       if (!allowSetting.success || allowSetting.message !== 'true') {
         return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
       }
@@ -1037,7 +1037,7 @@ async (req, res) => {
     const settings = {};
 
     for (const name of publicKeys) {
-      const result = await getSetting('dms-gui', containerName, name);
+      const result = await getSetting('userconfig', containerName, name);
       if (result.success && result.message) {
         settings[name] = result.message;
       }
