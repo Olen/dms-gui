@@ -1407,6 +1407,10 @@ export const getRspamdStats = async (plugin = 'mailserver', containerName = null
 
 
 // Rspamd top symbol counters (aggregated from history)
+// Note: rspamd's history buffer defaults to 200 rows (in-memory) or is configured via
+// history_redis.conf (nrows = N) when using the history_redis module. To increase the
+// history depth, create config/rspamd/local.d/history_redis.conf with e.g. "nrows = 1000;"
+// and recreate the DMS container. The /history endpoint returns all rows by default.
 export const getRspamdCounters = async (plugin = 'mailserver', containerName = null) => {
   debugLog(`getRspamdCounters containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdCounters: containerName is required' };
