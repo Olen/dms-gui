@@ -852,9 +852,12 @@ async (req, res) => {
       result = await addAlias(containerName, source, destination);
 
     } else {
-      // const roles = await getRoles(req.user.mailbox);
-      // TODO: find a way to analyze regex so users do not hijack others
-      
+      // Check if alias creation is allowed for non-admin users
+      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      if (!allowSetting.success || allowSetting.message !== 'true') {
+        return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
+      }
+
       // check source for obvious hack attempt. extract domains and see that they match. Only admins can create aliases for different domain then destination
       let domainSource = source.match(/.*@([\_\-\.\w]+)/);
       let domainDest = destination.match(/.*@([\_\-\.\w]+)/);
@@ -926,7 +929,12 @@ async (req, res) => {
       result = await deleteAlias(containerName, source, destination);
 
     } else {
-      // const roles = await getRoles(req.user.mailbox);
+      // Check if alias management is allowed for non-admin users
+      const allowSetting = await getSetting('dms-gui', containerName, 'ALLOW_USER_ALIASES');
+      if (!allowSetting.success || allowSetting.message !== 'true') {
+        return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
+      }
+
       result = (req.user.roles.includes(destination)) ? await deleteAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
     }
     res.json(result);

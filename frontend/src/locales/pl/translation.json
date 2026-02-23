@@ -82,7 +82,8 @@
     "aliasDeleted": "Alias został pomyślnie usunięty!",
     "cannotCreateAlias": "Nie można utworzyć aliasu. Spróbuj ponownie.",
     "cannotDeleteAlias": "Nie można usunąć aliasu. Spróbuj ponownie.",
-    "confirmDelete": "Czy na pewno chcesz usunąć alias {{source}} => {{destination}}?"
+    "confirmDelete": "Czy na pewno chcesz usunąć alias {{source}} => {{destination}}?",
+    "readOnly": "Aliasy są tylko do odczytu. Skontaktuj się z administratorem, aby wprowadzić zmiany."
   },
   "settings": {
     "aboutDescription": "Docker Mailserver GUI to interfejs graficzny do zarządzania serwerem pocztowym Docker Mailserver. Aplikacja umożliwia łatwe zarządzanie kontami email, aliasami oraz monitorowanie statusu serwera.",

@@ -161,6 +161,7 @@
     "sourceRegex": "Source Address (<strong>Regex</strong>)",
     "sourceInfo": "This is the address mail will be sent to.",
     "sourceRequired": "Source address is required",
+    "readOnly": "Aliases are read-only. Contact your administrator to make changes.",
     "sidebar": "Aliases",
     "title": "Aliases Management"
   },
