@@ -1483,7 +1483,7 @@ export const getRspamdUserHistory = async (plugin = 'mailserver', containerName 
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand('curl -sf http://localhost:11334/history', targetDict, { timeout: 10 });
+    const result = await execCommand('curl -sf "http://localhost:11334/history?from=0&to=999"', targetDict, { timeout: 10 });
 
     if (!result.returncode && result.stdout) {
       const history = JSON.parse(result.stdout);
