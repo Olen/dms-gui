@@ -11,6 +11,7 @@ const mockExecCommand = vi.fn();
 const mockFormatDMSError = vi.fn();
 const mockDeleteEntry = vi.fn();
 const mockGetAliases = vi.fn();
+const mockAddAlias = vi.fn();
 const mockDeleteAlias = vi.fn();
 
 vi.mock('./backend.mjs', () => ({
@@ -37,6 +38,7 @@ vi.mock('./db.mjs', () => ({
 }));
 
 vi.mock('./aliases.mjs', () => ({
+  addAlias: (...args) => mockAddAlias(...args),
   getAliases: (...args) => mockGetAliases(...args),
   deleteAlias: (...args) => mockDeleteAlias(...args),
 }));
@@ -67,8 +69,9 @@ describe('deleteAccount — alias cleanup', () => {
     mockExecSetup.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     // Default: DB delete succeeds
     mockDeleteEntry.mockReturnValue({ success: true, message: 'deleted' });
-    // Default: deleteAlias succeeds
+    // Default: deleteAlias and addAlias succeed
     mockDeleteAlias.mockResolvedValue({ success: true, message: 'deleted' });
+    mockAddAlias.mockResolvedValue({ success: true, message: 'created' });
   });
 
   it('deletes aliases where the mailbox is the destination', async () => {
@@ -137,7 +140,7 @@ describe('deleteAccount — alias cleanup', () => {
     );
   });
 
-  it('handles comma-separated destinations when matching', async () => {
+  it('removes user from multi-destination alias and re-adds with remaining', async () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
@@ -148,13 +151,41 @@ describe('deleteAccount — alias cleanup', () => {
 
     await deleteAccount('dms', 'test-mailserver', 'user@example.com');
 
-    // Should match user@example.com in the comma-separated destination
+    // Should delete the old multi-destination alias
     expect(mockDeleteAlias).toHaveBeenCalledTimes(1);
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'info@example.com',
       'alice@example.com,user@example.com',
     );
+    // Should re-add with remaining destinations only
+    expect(mockAddAlias).toHaveBeenCalledTimes(1);
+    expect(mockAddAlias).toHaveBeenCalledWith(
+      'test-mailserver',
+      'info@example.com',
+      'alice@example.com',
+    );
+  });
+
+  it('deletes entire alias when user is the sole destination', async () => {
+    mockGetAliases.mockResolvedValue({
+      success: true,
+      message: [
+        { source: 'info@example.com', destination: 'user@example.com', regex: 0 },
+      ],
+    });
+
+    await deleteAccount('dms', 'test-mailserver', 'user@example.com');
+
+    // Should delete the alias entirely
+    expect(mockDeleteAlias).toHaveBeenCalledTimes(1);
+    expect(mockDeleteAlias).toHaveBeenCalledWith(
+      'test-mailserver',
+      'info@example.com',
+      'user@example.com',
+    );
+    // Should NOT re-add since there are no remaining destinations
+    expect(mockAddAlias).not.toHaveBeenCalled();
   });
 
   it('does not delete unrelated aliases', async () => {
