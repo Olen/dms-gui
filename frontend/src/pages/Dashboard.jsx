@@ -76,8 +76,8 @@ const Dashboard = () => {
   useEffect(() => {
     fetchAll();
 
-    // Refresh data every 30 seconds
-    const interval = setInterval(fetchDashboard, 30000);
+    // Refresh data every 30 seconds (fetchAll covers both admin and user data)
+    const interval = setInterval(fetchAll, 30000);
 
     return () => clearInterval(interval);
   }, []);

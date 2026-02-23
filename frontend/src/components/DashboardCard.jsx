@@ -62,7 +62,7 @@ const DashboardCard = ({
           ? <RBBadge bg={badgeColor}>{badgeText ? Translate(badgeText, translate) : value}</RBBadge>
           : (isLoading
             ? <LoadingSpinner size="sm"/>
-            : (value && String(value).trim()) ? <p className="card-text">{value}</p> : null
+            : (value !== null && value !== undefined && String(value).trim()) ? <p className="card-text">{value}</p> : null
 
         )}
         {children}

@@ -277,6 +277,15 @@ app.set('query parser', function (str) {
 // post('/api/initAPI/:plugin/:schema/:containerName', 
 // post('/api/killContainer{/:plugin}{/:schema}{/:containerName}', 
 
+// Check if non-admin alias management is allowed for the given container
+const isUserAliasAllowed = (containerName) => {
+  const result = dbGet(
+    `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
+    {}, 'userconfig', containerName, 'ALLOW_USER_ALIASES'
+  );
+  return result.success && result.message?.value === 'true';
+};
+
 /**
  * @swagger
  * /api/status/{plugin}/{containerName}:
@@ -323,6 +332,13 @@ async (req, res) => {
     const { settings } = req.body;
 
     const status = await getServerStatus(plugin, containerName, test, settings);
+
+    // Non-admin users only get connection status, not server resources or DB counts
+    if (!req.user.isAdmin && status.success && status.message) {
+      delete status.message.resources;
+      delete status.message.db;
+    }
+
     res.json(status);
 
   } catch (error) {
@@ -854,12 +870,7 @@ async (req, res) => {
       result = await addAlias(containerName, source, destination);
 
     } else {
-      // Check if alias creation is allowed for non-admin users
-      const allowResult = dbGet(
-        `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
-        {}, 'userconfig', containerName, 'ALLOW_USER_ALIASES'
-      );
-      if (!allowResult.success || allowResult.message?.value !== 'true') {
+      if (!isUserAliasAllowed(containerName)) {
         return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
       }
 
@@ -934,12 +945,7 @@ async (req, res) => {
       result = await deleteAlias(containerName, source, destination);
 
     } else {
-      // Check if alias management is allowed for non-admin users
-      const allowResult = dbGet(
-        `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
-        {}, 'userconfig', containerName, 'ALLOW_USER_ALIASES'
-      );
-      if (!allowResult.success || allowResult.message?.value !== 'true') {
+      if (!isUserAliasAllowed(containerName)) {
         return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
       }
 
@@ -1041,11 +1047,14 @@ async (req, res) => {
       }
     }
 
-    // Count aliases for this user
+    // Count aliases for this user (exact or comma-delimited match, not LIKE substring)
     const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
     if (mailbox) {
       try {
-        const aliasRows = dbAll(`SELECT COUNT(*) as count FROM aliases WHERE destination LIKE ?`, {}, `%${mailbox}%`);
+        const aliasRows = dbAll(
+          `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? OR destination LIKE ? OR destination LIKE ?`,
+          {}, mailbox, `${mailbox},%`, `%,${mailbox},%`, `%,${mailbox}`
+        );
         if (aliasRows.success && aliasRows.message?.[0]) {
           settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
         }
@@ -1075,9 +1084,13 @@ async (req, res) => {
     if (!mailbox) return res.status(400).json({ success: false, error: 'No mailbox associated with this user' });
 
     // Collect all addresses: mailbox + alias sources pointing to this mailbox
+    // Use exact or comma-delimited match (not LIKE substring) to prevent cross-user data leakage
     const addresses = [mailbox];
     try {
-      const aliasRows = dbAll(`SELECT source FROM aliases WHERE destination LIKE ?`, {}, `%${mailbox}%`);
+      const aliasRows = dbAll(
+        `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? OR destination LIKE ? OR destination LIKE ?`,
+        {}, mailbox, `${mailbox},%`, `%,${mailbox},%`, `%,${mailbox}`
+      );
       if (aliasRows.success && aliasRows.message) {
         for (const row of aliasRows.message) {
           if (row.source && !addresses.includes(row.source)) addresses.push(row.source);
