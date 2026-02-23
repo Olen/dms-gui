@@ -8,6 +8,7 @@ import {
 } from './env.mjs';
 
 import {
+  dbAll,
   dbCount,
   dbGet,
   dbInit,
@@ -1064,7 +1065,20 @@ async (req, res) => {
     const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
     if (!mailbox) return res.status(400).json({ success: false, error: 'No mailbox associated with this user' });
 
-    const result = await getRspamdUserHistory('mailserver', containerName, mailbox);
+    // Collect all addresses: mailbox + alias sources pointing to this mailbox
+    const addresses = [mailbox];
+    try {
+      const aliasRows = dbAll(`SELECT source FROM aliases WHERE destination LIKE ?`, {}, `%${mailbox}%`);
+      if (aliasRows.success && aliasRows.message) {
+        for (const row of aliasRows.message) {
+          if (row.source && !addresses.includes(row.source)) addresses.push(row.source);
+        }
+      }
+    } catch (e) {
+      debugLog(`Could not fetch aliases for ${mailbox}:`, e.message);
+    }
+
+    const result = await getRspamdUserHistory('mailserver', containerName, addresses);
     res.json(result);
 
   } catch (error) {
