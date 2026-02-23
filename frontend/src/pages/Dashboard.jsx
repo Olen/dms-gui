@@ -27,6 +27,24 @@ import { useAuth } from '../hooks/useAuth';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
+const actionStyles = {
+  'no action':       { bg: 'success',   label: 'clean',   tip: 'Message delivered normally' },
+  'add header':      { bg: 'warning',   label: 'header',  tip: 'Spam header added, delivered to Junk' },
+  'rewrite subject': { bg: 'warning',   label: 'rewrite', tip: 'Subject rewritten with spam tag' },
+  'reject':          { bg: 'danger',    label: 'reject',  tip: 'Message rejected by server' },
+  'soft reject':     { bg: 'info',      label: 'defer',   tip: 'Temporarily rejected (greylisting)' },
+  'greylist':        { bg: 'info',      label: 'greylist', tip: 'Greylisted, retried later' },
+};
+
+const ActionBadge = ({ action }) => {
+  const style = actionStyles[action] || { bg: 'dark', label: action, tip: action };
+  return (
+    <span className={`badge text-bg-${style.bg}`} title={style.tip}>
+      {style.label}
+    </span>
+  );
+};
+
 const Dashboard = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
@@ -302,7 +320,7 @@ const Dashboard = () => {
             icon="arrow-left-right"
             iconColor="success"
             href="/aliases"
-            value={status.db.aliases}
+            value={userSettings?.USER_ALIAS_COUNT ?? '...'}
           />
         </Col>
         <Col md={3} className="mb-3">
@@ -363,7 +381,6 @@ const Dashboard = () => {
                   </span>
                 )}
               </p>
-              <p className="text-muted small mb-2">{t('dashboard.user.actionHelp')}</p>
               {spamSummary.recentSpam && spamSummary.recentSpam.length > 0 && (
                 <>
                   <h6 className="mb-2">{t('dashboard.user.recentSpam')}</h6>
@@ -384,7 +401,7 @@ const Dashboard = () => {
                           <td className="text-truncate" style={{maxWidth:'200px'}}>{item.rcpt}</td>
                           <td className="text-truncate" style={{maxWidth:'300px'}}>{item.subject}</td>
                           <td><span className="text-danger">{item.score?.toFixed(1)}</span></td>
-                          <td>{item.action}</td>
+                          <td><ActionBadge action={item.action} /></td>
                         </tr>
                       ))}
                     </tbody>

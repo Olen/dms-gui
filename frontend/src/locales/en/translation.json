@@ -61,7 +61,6 @@
       "hamCount": "{{count}} clean",
       "spamCount": "{{count}} spam",
       "since": "since",
-      "actionHelp": "Actions: \"no action\" = clean, \"add header\" = marked as spam, \"reject\" = blocked, \"rewrite subject\" = subject tagged as spam.",
       "recentSpam": "Recent spam",
       "date": "Date",
       "to": "To",
