@@ -5,38 +5,17 @@ import {
   errorLog,
 } from '../../frontend.mjs';
 import {
-//   regexColors,
-//   regexPrintOnly,
-//   regexFindEmailRegex,
-//   regexFindEmailStrict,
-//   regexFindEmailLax,
-//   regexEmailRegex,
-//   regexEmailStrict,
-//   regexEmailLax,
-//   regexMatchPostfix,
-//   regexUsername,
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
 } from '../../../common.mjs';
 import {
   getServerStatus,
+  getUserSettings,
   killContainer,
 } from '../services/api.mjs';
 
 import {
   AlertMessage,
+  Card,
   DashboardCard,
   Button,
   Translate,
@@ -44,15 +23,15 @@ import {
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
 
-import Row from 'react-bootstrap/Row'; // Import Row
-import Col from 'react-bootstrap/Col'; // Import Col
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
 
 const Dashboard = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
   const [containerName] = useLocalStorage("containerName", '');
   const [mailservers] = useLocalStorage("mailservers", []);
-  
+
   const [status, setServerStatus] = useState({
     status: {
       status: 'loading',
@@ -69,9 +48,10 @@ const Dashboard = () => {
       aliases: 0,
     },
   });
-  
+
   const [isStatusLoading, setStatusLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
+  const [userSettings, setUserSettings] = useState(null);
 
   useEffect(() => {
     fetchAll();
@@ -84,6 +64,17 @@ const Dashboard = () => {
 
   const fetchAll = async () => {
     fetchDashboard();
+    if (user?.isAdmin != 1) fetchUserSettings();
+  };
+
+  const fetchUserSettings = async () => {
+    if (!containerName) return;
+    try {
+      const result = await getUserSettings(containerName);
+      if (result.success) setUserSettings(result.message);
+    } catch (error) {
+      // Non-critical - settings may not be configured yet
+    }
   };
 
   const fetchDashboard = async () => {
@@ -93,27 +84,26 @@ const Dashboard = () => {
     try {
       setStatusLoading(true);
 
-      // const statusData = await getServerStatus('mailserver', getValueFromArrayOfObj(mailservers, containerName, 'value', 'schema'), containerName);
       const statusData = await getServerStatus('mailserver', containerName);
       if (statusData.success) {
 
         setErrorMessage(null);
         setServerStatus(statusData.message);
         if (['api_gen', 'api_miss', 'api_match', 'api_unset', 'api_error', 'port_closed', 'port_timeout', 'port_unknown', 'unknown'].includes(statusData.message.status.status)) setErrorMessage(`dashboard.errors.${statusData.message.status.status}`);
-        
+
       } else setErrorMessage(statusData?.error);
-      
+
     } catch (error) {
       errorLog(t('api.errors.fetchServerStatus'), error);
       setErrorMessage('api.errors.fetchServerStatus');
-      
+
     } finally {
       setStatusLoading(false);
     }
   };
 
   const rebootMe = async () => {
-    
+
     killContainer('dms-gui', 'dms-gui', 'dms-gui');
     logout();
   };
@@ -144,6 +134,112 @@ const Dashboard = () => {
     return <LoadingSpinner />;
   }
 
+  // Admin dashboard view
+  if (user?.isAdmin == 1) {
+    return (
+      <div>
+        <div className="float-end position-sticky z-1">
+          <Button
+            variant="warning"
+            size="sm"
+            icon="arrow-repeat"
+            title={t('common.refresh')}
+            className="me-2"
+            onClick={() => fetchAll(true)}
+          />
+        </div>
+
+        <h2 className="mb-4">{Translate('dashboard.title')} {t('common.for', {what:containerName})}</h2>
+        <AlertMessage type="danger" message={errorMessage} />
+
+        <Row>
+          <Col md={3} className="mb-3">
+            <DashboardCard
+              title="dashboard.serverStatus"
+              icon="hdd-rack-fill"
+              iconColor={getStatusColor()}
+              badgeColor={getStatusColor()}
+              badgeText={getStatusText()}
+              isLoading={isStatusLoading}
+            >
+              <Button
+                variant="danger"
+                size="sm"
+                icon="recycle"
+                title={t('dashboard.rebootMe')}
+                className="position-absolute top-right shadow"
+                onClick={() => rebootMe()}
+              />
+            </DashboardCard>
+          </Col>
+          <Col md={3} className="mb-3">
+            <DashboardCard
+              title="dashboard.cpuUsage"
+              icon="cpu"
+              iconColor={isStatusLoading ? "secondary" : "primary"}
+              isLoading={isStatusLoading}
+              value={Number(status.resources.cpuUsage).toFixed(2)+'%'}
+            />
+          </Col>
+          <Col md={3} className="mb-3">
+            <DashboardCard
+              title="dashboard.memoryUsage"
+              icon="memory"
+              iconColor={isStatusLoading ? "secondary" : "info"}
+              isLoading={isStatusLoading}
+              value={Number(status.resources.memoryUsage).toFixed(2)+'%'}
+            />
+          </Col>
+          <Col md={3} className="mb-3">
+            <DashboardCard
+              title="dashboard.diskUsage"
+              icon="hdd"
+              iconColor={isStatusLoading ? "secondary" : "warning"}
+              isLoading={isStatusLoading}
+              value={status.resources.diskUsage+'MB'}
+            />
+          </Col>
+        </Row>
+
+        {user?.isAccount != 1 &&
+        <Row>
+          <Col md={4} className="mb-3">
+            <DashboardCard
+              title="dashboard.logins"
+              icon="person-lock"
+              iconColor={isStatusLoading ? "secondary" : "success"}
+              isLoading={isStatusLoading}
+              value={status.db.logins}
+              href="/logins"
+            />
+          </Col>
+          <Col md={4} className="mb-3">
+            <DashboardCard
+              title="dashboard.mailboxAccounts"
+              icon="inboxes-fill"
+              iconColor={isStatusLoading ? "secondary" : "success"}
+              isLoading={isStatusLoading}
+              value={status.db.accounts}
+              href="/accounts"
+            />
+          </Col>
+          <Col md={4} className="mb-3">
+            <DashboardCard
+              title="dashboard.aliases"
+              icon="arrow-left-right"
+              iconColor={isStatusLoading ? "secondary" : "success"}
+              isLoading={isStatusLoading}
+              value={status.db.aliases}
+              href="/aliases"
+            />
+          </Col>
+        </Row>
+        }
+      </div>
+    );
+  }
+
+  // Non-admin user dashboard view
   return (
     <div>
       <div className="float-end position-sticky z-1">
@@ -157,15 +253,12 @@ const Dashboard = () => {
         />
       </div>
 
-      <h2 className="mb-4">{Translate('dashboard.title')} {t('common.for', {what:containerName})}</h2>
+      <h2 className="mb-4">{Translate('dashboard.title')}</h2>
       <AlertMessage type="danger" message={errorMessage} />
 
+      {/* Quick actions */}
       <Row>
-        {' '}
-        {/* Use Row component */}
         <Col md={3} className="mb-3">
-          {' '}
-          {/* Use Col component and add bottom margin */}
           <DashboardCard
             title="dashboard.serverStatus"
             icon="hdd-rack-fill"
@@ -173,86 +266,73 @@ const Dashboard = () => {
             badgeColor={getStatusColor()}
             badgeText={getStatusText()}
             isLoading={isStatusLoading}
-          >
-          {user?.isAdmin == 1 &&
-            <Button
-              variant="danger"
-              size="sm"
-              icon="recycle"
-              title={t('dashboard.rebootMe')}
-              className="position-absolute top-right shadow"
-              onClick={() => rebootMe()}
-            />
-          }
-          </DashboardCard>
-
+          />
         </Col>
+        {userSettings?.WEBMAIL_URL && (
+          <Col md={3} className="mb-3">
+            <DashboardCard
+              title="dashboard.user.webmail"
+              icon="envelope-open"
+              iconColor="primary"
+              value=" "
+            >
+              <a href={userSettings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+                {t('dashboard.user.openWebmail')}
+              </a>
+            </DashboardCard>
+          </Col>
+        )}
         <Col md={3} className="mb-3">
-          <DashboardCard
-            title="dashboard.cpuUsage"
-            icon="cpu"
-            iconColor={isStatusLoading ? "secondary" : "primary"}
-            isLoading={isStatusLoading}
-            value={Number(status.resources.cpuUsage).toFixed(2)+'%'}
-          />
-        </Col>
-        <Col md={3} className="mb-3">
-          <DashboardCard
-            title="dashboard.memoryUsage"
-            icon="memory"
-            iconColor={isStatusLoading ? "secondary" : "info"}
-            isLoading={isStatusLoading}
-            value={Number(status.resources.memoryUsage).toFixed(2)+'%'}
-          />
-        </Col>
-        <Col md={3} className="mb-3">
-          <DashboardCard
-            title="dashboard.diskUsage"
-            icon="hdd"
-            iconColor={isStatusLoading ? "secondary" : "warning"}
-            isLoading={isStatusLoading}
-            value={status.resources.diskUsage+'MB'}
-          />
-        </Col>
-      </Row>{' '}
-      
-      {user?.isAccount != 1 &&
-      <Row>
-        {' '}
-        {/* Use Row component */}
-        <Col md={4} className="mb-3">
-          <DashboardCard
-            title="dashboard.logins"
-            icon="person-lock"
-            iconColor={isStatusLoading ? "secondary" : "success"}
-            isLoading={isStatusLoading}
-            value={status.db.logins}
-            href="/logins"
-          />
-        </Col>
-        <Col md={4} className="mb-3">
-          <DashboardCard
-            title="dashboard.mailboxAccounts"
-            icon="inboxes-fill"
-            iconColor={isStatusLoading ? "secondary" : "success"}
-            isLoading={isStatusLoading}
-            value={status.db.accounts}
-            href="/accounts"
-          />
-        </Col>
-        <Col md={4} className="mb-3">
           <DashboardCard
             title="dashboard.aliases"
             icon="arrow-left-right"
-            iconColor={isStatusLoading ? "secondary" : "success"}
-            isLoading={isStatusLoading}
-            value={status.db.aliases}
+            iconColor="success"
             href="/aliases"
+            value=" "
+          />
+        </Col>
+        <Col md={3} className="mb-3">
+          <DashboardCard
+            title="dashboard.user.profile"
+            icon="person-gear"
+            iconColor="info"
+            href="/profile"
+            value=" "
           />
         </Col>
       </Row>
-      }
-      {/* Close second Row */}
+
+      {/* Mail client configuration */}
+      {userSettings?.IMAP_HOST && (
+        <Row>
+          <Col md={12} className="mb-3">
+            <Card title="dashboard.user.mailConfig" icon="gear">
+              <table className="table table-sm mb-0">
+                <tbody>
+                  <tr>
+                    <td className="text-muted fw-bold" style={{width:'120px'}}>IMAP</td>
+                    <td><code>{userSettings.IMAP_HOST}:{userSettings.IMAP_PORT || '993'}</code> (SSL/TLS)</td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">SMTP</td>
+                    <td><code>{userSettings.SMTP_HOST}:{userSettings.SMTP_PORT || '587'}</code> (STARTTLS)</td>
+                  </tr>
+                  {userSettings.POP3_HOST && (
+                    <tr>
+                      <td className="text-muted fw-bold">POP3</td>
+                      <td><code>{userSettings.POP3_HOST}:{userSettings.POP3_PORT || '995'}</code> (SSL/TLS)</td>
+                    </tr>
+                  )}
+                  <tr>
+                    <td className="text-muted fw-bold">{t('dashboard.user.username')}</td>
+                    <td><code>{user.mailbox || t('dashboard.user.yourEmail')}</code></td>
+                  </tr>
+                </tbody>
+              </table>
+            </Card>
+          </Col>
+        </Row>
+      )}
     </div>
   );
 };

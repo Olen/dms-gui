@@ -48,7 +48,15 @@
       "missing": "containerName not found or DNS error",
       "unknown": "Unknown error: cannot tell what the proble is, open the browser debugger and look for clues."
     },
-    "error": "Unable to load dashboard data. Please check server connection."
+    "error": "Unable to load dashboard data. Please check server connection.",
+    "user": {
+      "webmail": "Webmail",
+      "openWebmail": "Open Webmail",
+      "profile": "My Profile",
+      "mailConfig": "Mail Client Configuration",
+      "username": "Username",
+      "yourEmail": "Your email address"
+    }
   },
   "logins": {
     "activate": "Activate {{username}}",

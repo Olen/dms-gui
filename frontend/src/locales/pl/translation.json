@@ -25,7 +25,15 @@
       "stopped": "Zatrzymany",
       "unknown": "Nieznany"
     },
-    "error": "Nie można załadować danych dashboard. Sprawdź połączenie z serwerem."
+    "error": "Nie można załadować danych dashboard. Sprawdź połączenie z serwerem.",
+    "user": {
+      "webmail": "Webmail",
+      "openWebmail": "Otwórz Webmail",
+      "profile": "Mój profil",
+      "mailConfig": "Konfiguracja klienta poczty",
+      "username": "Nazwa użytkownika",
+      "yourEmail": "Twój adres email"
+    }
   },
   "accounts": {
     "title": "Zarządzanie Kontami Email",
