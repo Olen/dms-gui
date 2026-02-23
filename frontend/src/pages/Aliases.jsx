@@ -153,6 +153,11 @@ const Aliases = () => {
     }
   };
 
+  // Only allow creating custom options that look like valid email addresses
+  const isValidNewOption = (inputValue) => {
+    return inputValue.trim().length > 0 && regexEmailStrict.test(inputValue.trim());
+  };
+
   const validateForm = () => {
     const errors = {};
     
@@ -174,6 +179,12 @@ const Aliases = () => {
     if (!formData.destination.length) {
       errors.destination = 'aliases.destinationRequired';
       setErrorMessage(errors.destination);
+    } else {
+      const invalidDest = formData.destination.find(d => !regexEmailStrict.test(d.value.trim()));
+      if (invalidDest) {
+        errors.destination = 'aliases.invalidDestination';
+        setErrorMessage(errors.destination);
+      }
     }
 
     // Also test if source domain exist in domains when it's a mailbox match
@@ -311,6 +322,7 @@ const Aliases = () => {
                   value={formData.destination}
                   onChange={handleDestinationChange}
                   options={accountOptions}
+                  isValidNewOption={isValidNewOption}
                   placeholder={t('aliases.selectDestination')}
                   formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
                   noOptionsMessage={() => t('aliases.typeToAdd')}

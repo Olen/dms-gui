@@ -309,6 +309,39 @@ describe('Aliases — multi-destination CreatableSelect', () => {
     });
   });
 
+  it('rejects invalid email format in custom destination', async () => {
+    await renderAliases();
+
+    // Type an invalid value — the "Add: ..." create option should NOT appear
+    const input = getSelectInput();
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: 'not-an-email' } });
+    });
+
+    // Wait a tick for react-select to update
+    await act(async () => {
+      await new Promise(r => setTimeout(r, 50));
+    });
+
+    // The create label should not appear for invalid input
+    expect(screen.queryByText(/Add.*not-an-email/)).not.toBeInTheDocument();
+  });
+
+  it('accepts valid email format in custom destination', async () => {
+    await renderAliases();
+
+    const input = getSelectInput();
+    await act(async () => {
+      fireEvent.focus(input);
+      fireEvent.change(input, { target: { value: 'valid@other.com' } });
+    });
+
+    await waitFor(() => {
+      expect(screen.getByText(/Add.*valid@other\.com/)).toBeInTheDocument();
+    });
+  });
+
   it('clears destination error when a destination is selected', async () => {
     await renderAliases();
 

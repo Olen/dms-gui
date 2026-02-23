@@ -330,24 +330,38 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
       debugLog(`Deleting alias: ${source} -> ${destination}`);
 
       // DMS setup alias del only removes one destination at a time,
-      // so split comma-separated destinations and delete each
+      // so split comma-separated destinations and delete each.
+      // Continue on failure to avoid leaving DMS and DB out of sync.
       const destinations = destination.split(',').map(d => d.trim()).filter(Boolean);
+      const failed = [];
       for (const dest of destinations) {
         results = await execSetup(`alias del ${source} ${dest}`, targetDict);
         debugLog(`------------------------------- Alias deleted results (${dest}):`, results);
         if (results.returncode) {
           let ErrorMsg = await formatDMSError('execSetup', results.stderr);
-          errorLog(ErrorMsg);
-          return { success: false, error: ErrorMsg };
+          errorLog(`Failed to delete ${source} -> ${dest}: ${ErrorMsg}`);
+          failed.push(dest);
         }
       }
 
-      result = deleteEntry('aliases', source, 'bySource', containerName);
-      if (result.success) {
-        successLog(`Alias deleted: ${source}`);
-        return { success: true, message: `Alias deleted: ${source}` };
+      // Sync DB with actual DMS state
+      if (failed.length === 0) {
+        // All deleted — remove DB entry
+        result = deleteEntry('aliases', source, 'bySource', containerName);
+        if (result.success) {
+          successLog(`Alias deleted: ${source}`);
+          return { success: true, message: `Alias deleted: ${source}` };
+        }
+        return result;
+      } else if (failed.length < destinations.length) {
+        // Partial failure — update DB to reflect remaining destinations
+        deleteEntry('aliases', source, 'bySource', containerName);
+        dbRun(sql.aliases.insert.alias, {source, destination: failed.join(','), regex: 0}, containerName);
+        return { success: false, error: `Partially deleted. Failed to remove: ${failed.join(', ')}` };
+      } else {
+        // All failed — DB unchanged
+        return { success: false, error: `Failed to delete alias ${source}` };
       }
-      return result;
     
     // this is regex, must stringify
     } else {
