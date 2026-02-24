@@ -1,8 +1,8 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Row, Col, Badge, ProgressBar, Table } from 'react-bootstrap';
+import { Row, Col, Badge, ProgressBar, Spinner, Table } from 'react-bootstrap';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getRspamdStats, getRspamdCounters } from '../services/api.mjs';
+import { getRspamdStats, getRspamdCounters, getRspamdHistory, rspamdLearnMessage } from '../services/api.mjs';
 
 import {
   AlertMessage,
@@ -47,6 +47,16 @@ const Rspamd = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
+  // History & Bayes training state
+  const [historyData, setHistoryData] = useState([]);
+  const [historyPage, setHistoryPage] = useState(0);
+  const [learnedMap, setLearnedMap] = useState({});
+  const [learningIds, setLearningIds] = useState({});
+  const [historyLoading, setHistoryLoading] = useState(false);
+  const [historyError, setHistoryError] = useState(null);
+  const [thresholds, setThresholds] = useState({});
+  const HISTORY_PAGE_SIZE = 50;
+
   const fetchData = async () => {
     if (!containerName) return;
     setLoading(true);
@@ -72,6 +82,47 @@ const Rspamd = () => {
       setError('Failed to fetch rspamd data');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchHistory = useCallback(async () => {
+    if (!containerName) return;
+    setHistoryLoading(true);
+    setHistoryError(null);
+    try {
+      const result = await getRspamdHistory(containerName);
+      if (result.success) {
+        setHistoryData(result.message.rows || []);
+        setLearnedMap(result.message.learnedMap || {});
+        setThresholds(result.message.thresholds || {});
+        setHistoryPage(0);
+      } else {
+        setHistoryError(result.error);
+      }
+    } catch (err) {
+      setHistoryError('Failed to fetch history');
+    } finally {
+      setHistoryLoading(false);
+    }
+  }, [containerName]);
+
+  const handleLearn = async (messageId, action) => {
+    setLearningIds(prev => ({ ...prev, [messageId]: action }));
+    try {
+      const result = await rspamdLearnMessage(containerName, messageId, action);
+      if (result.success) {
+        setLearnedMap(prev => ({ ...prev, [messageId]: action }));
+      } else {
+        alert(result.error || 'Learn failed');
+      }
+    } catch (err) {
+      alert(err.message || 'Learn failed');
+    } finally {
+      setLearningIds(prev => {
+        const next = { ...prev };
+        delete next[messageId];
+        return next;
+      });
     }
   };
 
@@ -245,6 +296,145 @@ const Rspamd = () => {
           </Table>
         </Card>
       )}
+
+      {/* Message History & Bayes Training */}
+      <Card title="rspamd.history.title">
+        <div className="mb-3 d-flex gap-2 flex-wrap align-items-center">
+          <Button
+            variant="outline-primary"
+            icon="arrow-clockwise"
+            text={historyData.length ? 'common.refresh' : 'rspamd.history.title'}
+            onClick={fetchHistory}
+          />
+          {historyData.length > 0 && (
+            <span className="text-muted small">
+              {t('rspamd.history.showing', {
+                from: historyPage * HISTORY_PAGE_SIZE + 1,
+                to: Math.min((historyPage + 1) * HISTORY_PAGE_SIZE, historyData.length),
+                total: historyData.length,
+              })}
+            </span>
+          )}
+        </div>
+
+        {historyLoading && <LoadingSpinner />}
+        {historyError && <AlertMessage type="danger" message={historyError} />}
+
+        {!historyLoading && historyData.length > 0 && (() => {
+          const totalPages = Math.ceil(historyData.length / HISTORY_PAGE_SIZE);
+          const pageRows = historyData.slice(
+            historyPage * HISTORY_PAGE_SIZE,
+            (historyPage + 1) * HISTORY_PAGE_SIZE
+          );
+
+          return (
+            <>
+              <Table size="sm" striped hover responsive>
+                <thead>
+                  <tr>
+                    <th>{Translate('rspamd.history.time')}</th>
+                    <th>{Translate('rspamd.history.sender')}</th>
+                    <th>{Translate('rspamd.history.recipient')}</th>
+                    <th>{Translate('rspamd.history.subject')}</th>
+                    <th>{Translate('rspamd.history.score')}</th>
+                    <th>{Translate('rspamd.history.action')}</th>
+                    <th>{Translate('rspamd.history.status')}</th>
+                    <th>{Translate('rspamd.history.learn')}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {pageRows.map((row, i) => {
+                    const learned = learnedMap[row.message_id];
+                    const isLearning = learningIds[row.message_id];
+                    const rowClass = learned === 'ham' ? 'table-success' : learned === 'spam' ? 'table-danger' : '';
+
+                    return (
+                      <tr key={`${row.message_id}-${i}`} className={rowClass}>
+                        <td className="text-nowrap small">
+                          {row.unix_time ? new Date(row.unix_time * 1000).toLocaleString() : '—'}
+                        </td>
+                        <td className="small" style={{maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={row.sender}>
+                          {row.sender}
+                        </td>
+                        <td className="small" style={{maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={row.rcpt}>
+                          {row.rcpt}
+                        </td>
+                        <td className="small" style={{maxWidth: '200px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap'}} title={row.subject}>
+                          {row.subject || '(no subject)'}
+                        </td>
+                        <td>
+                          <Badge bg={
+                            row.score < 0 ? 'success'
+                            : (thresholds['add header'] && row.score >= thresholds['add header']) ? 'danger'
+                            : 'warning'
+                          } text={
+                            row.score >= 0 && !(thresholds['add header'] && row.score >= thresholds['add header']) ? 'dark' : undefined
+                          }>
+                            {row.score?.toFixed(1)}
+                          </Badge>
+                        </td>
+                        <td className="small">{row.action}</td>
+                        <td>
+                          {learned && (
+                            <Badge bg={learned === 'ham' ? 'success' : 'danger'}>
+                              {learned.toUpperCase()}
+                            </Badge>
+                          )}
+                        </td>
+                        <td className="text-nowrap">
+                          {isLearning ? (
+                            <Spinner animation="border" size="sm" />
+                          ) : (
+                            <>
+                              <button
+                                className={`btn btn-sm ${learned === 'ham' ? 'btn-success' : 'btn-outline-success'} me-1`}
+                                onClick={() => handleLearn(row.message_id, 'ham')}
+                                title={t('rspamd.history.learnHam')}
+                                disabled={!row.message_id}
+                              >
+                                <i className="bi bi-hand-thumbs-up"></i>
+                              </button>
+                              <button
+                                className={`btn btn-sm ${learned === 'spam' ? 'btn-danger' : 'btn-outline-danger'}`}
+                                onClick={() => handleLearn(row.message_id, 'spam')}
+                                title={t('rspamd.history.learnSpam')}
+                                disabled={!row.message_id}
+                              >
+                                <i className="bi bi-hand-thumbs-down"></i>
+                              </button>
+                            </>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </Table>
+
+              {/* Pagination */}
+              {totalPages > 1 && (
+                <div className="d-flex justify-content-between align-items-center">
+                  <Button
+                    variant="outline-secondary"
+                    text="rspamd.history.prev"
+                    onClick={() => setHistoryPage(p => Math.max(0, p - 1))}
+                    disabled={historyPage === 0}
+                  />
+                  <span className="text-muted small">
+                    {t('rspamd.history.page', { page: historyPage + 1, total: totalPages })}
+                  </span>
+                  <Button
+                    variant="outline-secondary"
+                    text="rspamd.history.next"
+                    onClick={() => setHistoryPage(p => Math.min(totalPages - 1, p + 1))}
+                    disabled={historyPage >= totalPages - 1}
+                  />
+                </div>
+              )}
+            </>
+          );
+        })()}
+      </Card>
     </>
   );
 };

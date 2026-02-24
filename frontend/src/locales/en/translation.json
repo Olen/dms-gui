@@ -355,7 +355,24 @@
     "frequency": "Frequency",
     "weight": "Weight",
     "hits": "Hits",
-    "time": "Avg Time"
+    "time": "Avg Time",
+    "history": {
+      "title": "Message History & Bayes Training",
+      "time": "Time",
+      "sender": "Sender",
+      "recipient": "Recipient",
+      "subject": "Subject",
+      "score": "Score",
+      "action": "Action",
+      "status": "Trained",
+      "learn": "Learn",
+      "learnHam": "Learn as Ham (not spam)",
+      "learnSpam": "Learn as Spam",
+      "showing": "Showing {{from}}-{{to}} of {{total}}",
+      "page": "Page {{page}} of {{total}}",
+      "prev": "Previous",
+      "next": "Next"
+    }
   },
   "domains": {
     "sidebar": "Domains & DNS",

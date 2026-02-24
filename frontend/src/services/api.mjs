@@ -466,6 +466,32 @@ export const getRspamdCounters = async (containerName=null) => {
   }
 };
 
+export const getRspamdHistory = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/rspamd/${containerName}/history`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const rspamdLearnMessage = async (containerName=null, message_id, action) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!message_id) return {success: false, error: 'message_id is required'};
+  if (!action) return {success: false, error: 'action is required'};
+
+  try {
+    const response = await api.post(`/rspamd/${containerName}/learn`, { message_id, action });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getCount = async (table, containerName) => {
   if (!table) return {success: false, error: 'table is required'};
 
