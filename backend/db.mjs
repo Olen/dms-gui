@@ -1061,7 +1061,7 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
         
         // password has its own function
         if (key == 'password') {
-          return changePassword(table, id, value, scope);
+          return changePassword(table, id, value, null, scope);
           
         // other sqlite3 valid types and we can test specific scenarios
         } else {
