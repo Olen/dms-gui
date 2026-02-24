@@ -1418,7 +1418,7 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand('curl -sf http://localhost:11334/history', targetDict, { timeout: 5 });
+    const result = await execCommand('curl -sf "http://localhost:11334/history?from=0&to=999"', targetDict, { timeout: 10 });
 
     if (!result.returncode && result.stdout) {
       const history = JSON.parse(result.stdout);
@@ -1532,16 +1532,23 @@ export const rspamdLearnMessage = async (plugin = 'mailserver', containerName = 
       return { success: false, error: 'Unexpected doveadm search output' };
     }
     const [user, guid, uid] = parts;
+
+    // Validate guid (hex) and uid (numeric) from doveadm output
+    if (!/^[0-9a-f]+$/i.test(guid) || !/^\d+$/.test(uid)) {
+      return { success: false, error: 'Invalid guid/uid format from doveadm' };
+    }
+
     const escUser = escapeShellArg(user);
     const fetchPrefix = `doveadm fetch -u ${escUser} text mailbox-guid ${guid} uid ${uid} | tail -n +2`;
+    const deliverTo = `-H ${escapeShellArg('Deliver-To: ' + user)}`;
 
     // Step 2: If previously learned as opposite class, unlearn first
     const dbCheck = dbGet(sql.bayesLearned.select.byMsgId, { name: containerName }, messageId);
     const previousAction = dbCheck.success && dbCheck.message ? dbCheck.message.action : null;
 
-    if (previousAction && previousAction !== action) {
+    if (previousAction && previousAction !== action && ['ham', 'spam'].includes(previousAction)) {
       const unlearnResult = await execCommand(
-        `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' -H 'Deliver-To: ${user}' --data-binary @- 'http://localhost:11334/learn${previousAction}?unlearn=1'`,
+        `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' ${deliverTo} --data-binary @- 'http://localhost:11334/learn${previousAction}?unlearn=1'`,
         targetDict, { timeout: 10 }
       );
       debugLog(`Unlearn ${previousAction} result: rc=${unlearnResult.returncode} stdout=${unlearnResult.stdout}`);
@@ -1549,7 +1556,7 @@ export const rspamdLearnMessage = async (plugin = 'mailserver', containerName = 
 
     // Step 3: Learn as ham or spam (pipe doveadm output directly into curl via stdin)
     const learnResult = await execCommand(
-      `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' -H 'Deliver-To: ${user}' --data-binary @- 'http://localhost:11334/learn${action}'`,
+      `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' ${deliverTo} --data-binary @- 'http://localhost:11334/learn${action}'`,
       targetDict, { timeout: 10 }
     );
 

@@ -57,7 +57,7 @@ const Rspamd = () => {
   const [thresholds, setThresholds] = useState({});
   const HISTORY_PAGE_SIZE = 50;
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     if (!containerName) return;
     setLoading(true);
     setError(null);
@@ -83,7 +83,7 @@ const Rspamd = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [containerName]);
 
   const fetchHistory = useCallback(async () => {
     if (!containerName) return;
