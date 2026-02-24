@@ -28,12 +28,14 @@ import {
   getDomains,
   getNodeInfos,
   getRspamdCounters,
+  getRspamdHistory,
   getRspamdStats,
   getServerEnvs,
   getServerStatus,
   getSettings,
   initAPI,
   killContainer,
+  rspamdLearnMessage,
   saveSettings,
 } from './settings.mjs';
 
@@ -1731,6 +1733,50 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`index GET /api/rspamd/counters: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for rspamd message history with Bayes training status
+app.get('/api/rspamd/:containerName/history',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getRspamdHistory('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/rspamd/history: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for Bayes training a message as ham or spam
+app.post('/api/rspamd/:containerName/learn',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const { message_id, action } = req.body;
+    if (!message_id || !action) return res.status(400).json({ error: 'message_id and action are required' });
+
+    const learnedBy = req.user.username || req.user.mailbox || 'admin';
+    const result = await rspamdLearnMessage('mailserver', containerName, message_id, action, learnedBy);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`POST /api/rspamd/learn: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

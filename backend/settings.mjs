@@ -1,5 +1,6 @@
 import {
   arrayOfStringToDict,
+  escapeShellArg,
   getValueFromArrayOfObj,
   jsonFixTrailingCommas,
   obj2ArrayOfObj,
@@ -1450,6 +1451,131 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
 
   } catch (error) {
     errorLog(`getRspamdCounters error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
+// Rspamd message history with Bayes learned status from DB
+export const getRspamdHistory = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getRspamdHistory containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getRspamdHistory: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const result = await execCommand('curl -sf "http://localhost:11334/history?from=0&to=999"', targetDict, { timeout: 10 });
+
+    if (!result.returncode && result.stdout) {
+      const history = JSON.parse(result.stdout);
+      const rawRows = history.rows || [];
+
+      const rows = rawRows.map(r => ({
+        message_id: r['message-id'] || '',
+        sender: r.sender_smtp || r.sender_mime || '',
+        rcpt: Array.isArray(r.rcpt_smtp) ? r.rcpt_smtp.join(', ') : (r.rcpt_smtp || ''),
+        subject: r.subject || '',
+        score: r.score || 0,
+        action: r.action || '',
+        unix_time: r.unix_time || 0,
+      }));
+
+      // Extract thresholds from first row (same for all rows)
+      const firstRow = rawRows[0];
+      const thresholds = firstRow?.thresholds || {};
+
+      // Build learnedMap from DB
+      const learnedMap = {};
+      const dbResult = dbAll(sql.bayesLearned.select.allMap, { name: containerName });
+      if (dbResult.success && dbResult.message) {
+        for (const row of dbResult.message) {
+          learnedMap[row.message_id] = row.action;
+        }
+      }
+
+      return { success: true, message: { rows, learnedMap, thresholds } };
+    }
+    return { success: false, error: result.stderr || 'rspamd history request failed' };
+
+  } catch (error) {
+    errorLog(`getRspamdHistory error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
+// Learn a message as ham or spam via doveadm + rspamd
+// Uses separate execCommand calls because the REST API supports pipes and redirects but NOT && chaining
+export const rspamdLearnMessage = async (plugin = 'mailserver', containerName = null, messageId = null, action = null, learnedBy = 'admin') => {
+  debugLog(`rspamdLearnMessage containerName=${containerName} messageId=${messageId} action=${action}`);
+  if (!containerName) return { success: false, error: 'containerName is required' };
+  if (!messageId) return { success: false, error: 'message_id is required' };
+  if (!action || !['ham', 'spam'].includes(action)) return { success: false, error: 'action must be ham or spam' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const escapedMsgId = escapeShellArg(messageId);
+
+    // Step 1: Find message in dovecot via doveadm search
+    const searchResult = await execCommand(
+      `doveadm search -A header message-id ${escapedMsgId}`,
+      targetDict, { timeout: 10 }
+    );
+
+    if (searchResult.returncode || !searchResult.stdout || !searchResult.stdout.trim()) {
+      return { success: false, error: 'Message not found in any mailbox (may have been deleted or rejected)' };
+    }
+
+    // Parse first match: "user guid uid"
+    const firstLine = searchResult.stdout.trim().split('\n')[0];
+    const parts = firstLine.split(/\s+/);
+    if (parts.length < 3) {
+      return { success: false, error: 'Unexpected doveadm search output' };
+    }
+    const [user, guid, uid] = parts;
+    const escUser = escapeShellArg(user);
+    const fetchPrefix = `doveadm fetch -u ${escUser} text mailbox-guid ${guid} uid ${uid} | tail -n +2`;
+
+    // Step 2: If previously learned as opposite class, unlearn first
+    const dbCheck = dbGet(sql.bayesLearned.select.byMsgId, { name: containerName }, messageId);
+    const previousAction = dbCheck.success && dbCheck.message ? dbCheck.message.action : null;
+
+    if (previousAction && previousAction !== action) {
+      const unlearnResult = await execCommand(
+        `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' -H 'Deliver-To: ${user}' --data-binary @- 'http://localhost:11334/learn${previousAction}?unlearn=1'`,
+        targetDict, { timeout: 10 }
+      );
+      debugLog(`Unlearn ${previousAction} result: rc=${unlearnResult.returncode} stdout=${unlearnResult.stdout}`);
+    }
+
+    // Step 3: Learn as ham or spam (pipe doveadm output directly into curl via stdin)
+    const learnResult = await execCommand(
+      `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' -H 'Deliver-To: ${user}' --data-binary @- 'http://localhost:11334/learn${action}'`,
+      targetDict, { timeout: 10 }
+    );
+
+    if (learnResult.returncode) {
+      return { success: false, error: `Learn failed: ${learnResult.stderr || 'unknown error'}` };
+    }
+
+    // Check HTTP status from curl -w
+    const httpStatus = learnResult.stdout?.trim();
+    if (httpStatus && httpStatus !== '200' && httpStatus !== '204') {
+      return { success: false, error: `rspamd returned HTTP ${httpStatus}` };
+    }
+
+    // Step 4: Record in DB
+    dbRun(sql.bayesLearned.insert.learned, {
+      message_id: messageId,
+      action: action,
+      user: user,
+      learned_by: learnedBy,
+    }, containerName);
+
+    const statusMsg = httpStatus === '204' ? `Already known as ${action}` : `Learned as ${action}`;
+    return { success: true, message: statusMsg, action };
+
+  } catch (error) {
+    errorLog(`rspamdLearnMessage error:`, error.message);
     return { success: false, error: error.message };
   }
 };

@@ -568,6 +568,46 @@ dns: {
           COMMIT;`,
   
 },
+
+// ██████   █████  ██    ██ ███████ ███████
+// ██   ██ ██   ██  ██  ██  ██      ██
+// ██████  ███████   ████   █████   ███████
+// ██   ██ ██   ██    ██    ██           ██
+// ██████  ██   ██    ██    ███████ ███████
+bayesLearned: {
+
+  scope:  false,
+  keys:   {
+    message_id:'string',
+    action:'string',
+    user:'string',
+    learned_by:'string',
+  },
+  select: {
+    allMap:   `SELECT message_id, action FROM bayes_learned WHERE configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
+    byMsgId:  `SELECT message_id, action, user, learned_by, learned_at FROM bayes_learned WHERE message_id = ? AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
+  },
+
+  insert: {
+    learned:  `REPLACE INTO bayes_learned (message_id, action, user, learned_by, learned_at, configID) VALUES (@message_id, @action, @user, @learned_by, datetime('now'), (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
+  },
+
+  init:  `BEGIN TRANSACTION;
+          CREATE TABLE IF NOT EXISTS bayes_learned (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          message_id  TEXT NOT NULL,
+          action      TEXT NOT NULL,
+          user        TEXT NOT NULL,
+          learned_by  TEXT NOT NULL,
+          learned_at  TEXT NOT NULL DEFAULT (datetime('now')),
+          configID    INTEGER NOT NULL,
+          UNIQUE (message_id, user)
+          );
+          INSERT OR IGNORE INTO settings (name, value, configID, isMutable) VALUES ('bayes_learned', '${env.DMSGUI_VERSION}', 1, ${env.isImmutable});
+          COMMIT;`,
+
+  patch: [],
+},
 };
 
 // https://github.com/WiseLibs/better-sqlite3/blob/master/docs/api.md

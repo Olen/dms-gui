@@ -145,7 +145,24 @@
     "frequency": "Częstotliwość",
     "weight": "Waga",
     "hits": "Trafienia",
-    "time": "Śr. czas"
+    "time": "Śr. czas",
+    "history": {
+      "title": "Historia wiadomości i trening Bayesa",
+      "time": "Czas",
+      "sender": "Nadawca",
+      "recipient": "Odbiorca",
+      "subject": "Temat",
+      "score": "Wynik",
+      "action": "Akcja",
+      "status": "Wytrenowane",
+      "learn": "Ucz",
+      "learnHam": "Ucz jako Ham (nie spam)",
+      "learnSpam": "Ucz jako Spam",
+      "showing": "Wyświetlanie {{from}}-{{to}} z {{total}}",
+      "page": "Strona {{page}} z {{total}}",
+      "prev": "Poprzednia",
+      "next": "Następna"
+    }
   },
   "language": {
     "select": "Wybierz Język",
