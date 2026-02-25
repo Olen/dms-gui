@@ -1210,7 +1210,7 @@ export const getDomains = async (containerName=null, name=null) => {
   
   try {
     
-    const domains = dbAll(sql.domains.select.domains, {name:containerName});
+    const domains = dbAll(sql.domains.select.domainsWithCounts, {name:containerName});
     if (domains.success) {
       debugLog(`domains: domains (${typeof domains.message})`);
       
@@ -1689,7 +1689,7 @@ export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
   debugLog(`dnsLookup domain=${domain} selector=${dkimSelector}`);
   if (!domain) return { success: false, error: 'dnsLookup: domain is required' };
 
-  const result = { domain, a: [], mx: [], spf: null, dkim: null, dmarc: null };
+  const result = { domain, a: [], mx: [], spf: null, dkim: null, dmarc: null, tlsa: [], srv: [] };
 
   try {
     try { result.a = await dns.promises.resolve4(domain); } catch (e) { /* no A records */ }
@@ -1715,10 +1715,152 @@ export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
       if (dmarcRecords.length) result.dmarc = dmarcRecords[0].join('');
     } catch (e) { /* no DMARC record */ }
 
+    // TLSA records for SMTP (25), SMTPS (465), IMAPS (993)
+    for (const [port, proto] of [[25, 'tcp'], [465, 'tcp'], [993, 'tcp']]) {
+      try {
+        const tlsa = await dns.promises.resolve(`_${port}._${proto}.${domain}`, 'TLSA');
+        if (tlsa.length) result.tlsa.push(...tlsa.map(r => ({
+          port,
+          usage: r.usage,
+          selector: r.selector,
+          matchingType: r.matchingtype,
+          data: Buffer.isBuffer(r.certificate) ? Buffer.from(r.certificate).toString('hex') : r.certificate,
+        })));
+      } catch (e) { /* no TLSA */ }
+    }
+
+    // SRV records for mail-related services
+    for (const svc of ['_submission._tcp', '_imaps._tcp', '_pop3s._tcp', '_autodiscover._tcp']) {
+      try {
+        const srv = await dns.promises.resolveSrv(`${svc}.${domain}`);
+        if (srv.length) result.srv.push(...srv.map(r => ({ service: svc, ...r })));
+      } catch (e) { /* no SRV */ }
+    }
+
     return { success: true, message: result };
 
   } catch (error) {
     errorLog(`dnsLookup error:`, error.message);
     return { success: false, error: error.message };
   }
+};
+
+
+// Generate DKIM key for a domain using DMS setup command
+export const generateDkim = async (plugin = 'mailserver', containerName, domain, keytype = 'rsa', keysize = '2048', selector = 'mail', force = false) => {
+  debugLog(`generateDkim domain=${domain} keytype=${keytype} keysize=${keysize} selector=${selector} force=${force}`);
+  if (!/^[a-z0-9.-]+$/i.test(domain)) return { success: false, error: 'Invalid domain' };
+  if (!['rsa', 'ed25519'].includes(keytype)) return { success: false, error: 'Invalid keytype' };
+  if (!['1024', '2048', '4096'].includes(String(keysize))) return { success: false, error: 'Invalid keysize' };
+  if (!/^[a-z0-9_-]+$/i.test(selector)) return { success: false, error: 'Invalid selector' };
+
+  const targetDict = getTargetDict(plugin, containerName);
+
+  let args = `config dkim keytype ${keytype}`;
+  if (keytype === 'rsa') args += ` keysize ${keysize}`;
+  args += ` selector ${selector} domain ${domain}`;
+  if (force) args += ` --force`;
+
+  const result = await execSetup(args, targetDict, { timeout: 30 });
+
+  if (result.returncode) return { success: false, error: result.stderr || 'DKIM generation failed' };
+
+  // Parse the DNS record from stdout (line containing "v=DKIM1;")
+  const dnsRecord = result.stdout.split('\n').find(l => l.includes('v=DKIM1;'))?.trim();
+
+  // Update domain record in DB with new selector/keytype/keysize
+  dbRun(sql.domains.insert.domain, { domain, dkim: selector, keytype, keysize: String(keysize), path: '' }, containerName);
+
+  return { success: true, message: { dnsRecord, selector, keytype, keysize }, warning: result.stderr };
+};
+
+
+// Open/free IP-based RBLs (no API key needed)
+const OPEN_RBLS = [
+  { name: 'Barracuda',      zone: 'b.barracudacentral.org' },
+  { name: 'SpamCop',        zone: 'bl.spamcop.net' },
+  { name: 'UCEProtect-1',   zone: 'dnsbl-1.uceprotect.net' },
+  { name: 'PSBL',           zone: 'psbl.surriel.com' },
+  { name: 'Mailspike',      zone: 'bl.mailspike.net' },
+];
+
+// Key-based RBLs (Spamhaus DQS, Abusix) — keys read from DB settings
+const KEY_RBLS = [
+  { name: 'Spamhaus ZEN',    zoneTemplate: '{key}.zen.dq.spamhaus.net',        settingKey: 'SPAMHAUS_DQS_KEY' },
+  { name: 'Abusix Combined', zoneTemplate: '{key}.combined.mail.abusix.zone',  settingKey: 'ABUSIX_KEY' },
+];
+
+// Domain-based blocklists
+const DOMAIN_RBLS = [
+  { name: 'Spamhaus DBL',  zoneTemplate: '{key}.dbl.dq.spamhaus.net',       settingKey: 'SPAMHAUS_DQS_KEY' },
+  { name: 'Abusix DBL',    zoneTemplate: '{key}.dblack.mail.abusix.zone',   settingKey: 'ABUSIX_KEY' },
+];
+
+// DNS blacklist check for a domain's mail server IP
+export const dnsblCheck = async (plugin = 'mailserver', containerName, domain) => {
+  debugLog(`dnsblCheck domain=${domain}`);
+  if (!domain) return { success: false, error: 'dnsblCheck: domain is required' };
+
+  // 1. Get server IP from MX → A resolution
+  let serverIp = null;
+  try {
+    const mx = await dns.promises.resolveMx(domain);
+    if (mx.length) {
+      const mxHost = mx.sort((a, b) => a.priority - b.priority)[0].exchange;
+      const ips = await dns.promises.resolve4(mxHost);
+      if (ips.length) serverIp = ips[0];
+    }
+  } catch (e) { /* can't determine IP from MX */ }
+  if (!serverIp) {
+    try { const ips = await dns.promises.resolve4(domain); serverIp = ips[0]; } catch (e) { /* fallback failed */ }
+  }
+  if (!serverIp) return { success: false, error: 'Could not determine server IP for ' + domain };
+
+  const reversed = serverIp.split('.').reverse().join('.');
+
+  // 2. Load API keys from DB settings
+  const keys = {};
+  for (const rbl of [...KEY_RBLS, ...DOMAIN_RBLS]) {
+    if (!keys[rbl.settingKey]) {
+      try {
+        const setting = await getSetting('userconfig', containerName, rbl.settingKey, true);
+        if (setting?.success && setting?.message) {
+          keys[rbl.settingKey] = setting.message;
+        }
+      } catch (e) { /* key not configured */ }
+    }
+  }
+
+  // 3. Build query list
+  const queries = [];
+
+  for (const rbl of OPEN_RBLS) {
+    queries.push({ name: rbl.name, type: 'ip', query: `${reversed}.${rbl.zone}` });
+  }
+
+  for (const rbl of KEY_RBLS) {
+    const key = keys[rbl.settingKey];
+    if (key) {
+      queries.push({ name: rbl.name, type: 'ip', query: `${reversed}.${rbl.zoneTemplate.replace('{key}', key)}` });
+    }
+  }
+
+  for (const rbl of DOMAIN_RBLS) {
+    const key = keys[rbl.settingKey];
+    if (key) {
+      queries.push({ name: rbl.name, type: 'domain', query: `${domain}.${rbl.zoneTemplate.replace('{key}', key)}` });
+    }
+  }
+
+  // 4. Query all in parallel
+  const results = await Promise.all(queries.map(async (q) => {
+    try {
+      const records = await dns.promises.resolve4(q.query);
+      return { name: q.name, type: q.type, listed: true, returnCode: records[0] };
+    } catch (e) {
+      return { name: q.name, type: q.type, listed: false, returnCode: null };
+    }
+  }));
+
+  return { success: true, message: { domain, serverIp, results } };
 };

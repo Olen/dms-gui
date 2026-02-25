@@ -460,6 +460,11 @@ domains: {
   select: {
     count:    `SELECT COUNT(*) count FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
     domains:  `SELECT * FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
+    domainsWithCounts: `SELECT d.*,
+      (SELECT COUNT(*) FROM accounts a WHERE a.domain = d.domain AND a.configID = d.configID) as accountCount,
+      (SELECT COUNT(DISTINCT source) FROM aliases WHERE SUBSTR(source, INSTR(source, '@') + 1) = d.domain AND configID = d.configID) as aliasCount
+      FROM domains d
+      WHERE d.configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
     domain:   `SELECT * FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,
     dkims:    `SELECT DISTINCT dkim FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
     dkim:     `SELECT dkim FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,

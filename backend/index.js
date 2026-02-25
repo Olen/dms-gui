@@ -26,6 +26,8 @@ import {
 
 import {
   dnsLookup,
+  dnsblCheck,
+  generateDkim,
   getConfigs,
   getDomains,
   getNodeInfos,
@@ -1844,6 +1846,120 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`index GET /api/dns: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint for generating DKIM keys for a domain
+/**
+ * @swagger
+ * /api/domains/{containerName}/{domain}/dkim:
+ *   post:
+ *     summary: Generate DKIM key
+ *     description: Generate a DKIM key pair for a domain using DMS setup
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Domain to generate DKIM key for
+ *     requestBody:
+ *       required: false
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               keytype:
+ *                 type: string
+ *                 default: rsa
+ *               keysize:
+ *                 type: string
+ *                 default: '2048'
+ *               selector:
+ *                 type: string
+ *                 default: mail
+ *               force:
+ *                 type: boolean
+ *                 default: false
+ *     responses:
+ *       200:
+ *         description: DKIM key generated with DNS record
+ *       400:
+ *         description: Something is missing
+ *       500:
+ *         description: Unable to generate DKIM key
+ */
+app.post('/api/domains/:containerName/:domain/dkim',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, domain } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+
+    const { keytype, keysize, selector, force } = req.body;
+    const result = await generateDkim('mailserver', containerName, domain, keytype, keysize, selector, force);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index POST /api/domains/dkim: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint for DNS blacklist check
+/**
+ * @swagger
+ * /api/dnsbl/{containerName}/{domain}:
+ *   get:
+ *     summary: Check DNS blacklists
+ *     description: Check if domain's mail server IP is on any DNS blacklists
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: Domain to check blacklists for
+ *     responses:
+ *       200:
+ *         description: Blacklist check results
+ *       400:
+ *         description: Something is missing
+ *       500:
+ *         description: Unable to check blacklists
+ */
+app.get('/api/dnsbl/:containerName/:domain',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, domain } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+
+    const result = await dnsblCheck('mailserver', containerName, domain);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index GET /api/dnsbl: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
