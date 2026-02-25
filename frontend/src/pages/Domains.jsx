@@ -195,7 +195,7 @@ const Domains = () => {
     if (!dmarc) return 'danger';
     const policy = dmarc.match(/;\s*p=([^;\s]+)/i)?.[1]?.toLowerCase();
     if (policy === 'reject') return 'success';
-    if (policy === 'quarantine') return 'warning';
+    if (policy === 'quarantine') return 'success';
     return 'warning'; // p=none
   };
 
