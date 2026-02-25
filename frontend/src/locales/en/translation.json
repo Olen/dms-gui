@@ -388,6 +388,7 @@
     "keysize": "Key Size",
     "accounts": "Accounts",
     "aliases": "Aliases",
+    "noContainer": "No container selected. Please select a container from the sidebar.",
     "dnsStatus": "DNS Status",
     "checkDns": "Check DNS",
     "checkAllDns": "Check All DNS",

@@ -479,7 +479,8 @@ domains: {
   },
   
   insert: {
-    domain:   `REPLACE INTO domains (domain, dkim, keytype, keysize, path, configID) VALUES (@domain, @dkim, @keytype, @keysize, @path, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
+    domain:   `INSERT INTO domains (domain, dkim, keytype, keysize, path, configID) VALUES (@domain, @dkim, @keytype, @keysize, @path, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))
+               ON CONFLICT(domain) DO UPDATE SET dkim=excluded.dkim, keytype=excluded.keytype, keysize=excluded.keysize, path=excluded.path, configID=excluded.configID`,
   },
   
   delete: {

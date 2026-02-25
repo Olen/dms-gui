@@ -14,6 +14,11 @@ import {
 } from '../components/index.jsx';
 
 const i18nHtmlComponents = { strong: <strong />, i: <i />, br: <br />, a: <a />, pre: <pre /> };
+const RECOMMENDED_KEYTYPE = 'rsa';
+const RECOMMENDED_KEYSIZE = '2048';
+const TLSA_USAGE = { 0: 'PKIX-TA', 1: 'PKIX-EE', 2: 'DANE-TA', 3: 'DANE-EE' };
+const TLSA_SELECTOR = { 0: 'Full cert', 1: 'SubjectPublicKeyInfo' };
+const TLSA_MATCH = { 0: 'Exact', 1: 'SHA-256', 2: 'SHA-512' };
 
 
 const Domains = () => {
@@ -23,6 +28,7 @@ const Domains = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dnsResults, setDnsResults] = useState({});
+  const [dnsErrors, setDnsErrors] = useState({});
   const [dnsLoading, setDnsLoading] = useState({});
   const [checkingAll, setCheckingAll] = useState(false);
   const [showModal, setShowModal] = useState(false);
@@ -41,6 +47,7 @@ const Domains = () => {
 
   // DNSBL state
   const [dnsblResults, setDnsblResults] = useState({});
+  const [dnsblErrors, setDnsblErrors] = useState({});
   const [dnsblLoading, setDnsblLoading] = useState({});
   const [checkingAllDnsbl, setCheckingAllDnsbl] = useState(false);
   const [showDnsblModal, setShowDnsblModal] = useState(false);
@@ -54,7 +61,10 @@ const Domains = () => {
   const [externalModalDomain, setExternalModalDomain] = useState(null);
 
   useEffect(() => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     fetchDomains();
   }, [containerName]);
 
@@ -66,28 +76,33 @@ const Domains = () => {
       if (result.success) {
         const domainList = result.message || [];
         setDomains(domainList);
+        setLoading(false);
+        // Fire DNS checks async per-row (don't block table rendering)
         for (const d of domainList) {
-          await checkDns(d.domain);
+          checkDns(d.domain);
         }
       } else {
         setError(result.error || 'api.errors.fetchDomains');
+        setLoading(false);
       }
     } catch (err) {
       setError('api.errors.fetchDomains');
-    } finally {
       setLoading(false);
     }
   };
 
   const checkDns = async (domain) => {
     setDnsLoading(prev => ({ ...prev, [domain]: true }));
+    setDnsErrors(prev => ({ ...prev, [domain]: null }));
     try {
       const result = await getDnsLookup(containerName, domain);
       if (result.success) {
         setDnsResults(prev => ({ ...prev, [domain]: result.message }));
+      } else {
+        setDnsErrors(prev => ({ ...prev, [domain]: true }));
       }
     } catch (err) {
-      // silently fail per-domain
+      setDnsErrors(prev => ({ ...prev, [domain]: true }));
     } finally {
       setDnsLoading(prev => ({ ...prev, [domain]: false }));
     }
@@ -103,13 +118,16 @@ const Domains = () => {
 
   const checkDnsbl = async (domain) => {
     setDnsblLoading(prev => ({ ...prev, [domain]: true }));
+    setDnsblErrors(prev => ({ ...prev, [domain]: null }));
     try {
       const result = await getDnsblCheck(containerName, domain);
       if (result.success) {
         setDnsblResults(prev => ({ ...prev, [domain]: result.message }));
+      } else {
+        setDnsblErrors(prev => ({ ...prev, [domain]: true }));
       }
     } catch (err) {
-      // silently fail per-domain
+      setDnsblErrors(prev => ({ ...prev, [domain]: true }));
     } finally {
       setDnsblLoading(prev => ({ ...prev, [domain]: false }));
     }
@@ -132,9 +150,6 @@ const Domains = () => {
     setDnsblModalDomain(domain);
     setShowDnsblModal(true);
   };
-
-  const RECOMMENDED_KEYTYPE = 'rsa';
-  const RECOMMENDED_KEYSIZE = '2048';
 
   const openDkimModal = (domain) => {
     const domainData = domains.find(d => d.domain === domain);
@@ -169,16 +184,16 @@ const Domains = () => {
             domain: dkimDomain,
           }}));
         }
-        // Refresh DNS for this domain to check if record is published
-        await checkDns(dkimDomain);
-        // Refresh domains list to get updated DKIM info
-        const domainsResult = await getDomains(containerName);
-        if (domainsResult.success) setDomains(domainsResult.message || []);
+        // Refresh DNS and domains list in background (don't block success state)
+        checkDns(dkimDomain);
+        getDomains(containerName).then(r => {
+          if (r.success) setDomains(r.message || []);
+        }).catch(() => {});
       } else {
-        setDkimError(result.error || Translate('domains.dkimError'));
+        setDkimError(result.error || 'domains.dkimError');
       }
     } catch (err) {
-      setDkimError(Translate('domains.dkimError'));
+      setDkimError('domains.dkimError');
     } finally {
       setDkimLoading(false);
     }
@@ -210,10 +225,6 @@ const Domains = () => {
       {label}
     </Badge>
   );
-
-  const TLSA_USAGE = { 0: 'PKIX-TA', 1: 'PKIX-EE', 2: 'DANE-TA', 3: 'DANE-EE' };
-  const TLSA_SELECTOR = { 0: 'Full cert', 1: 'SubjectPublicKeyInfo' };
-  const TLSA_MATCH = { 0: 'Exact', 1: 'SHA-256', 2: 'SHA-512' };
 
   const keytypeBadge = (type) => {
     if (!type) return 'danger';
@@ -254,7 +265,7 @@ const Domains = () => {
       key: 'accountCount',
       label: 'domains.accounts',
       render: (item) => (
-        <span title={Translate('domains.accounts')}>
+        <span title={t('domains.accounts')}>
           <i className="bi bi-person me-1" />{item.accountCount || 0}
         </span>
       ),
@@ -263,7 +274,7 @@ const Domains = () => {
       key: 'aliasCount',
       label: 'domains.aliases',
       render: (item) => (
-        <span title={Translate('domains.aliases')}>
+        <span title={t('domains.aliases')}>
           <i className="bi bi-envelope me-1" />{item.aliasCount || 0}
         </span>
       ),
@@ -276,8 +287,18 @@ const Domains = () => {
       render: (item) => {
         const dns = dnsResults[item.domain];
         const isLoading = dnsLoading[item.domain];
+        const hasError = dnsErrors[item.domain];
 
         if (isLoading) return <LoadingSpinner />;
+
+        if (hasError && !dns) {
+          return (
+            <div className="d-flex align-items-center gap-1">
+              <Badge bg="danger"><i className="bi bi-exclamation-triangle me-1" />{t('common.error')}</Badge>
+              <Button variant="outline-primary" size="sm" icon="arrow-clockwise" onClick={() => checkDns(item.domain)} />
+            </div>
+          );
+        }
 
         if (!dns) {
           return (
@@ -319,8 +340,18 @@ const Domains = () => {
       render: (item) => {
         const bl = dnsblResults[item.domain];
         const isLoading = dnsblLoading[item.domain];
+        const hasError = dnsblErrors[item.domain];
 
         if (isLoading) return <LoadingSpinner />;
+
+        if (hasError && !bl) {
+          return (
+            <div className="d-flex align-items-center gap-1">
+              <Badge bg="danger"><i className="bi bi-exclamation-triangle me-1" />{t('common.error')}</Badge>
+              <Button variant="outline-secondary" size="sm" icon="arrow-clockwise" onClick={() => checkDnsbl(item.domain)} />
+            </div>
+          );
+        }
 
         if (!bl) {
           return (
@@ -373,6 +404,7 @@ const Domains = () => {
   ];
 
   if (loading) return <LoadingSpinner />;
+  if (!containerName) return <Card title="domains.title"><AlertMessage type="warning" message="domains.noContainer" /></Card>;
 
   const modalDns = modalDomain ? dnsResults[modalDomain] : null;
   const dnsblModalData = dnsblModalDomain ? dnsblResults[dnsblModalDomain] : null;

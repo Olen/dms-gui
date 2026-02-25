@@ -79,6 +79,9 @@ import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 const app = express();
 
+const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
+const isValidDomain = (d) => typeof d === 'string' && d.length <= 253 && DOMAIN_RE.test(d);
+
 const swaggerDefinition = {
   openapi: '3.0.0',
   info: {
@@ -1832,6 +1835,7 @@ async (req, res) => {
     const { containerName, domain } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
     if (!domain) return res.status(400).json({ error: 'domain is required' });
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
 
     // Try to get DKIM selector from domain DB entry
     let dkimSelector = 'dkim';
@@ -1906,6 +1910,7 @@ async (req, res) => {
     const { containerName, domain } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
     if (!domain) return res.status(400).json({ error: 'domain is required' });
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
 
     const { keytype, keysize, selector, force } = req.body;
     const result = await generateDkim('mailserver', containerName, domain, keytype, keysize, selector, force);
@@ -1954,8 +1959,9 @@ async (req, res) => {
     const { containerName, domain } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
     if (!domain) return res.status(400).json({ error: 'domain is required' });
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
 
-    const result = await dnsblCheck('mailserver', containerName, domain);
+    const result = await dnsblCheck(containerName, domain);
     res.json(result);
 
   } catch (error) {

@@ -896,16 +896,15 @@ export const pullDkimRspamd = async (targetDict={}) => {
       } else if (envs.DKIM_PATH) {
         // No per-domain config — discover domains from DKIM key directory
         const dkimKeysDir = path.dirname(envs.DKIM_PATH.replace('$selector', envs.DKIM_SELECTOR).replace('$domain', ''));
-        const lsResult = await execCommand(`ls -1 ${dkimKeysDir}`, targetDict, { timeout: 5 });
+        const lsResult = await execCommand(`ls -1 '${dkimKeysDir.replace(/'/g, "'\\''")}'`, targetDict, { timeout: 5 });
         if (!lsResult.returncode && lsResult.stdout) {
-          const domains = lsResult.stdout.trim().split('\n').filter(d => d && d.includes('.'));
+          const domains = lsResult.stdout.trim().split('\n').filter(d => d && /^[a-z0-9.-]+$/i.test(d));
           infoLog(`Discovered ${domains.length} DKIM domains from ${dkimKeysDir}`);
           for (const domain of domains) {
             const keyPath = envs.DKIM_PATH.replace('$domain', domain).replace('$selector', envs.DKIM_SELECTOR);
             // Detect key type and size
             let keytype = '', keysize = '';
-            const keyInfo = await execCommand(`openssl pkey -in ${keyPath} -text -noout | head -1`, targetDict, { timeout: 5 });
-            if (!keyInfo.returncode && keyInfo.stdout) {
+            const keyInfo = await execCommand(`openssl pkey -in '${keyPath.replace(/'/g, "'\\''")}' -text -noout | head -1`, targetDict, { timeout: 5 });
               const match = keyInfo.stdout.match(/(?:(RSA|EC|ED25519)\s+)?Private-Key:\s*\((\d+)\s*bit/i);
               if (match) {
                 keysize = match[2];
@@ -1716,17 +1715,27 @@ export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
     } catch (e) { /* no DMARC record */ }
 
     // TLSA records for SMTP (25), SMTPS (465), IMAPS (993)
-    for (const [port, proto] of [[25, 'tcp'], [465, 'tcp'], [993, 'tcp']]) {
-      try {
-        const tlsa = await dns.promises.resolve(`_${port}._${proto}.${domain}`, 'TLSA');
-        if (tlsa.length) result.tlsa.push(...tlsa.map(r => ({
-          port,
-          usage: r.usage,
-          selector: r.selector,
-          matchingType: r.matchingtype,
-          data: Buffer.isBuffer(r.certificate) ? Buffer.from(r.certificate).toString('hex') : r.certificate,
-        })));
-      } catch (e) { /* no TLSA */ }
+    // TLSA records are published at the MX hostname, not the bare domain
+    const tlsaHosts = new Set();
+    if (result.mx.length) {
+      result.mx.forEach(mx => tlsaHosts.add(mx.exchange));
+    } else {
+      tlsaHosts.add(domain); // fallback to bare domain if no MX
+    }
+    for (const host of tlsaHosts) {
+      for (const [port, proto] of [[25, 'tcp'], [465, 'tcp'], [993, 'tcp']]) {
+        try {
+          const tlsa = await dns.promises.resolve(`_${port}._${proto}.${host}`, 'TLSA');
+          if (tlsa.length) result.tlsa.push(...tlsa.map(r => ({
+            port,
+            host,
+            usage: r.usage,
+            selector: r.selector,
+            matchingType: r.matchingtype,
+            data: Buffer.isBuffer(r.certificate) ? Buffer.from(r.certificate).toString('hex') : r.certificate,
+          })));
+        } catch (e) { /* no TLSA */ }
+      }
     }
 
     // SRV records for mail-related services
@@ -1766,10 +1775,14 @@ export const generateDkim = async (plugin = 'mailserver', containerName, domain,
   if (result.returncode) return { success: false, error: result.stderr || 'DKIM generation failed' };
 
   // Parse the DNS record from stdout (line containing "v=DKIM1;")
-  const dnsRecord = result.stdout.split('\n').find(l => l.includes('v=DKIM1;'))?.trim();
+  const dnsRecord = result.stdout.split('\n').find(l => l.includes('v=DKIM1;'))?.trim() || null;
 
   // Update domain record in DB with new selector/keytype/keysize
   dbRun(sql.domains.insert.domain, { domain, dkim: selector, keytype, keysize: String(keysize), path: '' }, containerName);
+
+  if (!dnsRecord) {
+    return { success: true, message: { dnsRecord: null, selector, keytype, keysize }, warning: 'DKIM key generated but DNS record could not be parsed from output. Check the server logs.' };
+  }
 
   return { success: true, message: { dnsRecord, selector, keytype, keysize }, warning: result.stderr };
 };
@@ -1837,7 +1850,7 @@ const getPublicIp = async () => {
 };
 
 // DNS blacklist check for a domain's mail server IP
-export const dnsblCheck = async (plugin = 'mailserver', containerName, domain) => {
+export const dnsblCheck = async (containerName, domain) => {
   debugLog(`dnsblCheck domain=${domain}`);
   if (!domain) return { success: false, error: 'dnsblCheck: domain is required' };
 
