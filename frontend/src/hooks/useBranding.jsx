@@ -6,6 +6,7 @@ import { useLocalStorage } from './useLocalStorage';
 const DEFAULTS = {
   brandName: 'Docker-Mailserver GUI',
   brandIcon: 'envelope-fill',
+  brandLogo: '',
   brandColorPrimary: '',
   brandColorSidebar: '',
 };
@@ -24,6 +25,7 @@ export const BrandingProvider = ({ children }) => {
       const resolved = {
         brandName: getValueFromArrayOfObj(settings, 'brandName') || DEFAULTS.brandName,
         brandIcon: getValueFromArrayOfObj(settings, 'brandIcon') || DEFAULTS.brandIcon,
+        brandLogo: getValueFromArrayOfObj(settings, 'brandLogo') || DEFAULTS.brandLogo,
         brandColorPrimary: getValueFromArrayOfObj(settings, 'brandColorPrimary') || DEFAULTS.brandColorPrimary,
         brandColorSidebar: getValueFromArrayOfObj(settings, 'brandColorSidebar') || DEFAULTS.brandColorSidebar,
       };
