@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Badge, Modal, Form, Table } from 'react-bootstrap';
+import { Trans } from 'react-i18next';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { getDomains, getDnsLookup, generateDkim, getDnsblCheck } from '../services/api.mjs';
 
@@ -11,6 +12,8 @@ import {
   LoadingSpinner,
   Translate,
 } from '../components/index.jsx';
+
+const i18nHtmlComponents = { strong: <strong />, i: <i />, br: <br />, a: <a />, pre: <pre /> };
 
 
 const Domains = () => {
@@ -440,17 +443,26 @@ const Domains = () => {
               {dkimResult.dnsRecord && (
                 <>
                   <p><strong>{Translate('domains.dkimCopyHint')}</strong></p>
-                  <pre className="bg-light p-3 rounded" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>
+                  <pre className="bg-dark text-light p-3 rounded" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85em'}}>
                     {dkimResult.selector}._domainkey.{dkimDomain} IN TXT "{dkimResult.dnsRecord}"
                   </pre>
                 </>
               )}
-              <p className="text-muted">
+              <p className="text-muted mb-3">
                 {Translate('domains.dkimSelector')}: {dkimResult.selector} | {Translate('domains.dkimKeytype')}: {dkimResult.keytype} | {Translate('domains.dkimKeysize')}: {dkimResult.keysize}
               </p>
+              <h6>{Translate('domains.dkimNextSteps')}</h6>
+              <ol className="mb-0">
+                <li>{Translate('domains.dkimStep1')}</li>
+                <li><Trans i18nKey="domains.dkimStep2" values={{selector: dkimResult.selector, domain: dkimDomain}} components={i18nHtmlComponents} /></li>
+                <li>{Translate('domains.dkimStep3')}</li>
+                <li><Trans i18nKey="domains.dkimStep4" components={i18nHtmlComponents} /></li>
+                <li>{Translate('domains.dkimStep5')}</li>
+              </ol>
             </div>
           ) : (
             <Form>
+              <p className="text-muted mb-3">{Translate('domains.dkimIntro')}</p>
               {dkimError && <AlertMessage type="danger" message={dkimError} />}
 
               <Form.Group className="mb-3">
@@ -459,6 +471,7 @@ const Domains = () => {
                   <option value="rsa">RSA</option>
                   <option value="ed25519">Ed25519</option>
                 </Form.Select>
+                <Form.Text className="text-muted"><Trans i18nKey="domains.dkimKeytypeHelp" components={i18nHtmlComponents} /></Form.Text>
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -482,6 +495,7 @@ const Domains = () => {
                   onChange={(e) => setDkimSelector(e.target.value)}
                   placeholder="mail"
                 />
+                <Form.Text className="text-muted"><Trans i18nKey="domains.dkimSelectorHelp" components={i18nHtmlComponents} /></Form.Text>
               </Form.Group>
 
               <Form.Group className="mb-3">
@@ -491,6 +505,7 @@ const Domains = () => {
                   checked={dkimForce}
                   onChange={(e) => setDkimForce(e.target.checked)}
                 />
+                {dkimForce && <Form.Text className="text-warning">{Translate('domains.dkimForceWarning')}</Form.Text>}
               </Form.Group>
             </Form>
           )}
