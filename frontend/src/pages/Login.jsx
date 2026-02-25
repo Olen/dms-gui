@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 // import { Navigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import Row from 'react-bootstrap/Row'; // Import Row
 import Col from 'react-bootstrap/Col'; // Import Col
@@ -199,7 +200,7 @@ export const Login = () => {
             
           </form>
 
-          <a href="#" className="float-end">{t("logins.forgotPassword")}</a>
+          <Link to="/reset-password" className="float-end">{t('logins.forgotPassword')}</Link>
 
           <br />
           <AlertMessage type="danger" message={errorMessage} />

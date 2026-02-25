@@ -283,6 +283,21 @@
       "updateLogin": "Error updating login"
     }
   },
+  "resetPassword": {
+    "title": "Reset Password",
+    "forgotTitle": "Forgot Password",
+    "email": "Email",
+    "forgotInstructions": "Enter your email address and we'll send you a link to reset your password.",
+    "sendLink": "Send Reset Link",
+    "emailSent": "If that account exists, a password reset link has been sent. Check your inbox.",
+    "backToLogin": "Back to Login",
+    "tryAgain": "Try again",
+    "invalidToken": "This reset link is invalid or has expired.",
+    "resetFor": "Reset password for {{mailbox}}",
+    "resetButton": "Reset Password",
+    "success": "Your password has been reset successfully. You can now log in with your new password.",
+    "failed": "Failed to reset password. The link may have expired."
+  },
   "language": {
     "select": "Select Language",
     "en": "English",

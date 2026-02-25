@@ -48,6 +48,13 @@ import {
   getAliases,
 } from './aliases.mjs';
 
+import {
+  cleanupExpiredTokens,
+  executePasswordReset,
+  requestPasswordReset,
+  validateResetToken,
+} from './passwordReset.mjs';
+
 // const express = require('express');
 // const app = express();
 // const qs = require('qs');
@@ -244,10 +251,52 @@ app.set('query parser', function (str) {
 });
 
 
+// Password reset endpoints — public (no auth required)
+app.post('/api/forgot-password', async (req, res) => {
+  try {
+    const { email } = req.body;
+    const origin = req.get('origin') || req.get('referer')?.replace(/\/[^/]*$/, '') || '';
+    const result = await requestPasswordReset(email, origin);
+    res.json(result);
+  } catch (error) {
+    errorLog(`POST /api/forgot-password: ${error.message}`);
+    res.json({ success: true, message: 'If that account exists, a reset link has been sent.' });
+  }
+});
+
+app.post('/api/validate-reset-token', async (req, res) => {
+  try {
+    const { token } = req.body;
+    const result = validateResetToken(token);
+    res.json(result);
+  } catch (error) {
+    errorLog(`POST /api/validate-reset-token: ${error.message}`);
+    res.json({ success: false, error: 'Invalid or expired token' });
+  }
+});
+
+app.post('/api/reset-password', async (req, res) => {
+  try {
+    const { token, password } = req.body;
+    if (!password || password.length < 8) {
+      return res.status(400).json({ success: false, error: 'Password must be at least 8 characters' });
+    }
+    const result = await executePasswordReset(token, password);
+    res.json(result);
+  } catch (error) {
+    errorLog(`POST /api/reset-password: ${error.message}`);
+    res.json({ success: false, error: 'Failed to reset password' });
+  }
+});
+
+
 // Routes ------------------------------------------------------------------------------------------
 // @swagger descriptions based off https://swagger.io/docs/specification/v3_0/describing-parameters/
 
-// post('/api/status/:plugin/:schema/:containerName', 
+// post('/api/forgot-password',
+// post('/api/validate-reset-token',
+// post('/api/reset-password',
+// post('/api/status/:plugin/:schema/:containerName',
 // get('/api/infos', 
 // get('/api/envs/:plugin/:schema/:containerName', 
 // get('/api/accounts/:schema/:containerName', 
@@ -1858,6 +1907,10 @@ app.listen(env.PORT_NODEJS, async () => {
   // await dbInit(true);         // reset db
   await dbInit();         // apply patches etc
   await refreshTokens();  // delete all user's refreshToken as the secret has changed after a restart
+
+  // Cleanup expired password reset tokens on startup and daily
+  cleanupExpiredTokens();
+  cron.schedule('0 3 * * *', () => cleanupExpiredTokens());
 
   if (env.AES_SECRET == 'changeme') {
     errorLog(`
