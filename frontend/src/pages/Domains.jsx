@@ -299,7 +299,11 @@ const Domains = () => {
           text="domains.generateDkim"
           onClick={() => openDkimModal(item.domain)}
         />
-      ) : null,
+      ) : (
+        <span className="text-muted" title={Translate('domains.notManagedHere')}>
+          <i className="bi bi-info-circle" />
+        </span>
+      ),
     },
   ];
 
