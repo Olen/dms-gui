@@ -1,9 +1,5 @@
 /* -------------------- Branding color override -------------------- */
 /* --dms-primary is set dynamically by useBranding hook */
-:root:has(style) {
-  --bs-primary: var(--dms-primary, #0d6efd);
-  --bs-primary-rgb: none; /* force Bootstrap to not use rgb() override */
-}
 .btn-primary {
   --bs-btn-bg: var(--dms-primary, #0d6efd);
   --bs-btn-border-color: var(--dms-primary, #0d6efd);
