@@ -1,3 +1,30 @@
+/* -------------------- Branding color override -------------------- */
+/* --dms-primary is set dynamically by useBranding hook */
+:root:has(style) {
+  --bs-primary: var(--dms-primary, #0d6efd);
+  --bs-primary-rgb: none; /* force Bootstrap to not use rgb() override */
+}
+.btn-primary {
+  --bs-btn-bg: var(--dms-primary, #0d6efd);
+  --bs-btn-border-color: var(--dms-primary, #0d6efd);
+  --bs-btn-hover-bg: var(--dms-primary, #0d6efd);
+  --bs-btn-hover-border-color: var(--dms-primary, #0d6efd);
+  --bs-btn-active-bg: var(--dms-primary, #0d6efd);
+  --bs-btn-active-border-color: var(--dms-primary, #0d6efd);
+}
+.btn-outline-primary {
+  --bs-btn-color: var(--dms-primary, #0d6efd);
+  --bs-btn-border-color: var(--dms-primary, #0d6efd);
+  --bs-btn-hover-bg: var(--dms-primary, #0d6efd);
+  --bs-btn-hover-border-color: var(--dms-primary, #0d6efd);
+  --bs-btn-active-bg: var(--dms-primary, #0d6efd);
+  --bs-btn-active-border-color: var(--dms-primary, #0d6efd);
+}
+a {
+  color: var(--dms-primary, #0d6efd);
+}
+/* -------------------- Branding color override -------------------- */
+
 body {
   margin: 0;
   font-family:
