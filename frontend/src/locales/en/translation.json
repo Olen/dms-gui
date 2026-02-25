@@ -492,7 +492,8 @@
   "resetPassword": {
     "title": "Reset Password",
     "forgotTitle": "Forgot Password",
-    "forgotInstructions": "Enter your mailbox address and we'll send you a link to reset your password.",
+    "email": "Email",
+    "forgotInstructions": "Enter your email address and we'll send you a link to reset your password.",
     "sendLink": "Send Reset Link",
     "emailSent": "If that account exists, a password reset link has been sent. Check your inbox.",
     "backToLogin": "Back to Login",

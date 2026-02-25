@@ -321,7 +321,8 @@
   "resetPassword": {
     "title": "Zresetuj hasło",
     "forgotTitle": "Zapomniałeś hasła",
-    "forgotInstructions": "Podaj adres swojej skrzynki pocztowej, a wyślemy Ci link do zresetowania hasła.",
+    "email": "Email",
+    "forgotInstructions": "Podaj swój adres email, a wyślemy Ci link do zresetowania hasła.",
     "sendLink": "Wyślij link resetujący",
     "emailSent": "Jeśli konto istnieje, link do zresetowania hasła został wysłany. Sprawdź swoją skrzynkę.",
     "backToLogin": "Powrót do logowania",

@@ -191,7 +191,7 @@ export const ResetPassword = () => {
                   type="email"
                   id="email"
                   name="email"
-                  label="logins.mailbox"
+                  label="resetPassword.email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required

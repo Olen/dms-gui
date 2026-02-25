@@ -9,6 +9,7 @@ import {
 } from './backend.mjs';
 import {
   changePassword,
+  dbAll,
   dbGet,
   dbRun,
   sql,
@@ -44,9 +45,24 @@ export const requestPasswordReset = async (email, origin) => {
   try {
     if (!email || typeof email !== 'string') return genericResponse;
 
-    const login = await getLogin({ mailbox: email });
-    if (!login.success || !login.message) {
-      debugLog(`Password reset requested for unknown mailbox: ${email}`);
+    // Try direct login lookup (matches by mailbox or username)
+    let login = await getLogin(email, true);
+
+    // If not found, check if the email is an alias and resolve to the real mailbox
+    if (!login.success || !login.message || typeof login.message === 'string') {
+      const aliasResult = dbAll(
+        `SELECT DISTINCT a.destination FROM aliases a
+         JOIN configs c ON c.id = a.configID
+         WHERE c.plugin = 'mailserver' AND a.source = ?`, {}, email
+      );
+      if (aliasResult.success && aliasResult.message?.length) {
+        // Use the first destination mailbox
+        login = await getLogin(aliasResult.message[0].destination, true);
+      }
+    }
+
+    if (!login.success || !login.message || typeof login.message === 'string') {
+      debugLog(`Password reset requested for unknown address: ${email}`);
       return genericResponse;
     }
 
@@ -70,8 +86,8 @@ export const requestPasswordReset = async (email, origin) => {
 
     // Build reset link using the Origin header from the request
     const resetUrl = `${origin}/reset-password?token=${rawToken}`;
-    const domain = email.split('@')[1];
-    const fromAddress = `noreply@${domain}`;
+    const mailboxDomain = login.message.mailbox.split('@')[1];
+    const fromAddress = `noreply@${mailboxDomain}`;
 
     // Send email
     try {

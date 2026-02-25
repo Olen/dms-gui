@@ -213,9 +213,7 @@ export const Login = () => {
 
           </form>
 
-          <div className="text-center mt-2">
-            <Link to="/reset-password">{t('logins.forgotPassword')}</Link>
-          </div>
+          <Link to="/reset-password" className="float-end">{t('logins.forgotPassword')}</Link>
 
           <br />
           <AlertMessage type="danger" message={errorMessage} />
