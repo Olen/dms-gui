@@ -207,7 +207,7 @@ function FormBranding() {
           <div className="d-flex align-items-center gap-2">
             <Form.Control
               type="file"
-              accept="image/*"
+              accept=".png,.jpg,.jpeg,.gif,.ico,.webp"
               onChange={(e) => setLogoFile(e.target.files[0] || null)}
             />
             <Button
