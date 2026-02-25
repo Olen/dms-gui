@@ -46,6 +46,9 @@ const Domains = () => {
   const [showDnsblModal, setShowDnsblModal] = useState(false);
   const [dnsblModalDomain, setDnsblModalDomain] = useState(null);
 
+  // Generated DKIM records (persisted across modal close, keyed by domain)
+  const [generatedDkimRecords, setGeneratedDkimRecords] = useState({});
+
   // External domain modal state
   const [showExternalModal, setShowExternalModal] = useState(false);
   const [externalModalDomain, setExternalModalDomain] = useState(null);
@@ -158,6 +161,14 @@ const Domains = () => {
       });
       if (result.success) {
         setDkimResult(result.message);
+        // Store generated record for later access from DNS details modal
+        if (result.message?.dnsRecord) {
+          setGeneratedDkimRecords(prev => ({ ...prev, [dkimDomain]: {
+            record: result.message.dnsRecord,
+            selector: result.message.selector,
+            domain: dkimDomain,
+          }}));
+        }
         // Refresh DNS for this domain to check if record is published
         await checkDns(dkimDomain);
         // Refresh domains list to get updated DKIM info
@@ -411,6 +422,14 @@ const Domains = () => {
               {modalDns.dkim ? (
                 <pre className="bg-light p-2 rounded" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{modalDns.dkim}</pre>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
+              {!modalDns.dkim && generatedDkimRecords[modalDomain] && (
+                <div className="alert alert-info py-2 mt-1">
+                  <strong><i className="bi bi-info-circle me-1" />{Translate('domains.dkimPendingDns')}</strong>
+                  <pre className="bg-dark text-light p-2 rounded mt-2 mb-0" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85em'}}>
+                    {generatedDkimRecords[modalDomain].selector}._domainkey.{modalDomain} IN TXT "{generatedDkimRecords[modalDomain].record}"
+                  </pre>
+                </div>
+              )}
 
               <h6><DnsBadge label="DMARC" value={modalDns.dmarc} /> {Translate('domains.dmarcRecord')}</h6>
               {modalDns.dmarc ? (
@@ -582,15 +601,23 @@ const Domains = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" text="common.cancel" onClick={() => setShowDkimModal(false)} />
-          {!dkimResult && (
-            <Button
-              variant="primary"
-              icon="key"
-              text="domains.generateDkim"
-              onClick={handleGenerateDkim}
-              disabled={dkimLoading}
-            />
+          {dkimResult ? (
+            <Button variant="primary" icon="check-lg" text="common.done" onClick={() => setShowDkimModal(false)} />
+          ) : (
+            <>
+              <Button variant="secondary" text="common.cancel" onClick={() => setShowDkimModal(false)} disabled={dkimLoading} />
+              <Button
+                variant="primary"
+                onClick={handleGenerateDkim}
+                disabled={dkimLoading}
+              >
+                {dkimLoading ? (
+                  <><span className="spinner-border spinner-border-sm me-2" role="status" />{t('domains.dkimGenerating')}</>
+                ) : (
+                  <><i className="bi bi-key me-2" />{t('domains.generateDkim')}</>
+                )}
+              </Button>
+            </>
           )}
         </Modal.Footer>
       </Modal>

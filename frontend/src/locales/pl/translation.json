@@ -143,7 +143,8 @@
     "loading": "Ładowanie...",
     "error": "Błąd",
     "success": "Sukces",
-    "cancel": "Anuluj"
+    "cancel": "Anuluj",
+    "done": "Gotowe"
   },
   "api": {
     "errors": {
@@ -263,6 +264,8 @@
     "dkimStep3": "Poczekaj na propagację DNS (zwykle kilka minut, może potrwać do 48 godzin).",
     "dkimStep4": "Wróć tutaj i kliknij <strong>Sprawdź DNS</strong> dla tej domeny, aby zweryfikować czy rekord jest opublikowany.",
     "dkimStep5": "Gdy rekord DKIM zostanie znaleziony, cała poczta wychodząca z tej domeny będzie automatycznie podpisywana.",
+    "dkimGenerating": "Generowanie...",
+    "dkimPendingDns": "Wygenerowany rekord DKIM (jeszcze nie opublikowany w DNS):",
     "dkimError": "Nie udało się wygenerować klucza DKIM",
     "blacklist": "Czarna lista",
     "blacklistCheck": "Sprawdź czarne listy",
