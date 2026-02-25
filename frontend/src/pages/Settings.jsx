@@ -38,6 +38,7 @@ import { useLocalStorage } from '../hooks/useLocalStorage';
 
 // https://www.google.com/search?client=firefox-b-1-d&q=react+page+with+two+independent+form++onSubmit+&sei=U53haML6LsfYkPIP9ofv2AM
 import FormContainerAdd from './FormContainerAdd';
+import FormBranding from './FormBranding';
 import ServerInfos from './ServerInfos';
 
 
@@ -78,6 +79,7 @@ const Settings = () => {
     { id: 1, title: "settings.titleContainerAdd", icon: "house-add",  content: FormContainerAdd(),  },
     { id: 2, title: "settings.titleServerInfos",  icon: "house-fill", content: ServerInfos(),       titleExtra:t('common.for', {what:containerName}) },
     { id: 3, title: "settings.titleContainers",   icon: "houses-fill",content: <></>,                  },
+    { id: 4, title: "settings.titleBranding",    icon: "palette",    content: FormBranding(),         },
   ];
 
   // to handle data coming from the child form: <FormContainerAdd onInfosSubmit={handleInfosReceived} />

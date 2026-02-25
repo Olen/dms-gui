@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import RBNavbar from 'react-bootstrap/Navbar';
 import Nav from 'react-bootstrap/Nav';
+import Form from 'react-bootstrap/Form';
 import Container from 'react-bootstrap/Container';
 import { useNavigate } from 'react-router-dom';
 // import { useTranslation } from 'react-i18next';
@@ -16,6 +17,7 @@ import {
 } from './index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
+import { useBranding } from '../hooks/useBranding';
 
 const Navbar = ({
   translate = true,
@@ -24,7 +26,10 @@ const Navbar = ({
   // const { t } = useTranslation();
   const { logout } = useAuth();
   const { user } = useAuth();
+  const { branding } = useBranding();
   const [isDEMO] = useLocalStorage("isDEMO", false);
+  const [containerName, setContainerName] = useLocalStorage("containerName", '');
+  const [mailservers] = useLocalStorage("mailservers", []);
   
   const navigate = useNavigate();
   
@@ -79,10 +84,23 @@ const Navbar = ({
     <RBNavbar bg="dark" variant="dark" expand="lg">
       <Container fluid>
         <RBNavbar.Brand as={Link} to="/">
-          <i className="bi bi-envelope-fill me-2"></i>
-          {Translate(isDEMO ? 'app.titleDemo' : 'app.title')}{' '}
+          <i className={`bi bi-${branding.brandIcon} me-2`}></i>
+          {isDEMO ? Translate('app.titleDemo') : branding.brandName}{' '}
         </RBNavbar.Brand>
-        {isDEMO && 
+        {user && mailservers.length > 1 && (
+          <Form.Select
+            size="sm"
+            value={containerName}
+            onChange={(e) => setContainerName(e.target.value)}
+            className="bg-dark text-light border-secondary me-2"
+            style={{ width: 'auto' }}
+          >
+            {mailservers.map(ms => (
+              <option key={ms.value} value={ms.value}>{ms.label}</option>
+            ))}
+          </Form.Select>
+        )}
+        {isDEMO &&
           <Button
             variant="primary"
             icon="download"

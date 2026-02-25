@@ -462,4 +462,15 @@ export const killContainer = async (plugin, schema, containerName) => {
 };
 
 
+// Public branding endpoint — no auth needed
+export const getBranding = async (containerName) => {
+  try {
+    const path = containerName ? `/branding/${containerName}` : '/branding';
+    const response = await api.get(path);
+    return response.data;
+  } catch {
+    return { success: true, message: [] };
+  }
+};
+
 export default api;
