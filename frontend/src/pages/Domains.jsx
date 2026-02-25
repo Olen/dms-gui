@@ -184,8 +184,23 @@ const Domains = () => {
     }
   };
 
-  const DnsBadge = ({ label, value }) => (
-    <Badge bg={value ? 'success' : 'danger'} className="me-1">
+  const spfGrade = (spf) => {
+    if (!spf) return 'danger';
+    if (/-all\s*$/.test(spf)) return 'success';
+    if (/~all\s*$/.test(spf)) return 'warning';
+    return 'danger'; // ?all, +all, or missing mechanism
+  };
+
+  const dmarcGrade = (dmarc) => {
+    if (!dmarc) return 'danger';
+    const policy = dmarc.match(/;\s*p=([^;\s]+)/i)?.[1]?.toLowerCase();
+    if (policy === 'reject') return 'success';
+    if (policy === 'quarantine') return 'warning';
+    return 'warning'; // p=none
+  };
+
+  const DnsBadge = ({ label, value, grade }) => (
+    <Badge bg={grade || (value ? 'success' : 'danger')} className="me-1">
       {label}
     </Badge>
   );
@@ -280,9 +295,9 @@ const Domains = () => {
           <div className="d-flex align-items-center gap-1">
             <DnsBadge label="A" value={dns.a?.length} />
             <DnsBadge label="MX" value={dns.mx?.length} />
-            <DnsBadge label="SPF" value={dns.spf} />
+            <DnsBadge label="SPF" value={dns.spf} grade={spfGrade(dns.spf)} />
             <DnsBadge label="DKIM" value={dns.dkim} />
-            <DnsBadge label="DMARC" value={dns.dmarc} />
+            <DnsBadge label="DMARC" value={dns.dmarc} grade={dmarcGrade(dns.dmarc)} />
             <OptionalBadge label="TLSA" value={dns.tlsa?.length} />
             <OptionalBadge label="SRV" value={dns.srv?.length} />
             <Button
@@ -413,9 +428,17 @@ const Domains = () => {
                 <ul>{modalDns.mx.map((r, i) => <li key={i}>{r.priority} — {r.exchange}</li>)}</ul>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
 
-              <h6><DnsBadge label="SPF" value={modalDns.spf} /> {Translate('domains.spfRecord')}</h6>
+              <h6><DnsBadge label="SPF" value={modalDns.spf} grade={spfGrade(modalDns.spf)} /> {Translate('domains.spfRecord')}</h6>
               {modalDns.spf ? (
-                <pre className="bg-light p-2 rounded">{modalDns.spf}</pre>
+                <>
+                  <pre className="bg-light p-2 rounded">{modalDns.spf}</pre>
+                  {spfGrade(modalDns.spf) === 'warning' && (
+                    <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-1" /><Trans i18nKey="domains.spfSoftfailHint" components={i18nHtmlComponents} /></div>
+                  )}
+                  {spfGrade(modalDns.spf) === 'danger' && (
+                    <div className="alert alert-danger py-2"><i className="bi bi-exclamation-triangle me-1" /><Trans i18nKey="domains.spfWeakHint" components={i18nHtmlComponents} /></div>
+                  )}
+                </>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
 
               <h6><DnsBadge label="DKIM" value={modalDns.dkim} /> {Translate('domains.dkimRecord')}</h6>
@@ -431,9 +454,21 @@ const Domains = () => {
                 </div>
               )}
 
-              <h6><DnsBadge label="DMARC" value={modalDns.dmarc} /> {Translate('domains.dmarcRecord')}</h6>
+              <h6><DnsBadge label="DMARC" value={modalDns.dmarc} grade={dmarcGrade(modalDns.dmarc)} /> {Translate('domains.dmarcRecord')}</h6>
               {modalDns.dmarc ? (
-                <pre className="bg-light p-2 rounded">{modalDns.dmarc}</pre>
+                <>
+                  <pre className="bg-light p-2 rounded">{modalDns.dmarc}</pre>
+                  {(() => {
+                    const policy = modalDns.dmarc.match(/;\s*p=([^;\s]+)/i)?.[1]?.toLowerCase();
+                    if (policy === 'none') return (
+                      <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-1" /><Trans i18nKey="domains.dmarcNoneHint" components={i18nHtmlComponents} /></div>
+                    );
+                    if (policy === 'quarantine') return (
+                      <div className="alert alert-warning py-2"><i className="bi bi-info-circle me-1" /><Trans i18nKey="domains.dmarcQuarantineHint" components={i18nHtmlComponents} /></div>
+                    );
+                    return null;
+                  })()}
+                </>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
 
               <h6><OptionalBadge label="TLSA" value={modalDns.tlsa?.length} /> {Translate('domains.tlsa')}</h6>

@@ -366,7 +366,11 @@
     "srvPriority": "Priority",
     "srvWeight": "Weight",
     "srvPort": "Port",
-    "srvTarget": "Target"
+    "srvTarget": "Target",
+    "spfSoftfailHint": "Your SPF record uses <strong>~all</strong> (softfail). This asks receivers to flag but not reject unauthorized senders. For stronger protection, consider changing to <strong>-all</strong> (hardfail) once you have confirmed all legitimate senders are included.",
+    "spfWeakHint": "Your SPF record uses <strong>?all</strong> or <strong>+all</strong>, which effectively disables SPF protection. Change to <strong>~all</strong> (softfail) or <strong>-all</strong> (hardfail) to prevent email spoofing.",
+    "dmarcNoneHint": "<strong>p=none</strong> only monitors — no action is taken on failing messages. This is useful during initial setup, but for production use consider upgrading to <strong>p=quarantine</strong> (send failures to spam) or <strong>p=reject</strong> (block failures entirely). Review your DMARC reports first to ensure legitimate mail passes.",
+    "dmarcQuarantineHint": "Good — <strong>p=quarantine</strong> sends failing messages to spam. For maximum protection, consider upgrading to <strong>p=reject</strong> once you have confirmed all legitimate mail passes DMARC checks."
   },
   "language": {
     "select": "Select Language",

@@ -195,7 +195,11 @@
     "srvPriority": "Priorytet",
     "srvWeight": "Waga",
     "srvPort": "Port",
-    "srvTarget": "Cel"
+    "srvTarget": "Cel",
+    "spfSoftfailHint": "Twój rekord SPF używa <strong>~all</strong> (softfail). Prosi to odbiorców o oznaczanie, ale nie odrzucanie nieautoryzowanych nadawców. Dla silniejszej ochrony rozważ zmianę na <strong>-all</strong> (hardfail), gdy potwierdzisz, że wszyscy legalni nadawcy są uwzględnieni.",
+    "spfWeakHint": "Twój rekord SPF używa <strong>?all</strong> lub <strong>+all</strong>, co skutecznie wyłącza ochronę SPF. Zmień na <strong>~all</strong> (softfail) lub <strong>-all</strong> (hardfail), aby zapobiec fałszowaniu wiadomości.",
+    "dmarcNoneHint": "<strong>p=none</strong> tylko monitoruje — żadne działanie nie jest podejmowane wobec wiadomości, które nie przeszły weryfikacji. Jest to przydatne podczas początkowej konfiguracji, ale w produkcji rozważ zmianę na <strong>p=quarantine</strong> (przenieś do spamu) lub <strong>p=reject</strong> (całkowicie blokuj). Najpierw przejrzyj raporty DMARC, aby upewnić się, że legalna poczta przechodzi.",
+    "dmarcQuarantineHint": "Dobrze — <strong>p=quarantine</strong> przenosi wiadomości do spamu. Dla maksymalnej ochrony rozważ zmianę na <strong>p=reject</strong>, gdy potwierdzisz, że cała legalna poczta przechodzi weryfikację DMARC."
   },
   "language": {
     "select": "Wybierz Język",
