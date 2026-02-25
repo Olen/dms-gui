@@ -467,6 +467,18 @@ const Domains = () => {
           ) : (
             <Form>
               <p className="text-muted mb-3">{Translate('domains.dkimIntro')}</p>
+
+              <div className="mb-3 p-3 bg-light rounded">
+                <strong>{Translate('domains.dkimProcessTitle')}</strong>
+                <ol className="mb-1 mt-2">
+                  <li>{Translate('domains.dkimProcessStep1')}</li>
+                  <li>{Translate('domains.dkimProcessStep2')}</li>
+                  <li><Trans i18nKey="domains.dkimProcessStep3" components={i18nHtmlComponents} /></li>
+                  <li>{Translate('domains.dkimProcessStep4')}</li>
+                </ol>
+                <p className="mb-0 mt-2"><Trans i18nKey="domains.dkimExistsNote" components={i18nHtmlComponents} /></p>
+              </div>
+
               {dkimError && <AlertMessage type="danger" message={dkimError} />}
               {(() => {
                 const cur = domains.find(d => d.domain === dkimDomain);
@@ -521,7 +533,7 @@ const Domains = () => {
                   checked={dkimForce}
                   onChange={(e) => setDkimForce(e.target.checked)}
                 />
-                {dkimForce && <Form.Text className="text-warning">{Translate('domains.dkimForceWarning')}</Form.Text>}
+                {dkimForce && <div className="alert alert-warning py-2 mt-2 mb-0"><Trans i18nKey="domains.dkimForceWarning" components={i18nHtmlComponents} /></div>}
               </Form.Group>
             </Form>
           )}
