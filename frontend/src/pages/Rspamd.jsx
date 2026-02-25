@@ -337,6 +337,7 @@ const Rspamd = () => {
                     <th>{Translate('rspamd.history.recipient')}</th>
                     <th>{Translate('rspamd.history.subject')}</th>
                     <th>{Translate('rspamd.history.score')}</th>
+                    <th>{Translate('rspamd.history.bayes')}</th>
                     <th>{Translate('rspamd.history.action')}</th>
                     <th>{Translate('rspamd.history.status')}</th>
                     <th>{Translate('rspamd.history.learn')}</th>
@@ -373,7 +374,26 @@ const Rspamd = () => {
                             {row.score?.toFixed(1)}
                           </Badge>
                         </td>
-                        <td className="small">{row.action}</td>
+                        <td className="small text-nowrap">
+                          {row.bayes != null ? (
+                            <Badge bg={row.bayes > 0 ? 'danger' : row.bayes < 0 ? 'success' : 'secondary'} text={row.bayes === 0 ? 'light' : undefined}>
+                              {row.bayes > 0 ? '+' : ''}{row.bayes?.toFixed(1)}
+                            </Badge>
+                          ) : '—'}
+                        </td>
+                        <td className="small">
+                          <Badge bg={
+                            row.action === 'reject' ? 'danger'
+                            : row.action === 'add header' || row.action === 'rewrite subject' ? 'warning'
+                            : row.action === 'greylist' ? 'info'
+                            : row.action === 'no action' ? 'success'
+                            : 'secondary'
+                          } text={
+                            (row.action === 'add header' || row.action === 'rewrite subject') ? 'dark' : undefined
+                          }>
+                            {row.action}
+                          </Badge>
+                        </td>
                         <td>
                           {learned && (
                             <Badge bg={learned === 'ham' ? 'success' : 'danger'}>

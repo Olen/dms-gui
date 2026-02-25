@@ -320,6 +320,7 @@
       "recipient": "Recipient",
       "subject": "Subject",
       "score": "Score",
+      "bayes": "Bayes",
       "action": "Action",
       "status": "Trained",
       "learn": "Learn",
