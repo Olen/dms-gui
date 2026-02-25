@@ -164,7 +164,7 @@ export const Login = () => {
       // <h2 className="mb-4">{t('login.title')}</h2>
   return (
     <>
-    <Row className="align-items-center justify-content-center vh-100">
+    <Row className="justify-content-center" style={{ minHeight: '100vh', paddingTop: '12vh' }}>
       <Col md={6}>{' '}
 
         <div className="text-center mb-4">
@@ -209,16 +209,25 @@ export const Login = () => {
               icon="box-arrow-in-right"
               text="logins.login"
             />
-            
+
           </form>
 
           <a href="#" className="float-end">{t("logins.forgotPassword")}</a>
 
           <br />
           <AlertMessage type="danger" message={errorMessage} />
-          
+
         </Card>
-        
+
+        {branding.webmailUrl && (
+          <div className="text-center mt-3">
+            <a href={branding.webmailUrl} target="_blank" rel="noopener noreferrer">
+              <i className="bi bi-envelope-open me-2"></i>
+              {t('dashboard.user.webmail')}
+            </a>
+          </div>
+        )}
+
       </Col>
     </Row>
     </>
