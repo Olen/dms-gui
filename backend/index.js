@@ -308,12 +308,15 @@ app.set('query parser', function (str) {
 // @swagger descriptions based off https://swagger.io/docs/specification/v3_0/describing-parameters/
 
 // Public branding endpoint — no auth needed (used on login page)
+const BRANDING_KEYS = ['brandName', 'brandIcon', 'brandLogo', 'brandColorPrimary', 'brandColorSidebar'];
 app.get('/api/branding{/:containerName}', async (req, res) => {
   try {
     const containerName = req.params.containerName || '_global';
     let result = getSettings('dms-gui', containerName);
-    // Fallback to global if container has no branding
-    if ((!result.success || !result.message?.length) && containerName !== '_global') {
+    // Fallback to global if container config has no branding keys
+    // (e.g. "mailserver" config has DMS_API_KEY etc., not branding)
+    const hasBranding = result.success && result.message?.some(s => BRANDING_KEYS.includes(s.name));
+    if (!hasBranding && containerName !== '_global') {
       result = getSettings('dms-gui', '_global');
     }
     res.json(result.success ? result : { success: true, message: [] });
