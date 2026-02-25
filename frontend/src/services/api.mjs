@@ -462,4 +462,35 @@ export const killContainer = async (plugin, schema, containerName) => {
 };
 
 
+// Password reset — public endpoints (no auth)
+export const forgotPassword = async (email) => {
+  try {
+    const response = await api.post(`/forgot-password`, { email });
+    return response.data;
+  } catch (error) {
+    // Always return success to prevent info disclosure
+    return { success: true, message: 'If that account exists, a reset link has been sent.' };
+  }
+};
+
+export const validateResetToken = async (token) => {
+  try {
+    const response = await api.post(`/validate-reset-token`, { token });
+    return response.data;
+  } catch (error) {
+    return { success: false, error: 'Invalid or expired token' };
+  }
+};
+
+export const resetPassword = async (token, password) => {
+  try {
+    const response = await api.post(`/reset-password`, { token, password });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+
 export default api;

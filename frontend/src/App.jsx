@@ -14,6 +14,7 @@ import Row from 'react-bootstrap/Row'; // Import Row
 import Col from 'react-bootstrap/Col'; // Import Col
 
 import Login from './pages/Login';
+import ResetPassword from './pages/ResetPassword';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './hooks/useAuth';   // must include any elements that will interact with auth
 
@@ -51,6 +52,7 @@ function App() {
               <Routes>
                 <Route path="/"           element={<ProtectedRoute>        <Dashboard key="dashboard" /></ProtectedRoute>} />
                 <Route path="/login"      element={                        <Login          />} />
+                <Route path="/reset-password" element={                     <ResetPassword  />} />
                 <Route path="/dashboard"  element={<ProtectedRoute        ><Dashboard key="dashboard" /></ProtectedRoute>} />
                 <Route path="/logins"     element={<ProtectedRoute isAdmin><Logins    key="logins"    /></ProtectedRoute>} />
                 <Route path="/accounts"   element={<ProtectedRoute        ><Accounts  key="accounts"  /></ProtectedRoute>} />

@@ -116,6 +116,20 @@
       "deleteAlias": "Błąd podczas usuwania aliasu"
     }
   },
+  "resetPassword": {
+    "title": "Zresetuj hasło",
+    "forgotTitle": "Zapomniałeś hasła",
+    "forgotInstructions": "Podaj adres swojej skrzynki pocztowej, a wyślemy Ci link do zresetowania hasła.",
+    "sendLink": "Wyślij link resetujący",
+    "emailSent": "Jeśli konto istnieje, link do zresetowania hasła został wysłany. Sprawdź swoją skrzynkę.",
+    "backToLogin": "Powrót do logowania",
+    "tryAgain": "Spróbuj ponownie",
+    "invalidToken": "Ten link resetujący jest nieprawidłowy lub wygasł.",
+    "resetFor": "Zresetuj hasło dla {{mailbox}}",
+    "resetButton": "Zresetuj hasło",
+    "success": "Twoje hasło zostało pomyślnie zresetowane. Możesz się teraz zalogować nowym hasłem.",
+    "failed": "Nie udało się zresetować hasła. Link mógł wygasnąć."
+  },
   "language": {
     "select": "Wybierz Język",
     "en": "Angielski",

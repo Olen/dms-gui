@@ -508,11 +508,67 @@ domains: {
   ],
 },
 
-// ██████  ███    ██ ███████ 
-// ██   ██ ████   ██ ██      
-// ██   ██ ██ ██  ██ ███████ 
-// ██   ██ ██  ██ ██      ██ 
-// ██████  ██   ████ ███████ 
+// ██████  ██     ██     ██████  ███████ ███████ ███████ ████████ ███████
+// ██   ██ ██     ██     ██   ██ ██      ██      ██         ██    ██
+// ██████  ██  █  ██     ██████  █████   ███████ █████      ██    ███████
+// ██      ██ ███ ██     ██   ██ ██           ██ ██         ██         ██
+// ██       ███ ███      ██   ██ ███████ ███████ ███████    ██    ███████
+password_resets: {
+
+  id:     'id',
+  keys:   {
+    loginId:'number',
+    tokenHash:'string',
+    expiresAt:'number',
+    usedAt:'number',
+    createdAt:'number',
+  },
+  select: {
+    byTokenHash:  `SELECT pr.id, pr.loginId, pr.expiresAt, pr.usedAt, l.mailbox
+                   FROM password_resets pr
+                   JOIN logins l ON l.id = pr.loginId
+                   WHERE pr.tokenHash = ?
+                     AND pr.usedAt IS NULL
+                     AND pr.expiresAt > ?`,
+    countRecent:  `SELECT COUNT(*) count FROM password_resets
+                   WHERE loginId = ? AND createdAt > ?`,
+  },
+
+  insert: {
+    token:  `INSERT INTO password_resets (loginId, tokenHash, expiresAt, createdAt) VALUES (?, ?, ?, ?)`,
+  },
+
+  update: {
+    markUsed: `UPDATE password_resets SET usedAt = ? WHERE id = ?`,
+  },
+
+  delete: {
+    expired:  `DELETE FROM password_resets WHERE expiresAt < ?`,
+  },
+
+  init:  `BEGIN TRANSACTION;
+          CREATE TABLE IF NOT EXISTS password_resets (
+          id        INTEGER PRIMARY KEY AUTOINCREMENT,
+          loginId   INTEGER NOT NULL,
+          tokenHash TEXT NOT NULL,
+          expiresAt INTEGER NOT NULL,
+          usedAt    INTEGER,
+          createdAt INTEGER NOT NULL,
+          FOREIGN KEY (loginId) REFERENCES logins(id) ON DELETE CASCADE
+          );
+          CREATE INDEX IF NOT EXISTS idx_pr_token ON password_resets(tokenHash);
+          CREATE INDEX IF NOT EXISTS idx_pr_expiry ON password_resets(expiresAt);
+          INSERT OR IGNORE INTO settings (name, value, configID, isMutable) VALUES ('password_resets', '${env.DMSGUI_VERSION}', 1, ${env.isImmutable});
+          COMMIT;`,
+
+  patch: [],
+},
+
+// ██████  ███    ██ ███████
+// ██   ██ ████   ██ ██
+// ██   ██ ██ ██  ██ ███████
+// ██   ██ ██  ██ ██      ██
+// ██████  ██   ████ ███████
 dns: {
       
   desc:   'dns entries, with SRV priority/weight/port being use also for TLSA usage/selector/type, MX, CERT type/tag/algo, and DNSKEY flag/protocol/algo',
