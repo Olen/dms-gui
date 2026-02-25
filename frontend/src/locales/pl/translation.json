@@ -126,6 +126,7 @@
     "keysize": "Rozmiar klucza",
     "accounts": "Konta",
     "aliases": "Aliasy",
+    "noContainer": "Nie wybrano kontenera. Wybierz kontener z panelu bocznego.",
     "dnsStatus": "Status DNS",
     "checkDns": "Sprawdź DNS",
     "checkAllDns": "Sprawdź wszystkie DNS",
