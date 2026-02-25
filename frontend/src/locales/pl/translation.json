@@ -137,7 +137,20 @@
       "rspamd": "Rspamd",
       "rspamdUrl": "URL interfejsu Rspamd",
       "rspamdUrlHelp": "URL interfejsu rspamd. Przechowywany w bazie danych."
-    }
+    },
+    "titleBranding": "Branding",
+    "brandName": "Nazwa aplikacji",
+    "brandNameHelp": "Nazwa wyświetlana w pasku nawigacji i na stronie logowania.",
+    "brandIcon": "Ikona aplikacji",
+    "brandIconHelp": "Nazwa ikony Bootstrap (np. envelope-fill, mailbox, server). Przeglądaj na icons.getbootstrap.com.",
+    "brandColorPrimary": "Kolor główny",
+    "brandColorPrimaryHelp": "Opcjonalny kolor akcentu. Pozostaw puste dla domyślnego niebieskiego Bootstrap.",
+    "brandColorSidebar": "Kolor paska bocznego",
+    "brandColorSidebarHelp": "Opcjonalny kolor tła paska bocznego. Pozostaw puste dla domyślnej ciemnej szarości.",
+    "brandingScope": "Konfiguruj dla",
+    "brandingScopeGlobal": "Globalnie (domyślne dla wszystkich kontenerów)",
+    "brandingSaved": "Branding zapisany pomyślnie!",
+    "brandingSaveError": "Nie udało się zapisać ustawień brandingu."
   },
   "common": {
     "loading": "Ładowanie...",

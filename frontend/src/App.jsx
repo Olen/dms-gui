@@ -18,6 +18,7 @@ import Col from 'react-bootstrap/Col'; // Import Col
 import Login from './pages/Login';
 import { ProtectedRoute } from './components/ProtectedRoute';
 import { AuthProvider } from './hooks/useAuth';   // must include any elements that will interact with auth
+import { BrandingProvider } from './hooks/useBranding';
 
                 // <Route path="/"           element={<ProtectedRoute><Dashboard /></ProtectedRoute>} />
                 // <Route path="/login"      element={<Login />} />
@@ -40,6 +41,7 @@ import { AuthProvider } from './hooks/useAuth';   // must include any elements t
 function App() {
   return (
     <AuthProvider>
+    <BrandingProvider>
     <div>
       <Navbar />
       <Container fluid>
@@ -69,6 +71,7 @@ function App() {
       </Container>{' '}
       
     </div>
+    </BrandingProvider>
     </AuthProvider>
   );
 }

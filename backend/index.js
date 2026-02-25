@@ -274,6 +274,21 @@ app.set('query parser', function (str) {
 // Routes ------------------------------------------------------------------------------------------
 // @swagger descriptions based off https://swagger.io/docs/specification/v3_0/describing-parameters/
 
+// Public branding endpoint — no auth needed (used on login page)
+app.get('/api/branding{/:containerName}', async (req, res) => {
+  try {
+    const containerName = req.params.containerName || '_global';
+    let result = getSettings('dms-gui', containerName);
+    // Fallback to global if container has no branding
+    if ((!result.success || !result.message?.length) && containerName !== '_global') {
+      result = getSettings('dms-gui', '_global');
+    }
+    res.json(result.success ? result : { success: true, message: [] });
+  } catch (error) {
+    res.json({ success: true, message: [] }); // fail silently with defaults
+  }
+});
+
 // post('/api/status/:plugin/:schema/:containerName', 
 // get('/api/infos', 
 // get('/api/envs/:plugin/:schema/:containerName', 

@@ -271,7 +271,20 @@
       "spamhausDqsKeyHelp": "Spamhaus Data Query Service API key. Enables premium IP and domain blacklist checks.",
       "abusixKey": "Abusix Key",
       "abusixKeyHelp": "Abusix Mail Intelligence API key. Enables Abusix blacklist checks."
-    }
+    },
+    "titleBranding": "Branding",
+    "brandName": "Application Name",
+    "brandNameHelp": "Name displayed in the navbar and login page.",
+    "brandIcon": "Application Icon",
+    "brandIconHelp": "Bootstrap Icon name (e.g. envelope-fill, mailbox, server). Browse at icons.getbootstrap.com.",
+    "brandColorPrimary": "Primary Color",
+    "brandColorPrimaryHelp": "Optional accent color. Leave empty for the default Bootstrap blue.",
+    "brandColorSidebar": "Sidebar Color",
+    "brandColorSidebarHelp": "Optional sidebar background color. Leave empty for default dark gray.",
+    "brandingScope": "Configure for",
+    "brandingScopeGlobal": "Global (default for all containers)",
+    "brandingSaved": "Branding saved successfully!",
+    "brandingSaveError": "Failed to save branding settings."
   },
   "common": {
     "actions": "Actions",

@@ -49,6 +49,7 @@ import {
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
+import { useBranding } from '../hooks/useBranding';
 
 
 // function Login() {
@@ -65,6 +66,7 @@ export const Login = () => {
   const [successMessage, setSuccessMessage] = useState(null);
 
   const { user, login, logout } = useAuth();
+  const { branding } = useBranding();
   
   const [containerName, setContainerName] = useLocalStorage("containerName", '');
   const [mailservers, setMailservers] = useLocalStorage("mailservers", []);
@@ -164,6 +166,11 @@ export const Login = () => {
     <>
     <Row className="align-items-center justify-content-center vh-100">
       <Col md={6}>{' '}
+
+        <div className="text-center mb-3">
+          <i className={`bi bi-${branding.brandIcon} display-4`}></i>
+          <h4>{branding.brandName}</h4>
+        </div>
 
         <Card title={isDEMO ? 'logins.welcomeDEMO' : 'logins.welcome'} icon="person-lock" collapsible="false">{' '}
           <AlertMessage type="success" message={successMessage} />

@@ -42,7 +42,7 @@ tr .MuiChip-root  {
 
 .leftsidebar {
   color: rgb(206, 212, 218);
-  background-color: #343a40;
+  background-color: var(--dms-sidebar-bg, #343a40);
   padding-top: 20px;
   min-width: 50px;
   display: inline-flex;
