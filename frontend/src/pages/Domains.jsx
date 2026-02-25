@@ -291,7 +291,7 @@ const Domains = () => {
       label: 'common.actions',
       noSort: true,
       noFilter: true,
-      render: (item) => (
+      render: (item) => item.accountCount > 0 ? (
         <Button
           variant="outline-primary"
           size="sm"
@@ -299,7 +299,7 @@ const Domains = () => {
           text="domains.generateDkim"
           onClick={() => openDkimModal(item.domain)}
         />
-      ),
+      ) : null,
     },
   ];
 
