@@ -9,6 +9,7 @@ const DEFAULTS = {
   brandLogo: '',
   brandColorPrimary: '',
   brandColorSidebar: '',
+  webmailUrl: '',
 };
 
 const BrandingContext = createContext(null);
@@ -28,6 +29,7 @@ export const BrandingProvider = ({ children }) => {
         brandLogo: getValueFromArrayOfObj(settings, 'brandLogo') || DEFAULTS.brandLogo,
         brandColorPrimary: getValueFromArrayOfObj(settings, 'brandColorPrimary') || DEFAULTS.brandColorPrimary,
         brandColorSidebar: getValueFromArrayOfObj(settings, 'brandColorSidebar') || DEFAULTS.brandColorSidebar,
+        webmailUrl: getValueFromArrayOfObj(settings, 'webmailUrl') || DEFAULTS.webmailUrl,
       };
 
       setBranding(resolved);

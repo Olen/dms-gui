@@ -292,7 +292,20 @@ app.get('/api/branding{/:containerName}', async (req, res) => {
     if (!hasBranding && containerName !== '_global') {
       result = getSettings('dms-gui', '_global');
     }
-    res.json(result.success ? result : { success: true, message: [] });
+    const msg = (result.success && result.message) ? [...result.message] : [];
+
+    // Also include webmailUrl if configured (public — shown on login page)
+    try {
+      const webmail = dbGet(
+        'SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND s.name = ? LIMIT 1',
+        {}, 'userconfig', 'WEBMAIL_URL'
+      );
+      if (webmail.success && webmail.message?.value) {
+        msg.push({ name: 'webmailUrl', value: webmail.message.value });
+      }
+    } catch { /* ignore */ }
+
+    res.json({ success: true, message: msg });
   } catch (error) {
     res.json({ success: true, message: [] }); // fail silently with defaults
   }
