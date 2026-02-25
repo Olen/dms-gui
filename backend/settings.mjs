@@ -1796,25 +1796,77 @@ const DOMAIN_RBLS = [
   { name: 'Abusix DBL',    zoneTemplate: '{key}.dblack.mail.abusix.zone',   settingKey: 'ABUSIX_KEY' },
 ];
 
+// Check if an IP is private (RFC 1918, link-local, loopback, Docker)
+const isPrivateIp = (ip) => {
+  const parts = ip.split('.').map(Number);
+  if (parts[0] === 10) return true;                                              // 10.0.0.0/8
+  if (parts[0] === 172 && parts[1] >= 16 && parts[1] <= 31) return true;        // 172.16.0.0/12
+  if (parts[0] === 192 && parts[1] === 168) return true;                        // 192.168.0.0/16
+  if (parts[0] === 127) return true;                                             // 127.0.0.0/8
+  if (parts[0] === 169 && parts[1] === 254) return true;                        // 169.254.0.0/16
+  return false;
+};
+
+// Get this server's public IP via external service
+let _cachedPublicIp = null;
+let _publicIpTimestamp = 0;
+const PUBLIC_IP_CACHE_MS = 3600000; // 1 hour
+
+const getPublicIp = async () => {
+  if (_cachedPublicIp && (Date.now() - _publicIpTimestamp) < PUBLIC_IP_CACHE_MS) {
+    return _cachedPublicIp;
+  }
+  const services = [
+    'https://api.ipify.org?format=json',
+    'https://ifconfig.me/ip',
+    'https://icanhazip.com',
+  ];
+  for (const url of services) {
+    try {
+      const res = await fetch(url, { signal: AbortSignal.timeout(5000) });
+      const text = await res.text();
+      const ip = url.includes('json') ? JSON.parse(text).ip : text.trim();
+      if (ip && /^\d+\.\d+\.\d+\.\d+$/.test(ip)) {
+        _cachedPublicIp = ip;
+        _publicIpTimestamp = Date.now();
+        return ip;
+      }
+    } catch (e) { /* try next service */ }
+  }
+  return null;
+};
+
 // DNS blacklist check for a domain's mail server IP
 export const dnsblCheck = async (plugin = 'mailserver', containerName, domain) => {
   debugLog(`dnsblCheck domain=${domain}`);
   if (!domain) return { success: false, error: 'dnsblCheck: domain is required' };
 
-  // 1. Get server IP from MX → A resolution
-  let serverIp = null;
+  // 1. Get server IP: try MX → A resolution first, but validate it's public
+  let dnsIp = null;
   try {
     const mx = await dns.promises.resolveMx(domain);
     if (mx.length) {
       const mxHost = mx.sort((a, b) => a.priority - b.priority)[0].exchange;
       const ips = await dns.promises.resolve4(mxHost);
-      if (ips.length) serverIp = ips[0];
+      if (ips.length) dnsIp = ips[0];
     }
   } catch (e) { /* can't determine IP from MX */ }
-  if (!serverIp) {
-    try { const ips = await dns.promises.resolve4(domain); serverIp = ips[0]; } catch (e) { /* fallback failed */ }
+  if (!dnsIp) {
+    try { const ips = await dns.promises.resolve4(domain); dnsIp = ips[0]; } catch (e) { /* fallback failed */ }
   }
-  if (!serverIp) return { success: false, error: 'Could not determine server IP for ' + domain };
+
+  // If DNS returned a private/Docker IP, get the real public IP instead
+  let serverIp = dnsIp;
+  if (!serverIp || isPrivateIp(serverIp)) {
+    const publicIp = await getPublicIp();
+    if (publicIp) {
+      debugLog(`dnsblCheck: DNS resolved to private IP ${dnsIp}, using public IP ${publicIp}`);
+      serverIp = publicIp;
+    }
+  }
+  if (!serverIp || isPrivateIp(serverIp)) {
+    return { success: false, error: `Could not determine public IP for ${domain} (DNS resolved to ${dnsIp || 'nothing'})` };
+  }
 
   const reversed = serverIp.split('.').reverse().join('.');
 
