@@ -460,13 +460,25 @@ const Domains = () => {
                   <pre className="bg-light p-2 rounded">{modalDns.dmarc}</pre>
                   {(() => {
                     const policy = modalDns.dmarc.match(/;\s*p=([^;\s]+)/i)?.[1]?.toLowerCase();
-                    if (policy === 'none') return (
-                      <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-1" /><Trans i18nKey="domains.dmarcNoneHint" components={i18nHtmlComponents} /></div>
+                    const hasRua = /rua=/i.test(modalDns.dmarc);
+                    const hasRuf = /ruf=/i.test(modalDns.dmarc);
+                    return (
+                      <>
+                        {policy === 'none' && (
+                          <div className="alert alert-warning py-2"><i className="bi bi-exclamation-triangle me-1" /><Trans i18nKey="domains.dmarcNoneHint" components={i18nHtmlComponents} /></div>
+                        )}
+                        {policy === 'quarantine' && (
+                          <div className="alert alert-warning py-2"><i className="bi bi-info-circle me-1" /><Trans i18nKey="domains.dmarcQuarantineHint" components={i18nHtmlComponents} /></div>
+                        )}
+                        {(!hasRua || !hasRuf) && (
+                          <div className="alert alert-info py-2">
+                            <i className="bi bi-envelope-paper me-1" /><Trans i18nKey="domains.dmarcReportingHint" components={i18nHtmlComponents} />
+                            {!hasRua && <div className="mt-2"><Trans i18nKey="domains.dmarcRuaHint" components={i18nHtmlComponents} /></div>}
+                            {!hasRuf && <div className="mt-2"><Trans i18nKey="domains.dmarcRufHint" components={i18nHtmlComponents} /></div>}
+                          </div>
+                        )}
+                      </>
                     );
-                    if (policy === 'quarantine') return (
-                      <div className="alert alert-warning py-2"><i className="bi bi-info-circle me-1" /><Trans i18nKey="domains.dmarcQuarantineHint" components={i18nHtmlComponents} /></div>
-                    );
-                    return null;
                   })()}
                 </>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
