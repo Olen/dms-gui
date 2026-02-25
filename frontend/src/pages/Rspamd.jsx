@@ -381,7 +381,19 @@ const Rspamd = () => {
                             </Badge>
                           ) : '—'}
                         </td>
-                        <td className="small">{row.action}</td>
+                        <td className="small">
+                          <Badge bg={
+                            row.action === 'reject' ? 'danger'
+                            : row.action === 'add header' || row.action === 'rewrite subject' ? 'warning'
+                            : row.action === 'greylist' ? 'info'
+                            : row.action === 'no action' ? 'success'
+                            : 'secondary'
+                          } text={
+                            (row.action === 'add header' || row.action === 'rewrite subject') ? 'dark' : undefined
+                          }>
+                            {row.action}
+                          </Badge>
+                        </td>
                         <td>
                           {learned && (
                             <Badge bg={learned === 'ham' ? 'success' : 'danger'}>
