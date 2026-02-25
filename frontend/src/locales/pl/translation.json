@@ -232,6 +232,7 @@
     "noDnsData": "Brak danych DNS. Kliknij Sprawdź DNS.",
     "dnsDetails": "Szczegóły DNS",
     "notManagedHere": "Brak kont pocztowych na tym serwerze — generowanie DKIM niedostępne",
+    "externalDomain": "Zewnętrzna",
     "generateDkim": "Generuj DKIM",
     "dkimGenerate": "Generuj klucz DKIM",
     "dkimIntro": "DKIM (DomainKeys Identified Mail) podpisuje wychodzące wiadomości kluczem kryptograficznym, umożliwiając serwerom odbierającym weryfikację, że wiadomość rzeczywiście pochodzi z Twojej domeny i nie została zmodyfikowana.",

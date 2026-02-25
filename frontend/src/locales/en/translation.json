@@ -403,6 +403,7 @@
     "noDnsData": "No DNS data available. Click Check DNS first.",
     "dnsDetails": "DNS Details",
     "notManagedHere": "No mail accounts on this server — DKIM generation not available",
+    "externalDomain": "External",
     "generateDkim": "Generate DKIM",
     "dkimGenerate": "Generate DKIM Key",
     "dkimIntro": "DKIM (DomainKeys Identified Mail) signs outgoing emails with a cryptographic key, allowing receiving servers to verify that the message was actually sent from your domain and hasn't been tampered with.",

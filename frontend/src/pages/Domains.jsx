@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { Badge, Modal, Form, Table } from 'react-bootstrap';
-import { Trans } from 'react-i18next';
+import { Trans, useTranslation } from 'react-i18next';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { getDomains, getDnsLookup, generateDkim, getDnsblCheck } from '../services/api.mjs';
 
@@ -17,6 +17,7 @@ const i18nHtmlComponents = { strong: <strong />, i: <i />, br: <br />, a: <a />,
 
 
 const Domains = () => {
+  const { t } = useTranslation();
   const [containerName] = useLocalStorage('containerName', '');
   const [domains, setDomains] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -300,8 +301,8 @@ const Domains = () => {
           onClick={() => openDkimModal(item.domain)}
         />
       ) : (
-        <span className="text-muted" title={Translate('domains.notManagedHere')}>
-          <i className="bi bi-info-circle" />
+        <span className="btn btn-sm btn-outline-secondary disabled" title={t('domains.notManagedHere')}>
+          <i className="bi bi-globe2 me-1" />{t('domains.externalDomain')}
         </span>
       ),
     },
