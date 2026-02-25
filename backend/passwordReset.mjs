@@ -156,11 +156,19 @@ export const executePasswordReset = async (token, password) => {
       return { success: false, error: 'Invalid or expired token' };
     }
 
-    const { id: resetId, loginId } = result.message;
+    const { id: resetId, loginId, mailbox, isAccount, mailserver } = result.message;
 
-    // Change the password using existing flow
-    const changeResult = await changePassword('logins', loginId, password);
+    // Change the password using the appropriate flow
+    let changeResult;
+    if (isAccount && mailserver) {
+      // DMS account: change password in the actual mail server (Dovecot) via setup.sh
+      changeResult = await changePassword('accounts', mailbox, password, null, mailserver);
+    } else {
+      // GUI-only login: change password hash in the logins table
+      changeResult = await changePassword('logins', loginId, password);
+    }
     if (!changeResult.success) {
+      errorLog(`Password change failed for login ${loginId}: ${changeResult.error}`);
       return { success: false, error: 'Failed to reset password' };
     }
 

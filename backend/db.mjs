@@ -540,7 +540,7 @@ password_resets: {
     createdAt:'number',
   },
   select: {
-    byTokenHash:  `SELECT pr.id, pr.loginId, pr.expiresAt, pr.usedAt, l.mailbox
+    byTokenHash:  `SELECT pr.id, pr.loginId, pr.expiresAt, pr.usedAt, l.mailbox, l.isAccount, l.mailserver
                    FROM password_resets pr
                    JOIN logins l ON l.id = pr.loginId
                    WHERE pr.tokenHash = ?
