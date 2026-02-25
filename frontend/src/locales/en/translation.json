@@ -489,6 +489,20 @@
     "dmarcRuaHint": "<strong>rua</strong> (aggregate reports) is missing. Add e.g. <strong>rua=mailto:dmarc@yourdomain.com</strong> to receive daily summaries of DMARC results from receiving servers. These XML reports show which IPs sent mail for your domain and pass/fail statistics — essential for monitoring before tightening your policy.",
     "dmarcRufHint": "<strong>ruf</strong> (forensic reports) is missing. Add e.g. <strong>ruf=mailto:dmarc@yourdomain.com</strong> to receive detailed reports for individual messages that fail DMARC. These contain message headers and help diagnose specific delivery problems. Note: not all providers send forensic reports due to privacy concerns."
   },
+  "resetPassword": {
+    "title": "Reset Password",
+    "forgotTitle": "Forgot Password",
+    "forgotInstructions": "Enter your mailbox address and we'll send you a link to reset your password.",
+    "sendLink": "Send Reset Link",
+    "emailSent": "If that account exists, a password reset link has been sent. Check your inbox.",
+    "backToLogin": "Back to Login",
+    "tryAgain": "Try again",
+    "invalidToken": "This reset link is invalid or has expired.",
+    "resetFor": "Reset password for {{mailbox}}",
+    "resetButton": "Reset Password",
+    "success": "Your password has been reset successfully. You can now log in with your new password.",
+    "failed": "Failed to reset password. The link may have expired."
+  },
   "language": {
     "select": "Select Language",
     "en": "English",

@@ -90,6 +90,10 @@ export const env = {
   //                                              * * *  * * *
   DMSGUI_CRON: (process.env.isDEMO === 'true') ? '6 7 *  * * *' : (process.env.DMSGUI_CRON || '* 1 23 * * *'),
 
+  // SMTP for password reset emails (local delivery to DMS container, no auth)
+  SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
+  SMTP_PORT: Number(process.env.SMTP_PORT) || 25,
+
   LOG_COLORS: (process.env.LOG_COLORS === 'false') ? false : true,
 
   // DEMO will activate a mock database and disable all refresh options

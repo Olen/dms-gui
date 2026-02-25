@@ -318,6 +318,20 @@
     "dmarcRuaHint": "<strong>rua</strong> (raporty zbiorcze) nie jest ustawione. Dodaj np. <strong>rua=mailto:dmarc@twojadomena.com</strong>, aby otrzymywać dzienne podsumowania wyników DMARC od serwerów odbiorczych. Te raporty XML pokazują, które adresy IP wysyłały pocztę z Twojej domeny oraz statystyki weryfikacji — niezbędne do monitorowania przed zaostrzeniem polityki.",
     "dmarcRufHint": "<strong>ruf</strong> (raporty szczegółowe) nie jest ustawione. Dodaj np. <strong>ruf=mailto:dmarc@twojadomena.com</strong>, aby otrzymywać szczegółowe raporty o poszczególnych wiadomościach, które nie przeszły DMARC. Zawierają nagłówki wiadomości i pomagają diagnozować konkretne problemy z dostarczaniem. Uwaga: nie wszyscy dostawcy wysyłają raporty szczegółowe ze względu na prywatność."
   },
+  "resetPassword": {
+    "title": "Zresetuj hasło",
+    "forgotTitle": "Zapomniałeś hasła",
+    "forgotInstructions": "Podaj adres swojej skrzynki pocztowej, a wyślemy Ci link do zresetowania hasła.",
+    "sendLink": "Wyślij link resetujący",
+    "emailSent": "Jeśli konto istnieje, link do zresetowania hasła został wysłany. Sprawdź swoją skrzynkę.",
+    "backToLogin": "Powrót do logowania",
+    "tryAgain": "Spróbuj ponownie",
+    "invalidToken": "Ten link resetujący jest nieprawidłowy lub wygasł.",
+    "resetFor": "Zresetuj hasło dla {{mailbox}}",
+    "resetButton": "Zresetuj hasło",
+    "success": "Twoje hasło zostało pomyślnie zresetowane. Możesz się teraz zalogować nowym hasłem.",
+    "failed": "Nie udało się zresetować hasła. Link mógł wygasnąć."
+  },
   "language": {
     "select": "Wybierz Język",
     "en": "Angielski",
