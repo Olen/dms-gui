@@ -1565,15 +1565,20 @@ export const getRspamdHistory = async (plugin = 'mailserver', containerName = nu
       const history = JSON.parse(result.stdout);
       const rawRows = history.rows || [];
 
-      const rows = rawRows.map(r => ({
-        message_id: r['message-id'] || '',
-        sender: r.sender_smtp || r.sender_mime || '',
-        rcpt: Array.isArray(r.rcpt_smtp) ? r.rcpt_smtp.join(', ') : (r.rcpt_smtp || ''),
-        subject: r.subject || '',
-        score: r.score || 0,
-        action: r.action || '',
-        unix_time: r.unix_time || 0,
-      }));
+      const rows = rawRows.map(r => {
+        const symbols = r.symbols || {};
+        const bayesSym = symbols['BAYES_SPAM'] || symbols['BAYES_HAM'];
+        return {
+          message_id: r['message-id'] || '',
+          sender: r.sender_smtp || r.sender_mime || '',
+          rcpt: Array.isArray(r.rcpt_smtp) ? r.rcpt_smtp.join(', ') : (r.rcpt_smtp || ''),
+          subject: r.subject || '',
+          score: r.score || 0,
+          bayes: bayesSym ? bayesSym.score : null,
+          action: r.action || '',
+          unix_time: r.unix_time || 0,
+        };
+      });
 
       // Extract thresholds from first row (same for all rows)
       const firstRow = rawRows[0];
@@ -1612,9 +1617,10 @@ export const rspamdLearnMessage = async (plugin = 'mailserver', containerName = 
     const escapedMsgId = escapeShellArg(messageId);
 
     // Step 1: Find message in dovecot via doveadm search
+    // Timeout 30s: -A searches all users, which can be slow on first (cold) query
     const searchResult = await execCommand(
       `doveadm search -A header message-id ${escapedMsgId}`,
-      targetDict, { timeout: 10 }
+      targetDict, { timeout: 30 }
     );
 
     if (searchResult.returncode || !searchResult.stdout || !searchResult.stdout.trim()) {

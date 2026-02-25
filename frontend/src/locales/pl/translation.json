@@ -219,6 +219,7 @@
       "recipient": "Odbiorca",
       "subject": "Temat",
       "score": "Wynik",
+      "bayes": "Bayes",
       "action": "Akcja",
       "status": "Wytrenowane",
       "learn": "Ucz",
