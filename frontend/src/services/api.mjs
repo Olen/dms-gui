@@ -418,6 +418,32 @@ export const getDnsLookup = async (containerName=null, domain) => {
   }
 };
 
+export const generateDkim = async (containerName, domain, options = {}) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!domain) return {success: false, error: 'domain is required'};
+
+  try {
+    const response = await api.post(`/domains/${containerName}/${domain}/dkim`, options);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const getDnsblCheck = async (containerName, domain) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!domain) return {success: false, error: 'domain is required'};
+
+  try {
+    const response = await api.get(`/dnsbl/${containerName}/${domain}`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getCount = async (table, containerName) => {
   if (!table) return {success: false, error: 'table is required'};
 
