@@ -46,6 +46,10 @@ const Domains = () => {
   const [showDnsblModal, setShowDnsblModal] = useState(false);
   const [dnsblModalDomain, setDnsblModalDomain] = useState(null);
 
+  // External domain modal state
+  const [showExternalModal, setShowExternalModal] = useState(false);
+  const [externalModalDomain, setExternalModalDomain] = useState(null);
+
   useEffect(() => {
     if (!containerName) return;
     fetchDomains();
@@ -185,11 +189,13 @@ const Domains = () => {
   const TLSA_SELECTOR = { 0: 'Full cert', 1: 'SubjectPublicKeyInfo' };
   const TLSA_MATCH = { 0: 'Exact', 1: 'SHA-256', 2: 'SHA-512' };
 
+  const NoDkim = () => <span className="text-muted fst-italic">{t('domains.noDkimKey')}</span>;
+
   const columns = [
     { key: 'domain', label: 'domains.domain' },
-    { key: 'dkim', label: 'domains.dkim' },
-    { key: 'keytype', label: 'domains.keytype' },
-    { key: 'keysize', label: 'domains.keysize' },
+    { key: 'dkim', label: 'domains.dkim', render: (item) => item.dkim || <NoDkim /> },
+    { key: 'keytype', label: 'domains.keytype', render: (item) => item.keytype || <NoDkim /> },
+    { key: 'keysize', label: 'domains.keysize', render: (item) => item.keysize || <NoDkim /> },
     {
       key: 'accountCount',
       label: 'domains.accounts',
@@ -301,9 +307,13 @@ const Domains = () => {
           onClick={() => openDkimModal(item.domain)}
         />
       ) : (
-        <span className="btn btn-sm btn-outline-secondary disabled" title={t('domains.notManagedHere')}>
-          <i className="bi bi-globe2 me-1" />{t('domains.externalDomain')}
-        </span>
+        <Button
+          variant="outline-secondary"
+          size="sm"
+          icon="globe2"
+          text="domains.externalDomainBtn"
+          onClick={() => { setExternalModalDomain(item.domain); setShowExternalModal(true); }}
+        />
       ),
     },
   ];
@@ -554,6 +564,20 @@ const Domains = () => {
               disabled={dkimLoading}
             />
           )}
+        </Modal.Footer>
+      </Modal>
+
+      {/* External Domain Modal */}
+      <Modal show={showExternalModal} onHide={() => setShowExternalModal(false)}>
+        <Modal.Header closeButton>
+          <Modal.Title><i className="bi bi-globe2 me-2" />{Translate('domains.externalDomain')} — {externalModalDomain}</Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          <p><Trans i18nKey="domains.externalExplanation" values={{domain: externalModalDomain}} components={i18nHtmlComponents} /></p>
+          <p className="text-muted mb-0">{Translate('domains.externalDnsNote')}</p>
+        </Modal.Body>
+        <Modal.Footer>
+          <Button variant="secondary" text="common.cancel" onClick={() => setShowExternalModal(false)} />
         </Modal.Footer>
       </Modal>
 
