@@ -91,13 +91,15 @@ const isValidDomain = (d) => typeof d === 'string' && d.length <= 253 && DOMAIN_
 const UPLOADS_DIR = path.join(env.DMSGUI_CONFIG_PATH || '/app/config', 'uploads');
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/webp', 'image/vnd.microsoft.icon'];
-const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'];
+const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/x-icon', 'image/webp', 'image/vnd.microsoft.icon'];
+const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp'];
+const SCOPE_RE = /^[a-zA-Z0-9_-]+$/;
 
 const logoStorage = multer.diskStorage({
   destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
   filename: (req, file, cb) => {
     const scope = req.params.scope || '_global';
+    if (!SCOPE_RE.test(scope)) return cb(new Error('Invalid scope'));
     const ext = path.extname(file.originalname).toLowerCase();
     cb(null, `logo-${scope}-${Date.now()}${ext}`);
   },
@@ -109,7 +111,7 @@ const logoUpload = multer({
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_MIMES.includes(file.mimetype) || !ALLOWED_EXTS.includes(ext)) {
-      return cb(new Error('Only image files are allowed (PNG, JPG, GIF, SVG, ICO, WebP)'));
+      return cb(new Error('Only image files are allowed (PNG, JPG, GIF, ICO, WebP)'));
     }
     cb(null, true);
   },
@@ -348,14 +350,15 @@ async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
     const scope = req.params.scope || '_global';
+    if (!SCOPE_RE.test(scope)) return res.status(400).json({ error: 'Invalid scope' });
 
     // Delete old logo file if one exists
     const existing = getSettings('dms-gui', scope);
     if (existing.success && existing.message?.length) {
       const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
       if (oldLogo) {
-        const oldPath = path.join(UPLOADS_DIR, oldLogo);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
+        if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
     }
 
@@ -378,14 +381,15 @@ app.delete('/api/branding/logo{/:scope}',
 async (req, res) => {
   try {
     const scope = req.params.scope || '_global';
+    if (!SCOPE_RE.test(scope)) return res.status(400).json({ error: 'Invalid scope' });
 
     // Find and delete the logo file
     const existing = getSettings('dms-gui', scope);
     if (existing.success && existing.message?.length) {
       const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
       if (oldLogo) {
-        const oldPath = path.join(UPLOADS_DIR, oldLogo);
-        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+        const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
+        if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
       }
     }
 

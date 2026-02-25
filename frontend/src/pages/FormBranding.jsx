@@ -224,25 +224,53 @@ function FormBranding() {
           </Form.Text>
         </Form.Group>
 
-        <FormField
-          type="color"
-          id="brandColorPrimary"
-          name="brandColorPrimary"
-          label="settings.brandColorPrimary"
-          helpText={t('settings.brandColorPrimaryHelp')}
-          value={getValueFromArrayOfObj(formValues, 'brandColorPrimary') || '#0d6efd'}
-          onChange={handleChange}
-        />
+        <Form.Group className="mb-3">
+          <Form.Label>{t('settings.brandColorPrimary')}</Form.Label>
+          <div className="d-flex align-items-center gap-2">
+            <Form.Control
+              type="color"
+              id="brandColorPrimary"
+              name="brandColorPrimary"
+              value={getValueFromArrayOfObj(formValues, 'brandColorPrimary') || '#0d6efd'}
+              onChange={handleChange}
+              style={{ width: '4rem' }}
+            />
+            {getValueFromArrayOfObj(formValues, 'brandColorPrimary') && (
+              <Button
+                variant="outline-secondary"
+                icon="arrow-counterclockwise"
+                text="settings.colorReset"
+                size="sm"
+                onClick={() => handleChange({ target: { name: 'brandColorPrimary', value: '' } })}
+              />
+            )}
+          </div>
+          <Form.Text className="text-muted">{t('settings.brandColorPrimaryHelp')}</Form.Text>
+        </Form.Group>
 
-        <FormField
-          type="color"
-          id="brandColorSidebar"
-          name="brandColorSidebar"
-          label="settings.brandColorSidebar"
-          helpText={t('settings.brandColorSidebarHelp')}
-          value={getValueFromArrayOfObj(formValues, 'brandColorSidebar') || '#343a40'}
-          onChange={handleChange}
-        />
+        <Form.Group className="mb-3">
+          <Form.Label>{t('settings.brandColorSidebar')}</Form.Label>
+          <div className="d-flex align-items-center gap-2">
+            <Form.Control
+              type="color"
+              id="brandColorSidebar"
+              name="brandColorSidebar"
+              value={getValueFromArrayOfObj(formValues, 'brandColorSidebar') || '#343a40'}
+              onChange={handleChange}
+              style={{ width: '4rem' }}
+            />
+            {getValueFromArrayOfObj(formValues, 'brandColorSidebar') && (
+              <Button
+                variant="outline-secondary"
+                icon="arrow-counterclockwise"
+                text="settings.colorReset"
+                size="sm"
+                onClick={() => handleChange({ target: { name: 'brandColorSidebar', value: '' } })}
+              />
+            )}
+          </div>
+          <Form.Text className="text-muted">{t('settings.brandColorSidebarHelp')}</Form.Text>
+        </Form.Group>
 
         <AlertMessage type="success" message={successMessage} />
         <AlertMessage type="danger" message={errorMessage} />

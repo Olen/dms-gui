@@ -12,6 +12,9 @@ const DEFAULTS = {
   webmailUrl: '',
 };
 
+// Sanitize icon name to prevent class injection — only allow Bootstrap icon characters
+const sanitizeIcon = (v) => (v && /^[a-z0-9-]+$/.test(v) ? v : DEFAULTS.brandIcon);
+
 const BrandingContext = createContext(null);
 
 export const BrandingProvider = ({ children }) => {
@@ -25,7 +28,7 @@ export const BrandingProvider = ({ children }) => {
 
       const resolved = {
         brandName: getValueFromArrayOfObj(settings, 'brandName') || DEFAULTS.brandName,
-        brandIcon: getValueFromArrayOfObj(settings, 'brandIcon') || DEFAULTS.brandIcon,
+        brandIcon: sanitizeIcon(getValueFromArrayOfObj(settings, 'brandIcon')),
         brandLogo: getValueFromArrayOfObj(settings, 'brandLogo') || DEFAULTS.brandLogo,
         brandColorPrimary: getValueFromArrayOfObj(settings, 'brandColorPrimary') || DEFAULTS.brandColorPrimary,
         brandColorSidebar: getValueFromArrayOfObj(settings, 'brandColorSidebar') || DEFAULTS.brandColorSidebar,
