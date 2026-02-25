@@ -15,6 +15,12 @@ const DEFAULTS = {
 // Sanitize icon name to prevent class injection — only allow Bootstrap icon characters
 const sanitizeIcon = (v) => (v && /^[a-z0-9-]+$/.test(v) ? v : DEFAULTS.brandIcon);
 
+// Sanitize URL — only allow http(s) schemes
+const sanitizeUrl = (v) => (v && /^https?:\/\//i.test(v) ? v : '');
+
+// Sanitize color — only allow valid hex color values
+const sanitizeColor = (v) => (v && /^#[0-9a-f]{6}$/i.test(v) ? v : '');
+
 const BrandingContext = createContext(null);
 
 export const BrandingProvider = ({ children }) => {
@@ -30,9 +36,9 @@ export const BrandingProvider = ({ children }) => {
         brandName: getValueFromArrayOfObj(settings, 'brandName') || DEFAULTS.brandName,
         brandIcon: sanitizeIcon(getValueFromArrayOfObj(settings, 'brandIcon')),
         brandLogo: getValueFromArrayOfObj(settings, 'brandLogo') || DEFAULTS.brandLogo,
-        brandColorPrimary: getValueFromArrayOfObj(settings, 'brandColorPrimary') || DEFAULTS.brandColorPrimary,
-        brandColorSidebar: getValueFromArrayOfObj(settings, 'brandColorSidebar') || DEFAULTS.brandColorSidebar,
-        webmailUrl: getValueFromArrayOfObj(settings, 'webmailUrl') || DEFAULTS.webmailUrl,
+        brandColorPrimary: sanitizeColor(getValueFromArrayOfObj(settings, 'brandColorPrimary')),
+        brandColorSidebar: sanitizeColor(getValueFromArrayOfObj(settings, 'brandColorSidebar')),
+        webmailUrl: sanitizeUrl(getValueFromArrayOfObj(settings, 'webmailUrl')),
       };
 
       setBranding(resolved);
