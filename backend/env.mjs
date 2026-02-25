@@ -94,6 +94,11 @@ export const env = {
   SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
   SMTP_PORT: Number(process.env.SMTP_PORT) || 25,
 
+  // Base URL for password reset links (e.g., https://epost.example.com)
+  // If not set, derived from X-Forwarded-Proto/Host headers (set by reverse proxy)
+  RESET_BASE_URL: process.env.RESET_BASE_URL || '',
+
+
   LOG_COLORS: (process.env.LOG_COLORS === 'false') ? false : true,
 
   // DEMO will activate a mock database and disable all refresh options

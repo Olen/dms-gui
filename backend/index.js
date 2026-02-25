@@ -314,17 +314,46 @@ app.set('query parser', function (str) {
 
 
 // Password reset endpoints — public (no auth required)
+// Per-IP rate limit for forgot-password to prevent email flooding
+const forgotPasswordLimits = new Map();
+const FORGOT_IP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+const FORGOT_IP_MAX = 10; // max 10 requests per IP per window
+
 app.post('/api/forgot-password', async (req, res) => {
   try {
+    // Per-IP rate limiting
+    const ip = req.ip || req.connection?.remoteAddress || 'unknown';
+    const now = Date.now();
+    const ipEntry = forgotPasswordLimits.get(ip);
+    if (ipEntry && now - ipEntry.start < FORGOT_IP_WINDOW_MS) {
+      if (ipEntry.count >= FORGOT_IP_MAX) {
+        return res.json({ success: true, message: 'If that account exists, a reset link has been sent.' });
+      }
+      ipEntry.count++;
+    } else {
+      forgotPasswordLimits.set(ip, { count: 1, start: now });
+    }
+
     const { email } = req.body;
-    const origin = req.get('origin') || req.get('referer')?.replace(/\/[^/]*$/, '') || '';
-    const result = await requestPasswordReset(email, origin);
+    // Derive base URL from env var or reverse proxy headers (not client Origin — prevents phishing)
+    const baseUrl = env.RESET_BASE_URL
+      || `${req.get('x-forwarded-proto') || 'https'}://${req.get('x-forwarded-host') || req.get('host')}`;
+    const result = await requestPasswordReset(email, baseUrl);
     res.json(result);
   } catch (error) {
     errorLog(`POST /api/forgot-password: ${error.message}`);
     res.json({ success: true, message: 'If that account exists, a reset link has been sent.' });
   }
 });
+
+// Cleanup stale IP rate limit entries every hour
+setInterval(() => {
+  const now = Date.now();
+  for (const [ip, entry] of forgotPasswordLimits) {
+    if (now - entry.start >= FORGOT_IP_WINDOW_MS) forgotPasswordLimits.delete(ip);
+  }
+}, 60 * 60 * 1000);
+
 
 app.post('/api/validate-reset-token', async (req, res) => {
   try {
@@ -449,6 +478,7 @@ async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 });
+
 
 // post('/api/forgot-password',
 // post('/api/validate-reset-token',

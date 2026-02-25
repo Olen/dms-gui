@@ -555,7 +555,7 @@ password_resets: {
   },
 
   update: {
-    markUsed: `UPDATE password_resets SET usedAt = ? WHERE id = ?`,
+    markUsed: `UPDATE password_resets SET usedAt = ? WHERE id = ? AND usedAt IS NULL`,
   },
 
   delete: {

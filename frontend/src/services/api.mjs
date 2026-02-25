@@ -604,6 +604,7 @@ export const deleteLogo = async (scope) => {
   return response.data;
 };
 
+
 // Password reset — public endpoints (no auth)
 export const forgotPassword = async (email) => {
   try {
