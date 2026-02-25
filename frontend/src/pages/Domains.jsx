@@ -189,13 +189,41 @@ const Domains = () => {
   const TLSA_SELECTOR = { 0: 'Full cert', 1: 'SubjectPublicKeyInfo' };
   const TLSA_MATCH = { 0: 'Exact', 1: 'SHA-256', 2: 'SHA-512' };
 
-  const NoDkim = () => <span className="text-muted fst-italic">{t('domains.noDkimKey')}</span>;
+  const keytypeBadge = (type) => {
+    if (!type) return 'danger';
+    if (type === 'rsa') return 'success';
+    if (type === 'ed25519') return 'warning';
+    return 'secondary';
+  };
+
+  const keysizeBadge = (size) => {
+    if (!size) return 'danger';
+    const n = Number(size);
+    if (n >= 2048) return 'success';
+    if (n >= 1024) return 'warning';
+    return 'danger';
+  };
 
   const columns = [
     { key: 'domain', label: 'domains.domain' },
-    { key: 'dkim', label: 'domains.dkim', render: (item) => item.dkim || <NoDkim /> },
-    { key: 'keytype', label: 'domains.keytype', render: (item) => item.keytype || <NoDkim /> },
-    { key: 'keysize', label: 'domains.keysize', render: (item) => item.keysize || <NoDkim /> },
+    {
+      key: 'dkim', label: 'domains.dkim',
+      render: (item) => item.dkim
+        ? <Badge bg="secondary">{item.dkim}</Badge>
+        : <Badge bg="danger">{t('domains.noDkimKey')}</Badge>,
+    },
+    {
+      key: 'keytype', label: 'domains.keytype',
+      render: (item) => item.keytype
+        ? <Badge bg={keytypeBadge(item.keytype)}>{item.keytype.toUpperCase()}</Badge>
+        : <Badge bg="danger">{t('domains.noDkimKey')}</Badge>,
+    },
+    {
+      key: 'keysize', label: 'domains.keysize',
+      render: (item) => item.keysize
+        ? <Badge bg={keysizeBadge(item.keysize)}>{item.keysize}</Badge>
+        : <Badge bg="danger">{t('domains.noDkimKey')}</Badge>,
+    },
     {
       key: 'accountCount',
       label: 'domains.accounts',
