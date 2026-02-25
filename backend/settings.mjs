@@ -904,6 +904,7 @@ export const pullDkimRspamd = async (targetDict={}) => {
             // Detect key type and size
             let keytype = '', keysize = '';
             const keyInfo = await execCommand(`openssl pkey -in '${keyPath.replace(/'/g, "'\\''")}' -text -noout | head -1`, targetDict, { timeout: 5 });
+            if (!keyInfo.returncode) {
               const match = keyInfo.stdout.match(/(?:(RSA|EC|ED25519)\s+)?Private-Key:\s*\((\d+)\s*bit/i);
               if (match) {
                 keysize = match[2];
