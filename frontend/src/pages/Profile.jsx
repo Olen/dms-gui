@@ -15,10 +15,9 @@ import {
   debugLog,
   errorLog,
 } from '../../frontend.mjs';
-// import {
-//   regexUsername,
-//   moveKeyToLast,
-// } from '../../../common.mjs';
+import {
+  getValueFromArrayOfObj,
+} from '../../../common.mjs';
 
 import {
   updateAccount,
