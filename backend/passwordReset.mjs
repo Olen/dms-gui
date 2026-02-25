@@ -5,7 +5,6 @@ import {
   debugLog,
   errorLog,
   infoLog,
-  warnLog,
 } from './backend.mjs';
 import {
   changePassword,
@@ -158,6 +157,12 @@ export const executePasswordReset = async (token, password) => {
 
     const { id: resetId, loginId, mailbox, isAccount, mailserver } = result.message;
 
+    // Atomically claim the token (prevents concurrent use via race condition)
+    const claimed = dbRun(sql.password_resets.update.markUsed, {}, now, resetId);
+    if (!claimed.success || !claimed.message?.changes) {
+      return { success: false, error: 'Invalid or expired token' };
+    }
+
     // Change the password using the appropriate flow
     let changeResult;
     if (isAccount && mailserver) {
@@ -171,9 +176,6 @@ export const executePasswordReset = async (token, password) => {
       errorLog(`Password change failed for login ${loginId}: ${changeResult.error}`);
       return { success: false, error: 'Failed to reset password' };
     }
-
-    // Mark token as used
-    dbRun(sql.password_resets.update.markUsed, {}, now, resetId);
 
     infoLog(`Password reset completed for login ID ${loginId}`);
     return { success: true, message: 'Password has been reset successfully' };
