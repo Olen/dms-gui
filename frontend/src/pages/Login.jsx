@@ -167,12 +167,13 @@ export const Login = () => {
     <Row className="align-items-center justify-content-center vh-100">
       <Col md={6}>{' '}
 
-        <div className="text-center mb-3">
+        <div className="text-center mb-4">
           {branding.brandLogo ? (
             <img src={`/uploads/${branding.brandLogo}`} alt={branding.brandName}
+              className="mb-3"
               style={{ height: '4rem', width: 'auto' }} />
           ) : (
-            <i className={`bi bi-${branding.brandIcon} display-4`}></i>
+            <i className={`bi bi-${branding.brandIcon} display-4 mb-3`}></i>
           )}
           <h4>{branding.brandName}</h4>
         </div>

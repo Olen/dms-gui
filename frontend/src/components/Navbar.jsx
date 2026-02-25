@@ -86,7 +86,7 @@ const Navbar = ({
         <RBNavbar.Brand as={Link} to="/">
           {branding.brandLogo ? (
             <img src={`/uploads/${branding.brandLogo}`} alt={branding.brandName}
-              style={{ height: '1.5em', width: 'auto', marginRight: '0.5rem' }} />
+              style={{ height: '1.5em', width: 'auto', marginRight: '0.75rem' }} />
           ) : (
             <i className={`bi bi-${branding.brandIcon} me-2`}></i>
           )}
