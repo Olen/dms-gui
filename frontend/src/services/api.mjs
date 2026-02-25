@@ -473,4 +473,20 @@ export const getBranding = async (containerName) => {
   }
 };
 
+export const uploadLogo = async (file, scope) => {
+  const formData = new FormData();
+  formData.append('logo', file);
+  const p = scope ? `/branding/logo/${scope}` : '/branding/logo';
+  const response = await api.post(p, formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  });
+  return response.data;
+};
+
+export const deleteLogo = async (scope) => {
+  const p = scope ? `/branding/logo/${scope}` : '/branding/logo';
+  const response = await api.delete(p);
+  return response.data;
+};
+
 export default api;

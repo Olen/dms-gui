@@ -107,7 +107,15 @@
     "brandingScope": "Konfiguruj dla",
     "brandingScopeGlobal": "Globalnie (domyślne dla wszystkich kontenerów)",
     "brandingSaved": "Branding zapisany pomyślnie!",
-    "brandingSaveError": "Nie udało się zapisać ustawień brandingu."
+    "brandingSaveError": "Nie udało się zapisać ustawień brandingu.",
+    "brandLogo": "Logo",
+    "brandLogoHelp": "Prześlij obraz logo (PNG, JPG, GIF, SVG, ICO, WebP). Maks. 2 MB. Po ustawieniu zastępuje ikonę.",
+    "logoUpload": "Prześlij",
+    "logoDelete": "Usuń",
+    "logoUploaded": "Logo przesłane pomyślnie!",
+    "logoDeleted": "Logo usunięte pomyślnie!",
+    "logoUploadError": "Nie udało się przesłać logo.",
+    "logoDeleteError": "Nie udało się usunąć logo."
   },
   "common": {
     "loading": "Ładowanie...",

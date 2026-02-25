@@ -56,17 +56,50 @@ import {
 // const swaggerJsdoc = require('swagger-jsdoc');
 // const jwt = require('jsonwebtoken');
 
+import { getValueFromArrayOfObj } from '../common.mjs';
+
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
 import * as crypto from 'crypto';
 import express from 'express';
+import fs from 'node:fs';
+import path from 'node:path';
 import jwt from 'jsonwebtoken';
 // import jwt from 'express-jwt';
+import multer from 'multer';
 import cron from 'node-cron';
 import qs from 'qs';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 const app = express();
+
+// Logo upload config
+const UPLOADS_DIR = path.join(env.DMSGUI_CONFIG_PATH || '/app/config', 'uploads');
+fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+
+const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/svg+xml', 'image/x-icon', 'image/webp', 'image/vnd.microsoft.icon'];
+const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.svg', '.ico', '.webp'];
+
+const logoStorage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const scope = req.params.scope || '_global';
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, `logo-${scope}-${Date.now()}${ext}`);
+  },
+});
+
+const logoUpload = multer({
+  storage: logoStorage,
+  limits: { fileSize: 2 * 1024 * 1024 }, // 2 MB
+  fileFilter: (_req, file, cb) => {
+    const ext = path.extname(file.originalname).toLowerCase();
+    if (!ALLOWED_MIMES.includes(file.mimetype) || !ALLOWED_EXTS.includes(ext)) {
+      return cb(new Error('Only image files are allowed (PNG, JPG, GIF, SVG, ICO, WebP)'));
+    }
+    cb(null, true);
+  },
+});
 
 const swaggerDefinition = {
   openapi: '3.0.0',
@@ -262,7 +295,69 @@ app.get('/api/branding{/:containerName}', async (req, res) => {
   }
 });
 
-// post('/api/status/:plugin/:schema/:containerName', 
+// Upload brand logo (admin only)
+app.post('/api/branding/logo{/:scope}',
+  authenticateToken,
+  requireAdmin,
+  logoUpload.single('logo'),
+async (req, res) => {
+  try {
+    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+
+    const scope = req.params.scope || '_global';
+
+    // Delete old logo file if one exists
+    const existing = getSettings('dms-gui', scope);
+    if (existing.success && existing.message?.length) {
+      const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
+      if (oldLogo) {
+        const oldPath = path.join(UPLOADS_DIR, oldLogo);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+    }
+
+    // Save brandLogo setting
+    const filename = req.file.filename;
+    await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [{ name: 'brandLogo', value: filename }]);
+
+    res.json({ success: true, filename, url: `/uploads/${filename}` });
+
+  } catch (error) {
+    errorLog(`POST /api/branding/logo: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Delete brand logo (admin only)
+app.delete('/api/branding/logo{/:scope}',
+  authenticateToken,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const scope = req.params.scope || '_global';
+
+    // Find and delete the logo file
+    const existing = getSettings('dms-gui', scope);
+    if (existing.success && existing.message?.length) {
+      const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
+      if (oldLogo) {
+        const oldPath = path.join(UPLOADS_DIR, oldLogo);
+        if (fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      }
+    }
+
+    // Clear brandLogo setting
+    await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [{ name: 'brandLogo', value: '' }]);
+
+    res.json({ success: true, message: 'Logo removed' });
+
+  } catch (error) {
+    errorLog(`DELETE /api/branding/logo: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// post('/api/status/:plugin/:schema/:containerName',
 // get('/api/infos', 
 // get('/api/envs/:plugin/:schema/:containerName', 
 // get('/api/accounts/:schema/:containerName', 
@@ -1838,6 +1933,24 @@ async (req, res) => {
     errorLog(`index /api/killContainer: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
+});
+
+
+// ============================================
+// MULTER ERROR HANDLER
+// ============================================
+
+app.use((err, req, res, next) => {
+  if (err instanceof multer.MulterError) {
+    if (err.code === 'LIMIT_FILE_SIZE') {
+      return res.status(413).json({ error: 'File too large. Maximum size is 2 MB.' });
+    }
+    return res.status(400).json({ error: err.message });
+  }
+  if (err.message && err.message.includes('Only image files are allowed')) {
+    return res.status(415).json({ error: err.message });
+  }
+  next(err);
 });
 
 

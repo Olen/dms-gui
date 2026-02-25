@@ -168,7 +168,12 @@ export const Login = () => {
       <Col md={6}>{' '}
 
         <div className="text-center mb-3">
-          <i className={`bi bi-${branding.brandIcon} display-4`}></i>
+          {branding.brandLogo ? (
+            <img src={`/uploads/${branding.brandLogo}`} alt={branding.brandName}
+              style={{ height: '4rem', width: 'auto' }} />
+          ) : (
+            <i className={`bi bi-${branding.brandIcon} display-4`}></i>
+          )}
           <h4>{branding.brandName}</h4>
         </div>
 

@@ -84,7 +84,12 @@ const Navbar = ({
     <RBNavbar bg="dark" variant="dark" expand="lg">
       <Container fluid>
         <RBNavbar.Brand as={Link} to="/">
-          <i className={`bi bi-${branding.brandIcon} me-2`}></i>
+          {branding.brandLogo ? (
+            <img src={`/uploads/${branding.brandLogo}`} alt={branding.brandName}
+              style={{ height: '1.5em', width: 'auto', marginRight: '0.5rem' }} />
+          ) : (
+            <i className={`bi bi-${branding.brandIcon} me-2`}></i>
+          )}
           {isDEMO ? Translate('app.titleDemo') : branding.brandName}{' '}
         </RBNavbar.Brand>
         {user && mailservers.length > 1 && (

@@ -14,6 +14,8 @@ import {
 import {
   getSettings,
   saveSettings,
+  uploadLogo,
+  deleteLogo,
 } from '../services/api.mjs';
 
 import {
@@ -36,9 +38,13 @@ function FormBranding() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
+  const [logoFile, setLogoFile] = useState(null);
+  const [logoUploading, setLogoUploading] = useState(false);
+
   const [formValues, setFormValues] = useState([
     { name: 'brandName', value: '' },
     { name: 'brandIcon', value: '' },
+    { name: 'brandLogo', value: '' },
     { name: 'brandColorPrimary', value: '' },
     { name: 'brandColorSidebar', value: '' },
   ]);
@@ -59,6 +65,7 @@ function FormBranding() {
         setFormValues([
           { name: 'brandName', value: '' },
           { name: 'brandIcon', value: '' },
+          { name: 'brandLogo', value: '' },
           { name: 'brandColorPrimary', value: '' },
           { name: 'brandColorSidebar', value: '' },
         ]);
@@ -99,6 +106,45 @@ function FormBranding() {
     ...mailservers.map(ms => ({ value: ms.value, label: ms.label || ms.value })),
   ];
 
+  const handleLogoUpload = async () => {
+    if (!logoFile) return;
+    setLogoUploading(true);
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    try {
+      const result = await uploadLogo(logoFile, scope === '_global' ? undefined : scope);
+      if (result.success) {
+        setFormValues(prev => mergeArrayOfObj(prev, [{ name: 'brandLogo', value: result.filename }]));
+        setLogoFile(null);
+        setSuccessMessage('settings.logoUploaded');
+        refreshBranding();
+      } else {
+        setErrorMessage('settings.logoUploadError');
+      }
+    } catch {
+      setErrorMessage('settings.logoUploadError');
+    }
+    setLogoUploading(false);
+  };
+
+  const handleLogoDelete = async () => {
+    setSuccessMessage(null);
+    setErrorMessage(null);
+    try {
+      const result = await deleteLogo(scope === '_global' ? undefined : scope);
+      if (result.success) {
+        setFormValues(prev => mergeArrayOfObj(prev, [{ name: 'brandLogo', value: '' }]));
+        setSuccessMessage('settings.logoDeleted');
+        refreshBranding();
+      } else {
+        setErrorMessage('settings.logoDeleteError');
+      }
+    } catch {
+      setErrorMessage('settings.logoDeleteError');
+    }
+  };
+
+  const currentLogo = getValueFromArrayOfObj(formValues, 'brandLogo') || '';
   const iconPreview = getValueFromArrayOfObj(formValues, 'brandIcon') || 'envelope-fill';
 
   return (
@@ -141,6 +187,40 @@ function FormBranding() {
           </div>
           <Form.Text className="text-muted">
             {t('settings.brandIconHelp')}
+          </Form.Text>
+        </Form.Group>
+
+        <Form.Group className="mb-3">
+          <Form.Label>{t('settings.brandLogo')}</Form.Label>
+          {currentLogo && (
+            <div className="mb-2 d-flex align-items-center gap-2">
+              <img src={`/uploads/${currentLogo}`} alt="Logo" style={{ height: '2rem', width: 'auto' }} />
+              <Button
+                variant="outline-danger"
+                icon="trash"
+                text="settings.logoDelete"
+                size="sm"
+                onClick={handleLogoDelete}
+              />
+            </div>
+          )}
+          <div className="d-flex align-items-center gap-2">
+            <Form.Control
+              type="file"
+              accept="image/*"
+              onChange={(e) => setLogoFile(e.target.files[0] || null)}
+            />
+            <Button
+              variant="outline-primary"
+              icon="upload"
+              text="settings.logoUpload"
+              size="sm"
+              onClick={handleLogoUpload}
+              disabled={!logoFile || logoUploading}
+            />
+          </div>
+          <Form.Text className="text-muted">
+            {t('settings.brandLogoHelp')}
           </Form.Text>
         </Form.Group>
 

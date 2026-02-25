@@ -237,7 +237,15 @@
     "brandingScope": "Configure for",
     "brandingScopeGlobal": "Global (default for all containers)",
     "brandingSaved": "Branding saved successfully!",
-    "brandingSaveError": "Failed to save branding settings."
+    "brandingSaveError": "Failed to save branding settings.",
+    "brandLogo": "Logo Image",
+    "brandLogoHelp": "Upload a logo image (PNG, JPG, GIF, SVG, ICO, WebP). Max 2 MB. When set, replaces the icon.",
+    "logoUpload": "Upload",
+    "logoDelete": "Remove",
+    "logoUploaded": "Logo uploaded successfully!",
+    "logoDeleted": "Logo removed successfully!",
+    "logoUploadError": "Failed to upload logo.",
+    "logoDeleteError": "Failed to remove logo."
   },
   "common": {
     "actions": "Actions",
