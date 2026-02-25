@@ -125,11 +125,14 @@ const Domains = () => {
     setShowDnsblModal(true);
   };
 
+  const RECOMMENDED_KEYTYPE = 'rsa';
+  const RECOMMENDED_KEYSIZE = '2048';
+
   const openDkimModal = (domain) => {
     const domainData = domains.find(d => d.domain === domain);
     setDkimDomain(domain);
-    setDkimKeytype(domainData?.keytype || 'rsa');
-    setDkimKeysize(domainData?.keysize || '2048');
+    setDkimKeytype(RECOMMENDED_KEYTYPE);
+    setDkimKeysize(RECOMMENDED_KEYSIZE);
     setDkimSelector(domainData?.dkim || 'mail');
     setDkimForce(false);
     setDkimResult(null);
@@ -465,11 +468,23 @@ const Domains = () => {
             <Form>
               <p className="text-muted mb-3">{Translate('domains.dkimIntro')}</p>
               {dkimError && <AlertMessage type="danger" message={dkimError} />}
+              {(() => {
+                const cur = domains.find(d => d.domain === dkimDomain);
+                const curType = cur?.keytype;
+                const curSize = cur?.keysize;
+                const hasCurrent = curType && curSize;
+                const differs = hasCurrent && (curType !== RECOMMENDED_KEYTYPE || curSize !== RECOMMENDED_KEYSIZE);
+                return differs ? (
+                  <div className="alert alert-info py-2 mb-3">
+                    <Trans i18nKey="domains.dkimCurrentNotice" values={{keytype: curType.toUpperCase(), keysize: curSize}} components={i18nHtmlComponents} />
+                  </div>
+                ) : null;
+              })()}
 
               <Form.Group className="mb-3">
                 <Form.Label>{Translate('domains.dkimKeytype')}</Form.Label>
                 <Form.Select value={dkimKeytype} onChange={(e) => setDkimKeytype(e.target.value)}>
-                  <option value="rsa">RSA</option>
+                  <option value="rsa">RSA ({Translate('domains.dkimRecommended')})</option>
                   <option value="ed25519">Ed25519</option>
                 </Form.Select>
                 <Form.Text className="text-muted"><Trans i18nKey="domains.dkimKeytypeHelp" components={i18nHtmlComponents} /></Form.Text>
@@ -483,7 +498,7 @@ const Domains = () => {
                   disabled={dkimKeytype === 'ed25519'}
                 >
                   <option value="1024">1024</option>
-                  <option value="2048">2048</option>
+                  <option value="2048">2048 ({Translate('domains.dkimRecommended')})</option>
                   <option value="4096">4096</option>
                 </Form.Select>
               </Form.Group>

@@ -236,6 +236,8 @@
     "dkimIntro": "DKIM (DomainKeys Identified Mail) podpisuje wychodzące wiadomości kluczem kryptograficznym, umożliwiając serwerom odbierającym weryfikację, że wiadomość rzeczywiście pochodzi z Twojej domeny i nie została zmodyfikowana.",
     "dkimKeytypeHelp": "RSA 2048 jest najszerzej obsługiwany. Ed25519 jest bardziej kompaktowy, ale nie jest jeszcze obsługiwany przez wszystkich dostawców.",
     "dkimSelectorHelp": "Selektor jest częścią nazwy rekordu DNS (np. <strong>mail</strong>._domainkey). Użyj innego selektora, jeśli chcesz rotować klucze bez przestoju.",
+    "dkimRecommended": "zalecane",
+    "dkimCurrentNotice": "Ta domena obecnie używa <strong>{{keytype}} {{keysize}}</strong>. Zalecana konfiguracja to <strong>RSA 2048</strong>. Formularz domyślnie wybiera zalecane wartości, ale możesz je zmienić, aby dopasować do obecnej konfiguracji.",
     "dkimForceWarning": "Jeśli klucz już istnieje, włącz tę opcję aby go zastąpić. Stary klucz przestanie działać natychmiast — zaktualizuj rekord DNS od razu.",
     "dkimKeytype": "Typ klucza",
     "dkimKeysize": "Rozmiar klucza",

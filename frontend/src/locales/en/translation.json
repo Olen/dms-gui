@@ -407,6 +407,8 @@
     "dkimIntro": "DKIM (DomainKeys Identified Mail) signs outgoing emails with a cryptographic key, allowing receiving servers to verify that the message was actually sent from your domain and hasn't been tampered with.",
     "dkimKeytypeHelp": "RSA 2048 is the most widely supported. Ed25519 is more compact but not yet supported by all providers.",
     "dkimSelectorHelp": "The selector is part of the DNS record name (e.g. <strong>mail</strong>._domainkey). Use a different selector if you want to rotate keys without downtime.",
+    "dkimRecommended": "recommended",
+    "dkimCurrentNotice": "This domain currently uses <strong>{{keytype}} {{keysize}}</strong>. The recommended configuration is <strong>RSA 2048</strong>. The form defaults to the recommended values, but you can change them to match your current setup if preferred.",
     "dkimForceWarning": "If a key already exists, enable this to replace it. The old key will stop working immediately — update your DNS record right away.",
     "dkimKeytype": "Key Type",
     "dkimKeysize": "Key Size",
