@@ -126,10 +126,11 @@ const Domains = () => {
   };
 
   const openDkimModal = (domain) => {
+    const domainData = domains.find(d => d.domain === domain);
     setDkimDomain(domain);
-    setDkimKeytype('rsa');
-    setDkimKeysize('2048');
-    setDkimSelector('mail');
+    setDkimKeytype(domainData?.keytype || 'rsa');
+    setDkimKeysize(domainData?.keysize || '2048');
+    setDkimSelector(domainData?.dkim || 'mail');
     setDkimForce(false);
     setDkimResult(null);
     setDkimError(null);
