@@ -458,11 +458,19 @@ domains: {
   select: {
     count:    `SELECT COUNT(*) count FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
     domains:  `SELECT * FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
-    domainsWithCounts: `SELECT d.*,
-      (SELECT COUNT(*) FROM accounts a WHERE a.domain = d.domain AND a.configID = d.configID) as accountCount,
-      (SELECT COUNT(DISTINCT source) FROM aliases WHERE SUBSTR(source, INSTR(source, '@') + 1) = d.domain AND configID = d.configID) as aliasCount
-      FROM domains d
-      WHERE d.configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
+    domainsWithCounts: `SELECT allDomains.domain, allDomains.dkim, allDomains.keytype, allDomains.keysize, allDomains.path, allDomains.dnsProvider, allDomains.configID,
+      (SELECT COUNT(*) FROM accounts a WHERE a.domain = allDomains.domain AND a.configID = allDomains.configID) as accountCount,
+      (SELECT COUNT(DISTINCT source) FROM aliases WHERE SUBSTR(source, INSTR(source, '@') + 1) = allDomains.domain AND configID = allDomains.configID) as aliasCount
+      FROM (
+        SELECT d.domain, d.dkim, d.keytype, d.keysize, d.path, d.dnsProvider, d.configID
+        FROM domains d
+        WHERE d.configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)
+        UNION
+        SELECT DISTINCT a.domain, NULL as dkim, NULL as keytype, NULL as keysize, NULL as path, NULL as dnsProvider, a.configID
+        FROM accounts a
+        WHERE a.configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)
+        AND a.domain NOT IN (SELECT d2.domain FROM domains d2 WHERE d2.configID = a.configID)
+      ) allDomains`,
     domain:   `SELECT * FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,
     dkims:    `SELECT DISTINCT dkim FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
     dkim:     `SELECT dkim FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,
