@@ -56,7 +56,7 @@ export const env = {
   JWT_SECRET_REFRESH: process.env.JWT_SECRET_REFRESH,
   // ACCESS_TOKEN_EXPIRY and REFRESH_TOKEN_EXPIRY control the behavior of the /loginUser and /refresh API
   ACCESS_TOKEN_EXPIRY: process.env.ACCESS_TOKEN_EXPIRY || '1h',
-  REFRESH_TOKEN_EXPIRY: process.env.ACCESS_TOKEN_EXPIRY || '7d',
+  REFRESH_TOKEN_EXPIRY: process.env.REFRESH_TOKEN_EXPIRY || '7d',
 
   // IV_LEN is the length of the unique Initialization Vector (IV) = random salt used for encryption and hashing
   IV_LEN: Number(process.env.IV_LEN) || 16,
