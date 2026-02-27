@@ -384,12 +384,11 @@
       "spam": "Spam",
       "total": "Total"
     },
-    "topSymbols": "Top Symbols",
+    "topSymbols": "Top Symbols by Score Impact",
     "symbol": "Symbol",
-    "frequency": "Frequency",
-    "weight": "Weight",
+    "avgScore": "Avg Score",
     "hits": "Hits",
-    "time": "Avg Time",
+    "frequency": "Frequency",
     "history": {
       "title": "Message History & Bayes Training",
       "time": "Time",
