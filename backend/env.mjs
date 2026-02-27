@@ -462,6 +462,12 @@ export const plugins =
       "SecretKey": "your-aws-secret-key",
       "Token": "optional-sts-token"
     },
+    "domeneshop": {
+      "desc": "https://docs.dnscontrol.org/provider/domainnameshop",
+      "TYPE": "DOMAINNAMESHOP",
+      "token": "your-domeneshop-api-token",
+      "secret": "your-domeneshop-api-secret"
+    },
   }
 }
 

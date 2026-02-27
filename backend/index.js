@@ -36,6 +36,7 @@ import {
   getRspamdCounters,
   getRspamdHistory,
   getRspamdStats,
+  getMailLogs,
   getRspamdUserHistory,
   getSetting,
   getServerEnvs,
@@ -53,6 +54,7 @@ import {
   deleteAccount,
   doveadm,
   getAccounts,
+  setQuota,
 } from './accounts.mjs';
 
 import {
@@ -923,6 +925,66 @@ async (req, res) => {
   }
 });
 
+// Endpoint for setting mailbox quota
+/**
+ * @swagger
+ * /api/accounts/{containerName}/{mailbox}/quota:
+ *   put:
+ *     summary: Set mailbox quota
+ *     description: Set or remove quota for a mailbox account (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: mailbox
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               quota:
+ *                 type: string
+ *                 description: Quota value (e.g. "500M", "2G") or "0" for unlimited
+ *     responses:
+ *       200:
+ *         description: Quota updated successfully
+ *       400:
+ *         description: Missing required parameters
+ *       500:
+ *         description: Unable to set quota
+ */
+app.put('/api/accounts/:containerName/:mailbox/quota',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, mailbox } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+
+    const { quota } = req.body;
+    const result = await setQuota(containerName, mailbox, quota);
+    if (result.success) {
+      // Trigger account refresh to update stored quota data
+      await getAccounts(containerName, true);
+    }
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index PUT /api/accounts/quota: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
 // Endpoint for updating a mailbox account; only password is covered atm
 /**
  * @swagger
@@ -1444,6 +1506,60 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`GET /api/rspamd/user-summary: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for tailing log files from DMS container
+/**
+ * @swagger
+ * /api/logs/{containerName}:
+ *   get:
+ *     summary: Get log lines from DMS container
+ *     description: Tail mail.log or rspamd.log (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: source
+ *         schema:
+ *           type: string
+ *           enum: [mail, rspamd]
+ *           default: mail
+ *       - in: query
+ *         name: lines
+ *         schema:
+ *           type: integer
+ *           default: 100
+ *     responses:
+ *       200:
+ *         description: Log lines returned successfully
+ *       400:
+ *         description: Missing parameters
+ *       500:
+ *         description: Unable to read logs
+ */
+app.get('/api/logs/:containerName',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const source = req.query.source || 'mail';
+    const lines = req.query.lines || 100;
+
+    const result = await getMailLogs(containerName, source, lines);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/logs: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
@@ -2107,6 +2223,61 @@ async (req, res) => {
   } catch (error) {
     errorLog(`index GET /api/domains/${domain}/${containerName}: ${error.message}`);
     // res.status(500).json({ error: 'Unable to retrieve domains' });
+    res.status(500).json({ error: error.message });
+  }
+});
+
+// Endpoint for updating domain settings (e.g. DNS provider)
+/**
+ * @swagger
+ * /api/domains/{containerName}/{domain}:
+ *   patch:
+ *     summary: Update domain settings
+ *     description: Update domain properties like DNS provider (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: domain
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               dnsProvider:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Domain updated
+ *       400:
+ *         description: Missing parameters
+ *       500:
+ *         description: Unable to update domain
+ */
+app.patch('/api/domains/:containerName/:domain',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, domain } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!domain) return res.status(400).json({ error: 'domain is required' });
+    if (!isValidDomain(domain)) return res.status(400).json({ error: 'invalid domain' });
+
+    const result = await updateDB('domains', domain, req.body, containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`index PATCH /api/domains: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

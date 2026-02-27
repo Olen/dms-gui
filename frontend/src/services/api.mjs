@@ -353,6 +353,18 @@ export const updateAccount = async (schema, containerName, mailbox, jsonDict) =>
   }
 };
 
+export const setAccountQuota = async (containerName, mailbox, quota) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!mailbox) return {success: false, error: 'mailbox is required'};
+  try {
+    const response = await api.put(`/accounts/${containerName}/${mailbox}/quota`, { quota });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getAliases = async (containerName=null, refresh=false) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 
@@ -384,6 +396,17 @@ export const deleteAlias = async (containerName=null, source, destination) => {
   try {
     // Although the HTTP specification for DELETE requests does not explicitly define semantics for a request body, Axios allows you to include one by using the data property within the optional config object.
     const response = await api.delete(`/aliases/${containerName}`, { data: { source:source, destination:destination }});   // regex aliases cannot be url params
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const getMailLogs = async (containerName=null, source='mail', lines=100) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  try {
+    const response = await api.get(`/logs/${containerName}`, { params: { source, lines } });
     return response.data;
   } catch (error) {
     errorLog(error.message);
@@ -444,6 +467,18 @@ export const getDomains = async (containerName=null, name) => {
     let path = `/domains/${containerName}`;
     if (name) path += `/${name}`;
     const response = await api.get(path);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const updateDomain = async (containerName, domain, jsonDict) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!domain) return {success: false, error: 'domain is required'};
+  try {
+    const response = await api.patch(`/domains/${containerName}/${domain}`, jsonDict);
     return response.data;
   } catch (error) {
     errorLog(error.message);

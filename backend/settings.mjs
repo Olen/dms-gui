@@ -239,6 +239,36 @@ export const saveSettings = async (plugin='mailserver', schema=null, scope=null,
 };
 
 
+// Function to tail log files from DMS container
+export const getMailLogs = async (containerName=null, source='mail', lines=100) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  const validSources = { mail: '/var/log/mail/mail.log', rspamd: '/var/log/mail/rspamd.log' };
+  const logFile = validSources[source];
+  if (!logFile) return {success: false, error: `Invalid log source: ${source}`};
+
+  const numLines = Math.min(Math.max(parseInt(lines) || 100, 10), 500);
+
+  try {
+    const targetDict = getTargetDict('mailserver', containerName);
+    targetDict.timeout = 10;
+    const cmd = `tail -n ${numLines} ${logFile}`;
+    const results = await execCommand(cmd, targetDict);
+
+    if (!results.returncode && results.stdout) {
+      return { success: true, message: results.stdout.split('\n').filter(l => l.length > 0) };
+    } else if (!results.returncode && !results.stdout) {
+      return { success: true, message: [] };
+    }
+    return { success: false, error: results.stderr || 'Failed to read logs' };
+
+  } catch (error) {
+    errorLog(error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
 // Function to get server status from DMS, you can add some extra test like ping or execSetup
 export const getServerStatus = async (plugin='mailserver', containerName=null, test=undefined, settings=[]) => {
   debugLog(plugin, containerName, test, settings);

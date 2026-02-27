@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Badge, Modal, Form, Table } from 'react-bootstrap';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getDomains, getDnsLookup, generateDkim, getDnsblCheck } from '../services/api.mjs';
+import { getDomains, getDnsLookup, generateDkim, getDnsblCheck, updateDomain, getConfigs } from '../services/api.mjs';
 
 import {
   AlertMessage,
@@ -60,12 +60,26 @@ const Domains = () => {
   const [showExternalModal, setShowExternalModal] = useState(false);
   const [externalModalDomain, setExternalModalDomain] = useState(null);
 
+  // DNS provider state
+  const [dnsProviders, setDnsProviders] = useState([]);
+  const [providerSaving, setProviderSaving] = useState({});
+
   useEffect(() => {
     if (!containerName) {
       setLoading(false);
       return;
     }
     fetchDomains();
+    // Fetch available DNS providers from dnscontrol plugin configs
+    getConfigs('dnscontrol')
+      .then(result => {
+        if (result.success && result.message) {
+          // result.message is array of provider names from the dnscontrol plugin
+          const providers = result.message.map(p => p.value || p.name).filter(Boolean);
+          setDnsProviders(providers);
+        }
+      })
+      .catch(() => {});
   }, [containerName]);
 
   const fetchDomains = async () => {
@@ -88,6 +102,20 @@ const Domains = () => {
     } catch (err) {
       setError('api.errors.fetchDomains');
       setLoading(false);
+    }
+  };
+
+  const handleProviderChange = async (domain, provider) => {
+    setProviderSaving(prev => ({ ...prev, [domain]: true }));
+    try {
+      const result = await updateDomain(containerName, domain, { dnsProvider: provider || null });
+      if (result.success) {
+        setDomains(prev => prev.map(d => d.domain === domain ? { ...d, dnsProvider: provider || null } : d));
+      }
+    } catch (err) {
+      // silently fail
+    } finally {
+      setProviderSaving(prev => ({ ...prev, [domain]: false }));
     }
   };
 
@@ -277,6 +305,25 @@ const Domains = () => {
         <span title={t('domains.aliases')}>
           <i className="bi bi-envelope me-1" />{item.aliasCount || 0}
         </span>
+      ),
+    },
+    {
+      key: 'dnsProvider',
+      label: 'domains.dnsProvider',
+      noFilter: true,
+      render: (item) => (
+        <Form.Select
+          size="sm"
+          value={item.dnsProvider || ''}
+          onChange={(e) => handleProviderChange(item.domain, e.target.value)}
+          disabled={providerSaving[item.domain]}
+          style={{ minWidth: '120px', fontSize: '0.8rem' }}
+        >
+          <option value="">{t('domains.noProvider')}</option>
+          {dnsProviders.map(p => (
+            <option key={p} value={p}>{p}</option>
+          ))}
+        </Form.Select>
       ),
     },
     {

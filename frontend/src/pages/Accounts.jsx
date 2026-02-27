@@ -41,6 +41,7 @@ import {
   addAccount,
   deleteAccount,
   updateAccount,
+  setAccountQuota,
   doveadm,
 } from '../services/api.mjs';
 
@@ -101,6 +102,14 @@ const Accounts = () => {
   const [showDNSModal, setShowDNSModal] = useState(false);
   const [dnsFormData, setDNSFormData] = useState({});
   const [dnsFormErrors, setDNSFormErrors] = useState({});
+
+  // State for quota modal -----------------------------------------
+  const [showQuotaModal, setShowQuotaModal] = useState(false);
+  const [quotaFormData, setQuotaFormData] = useState({
+    value: '',
+    unit: 'M',
+    unlimited: false,
+  });
 
 
   // https://www.w3schools.com/react/react_useeffect.asp
@@ -457,6 +466,58 @@ const Accounts = () => {
   };
 
 
+  // Open quota modal for an account
+  const handleSetQuota = (account) => {
+    setSelectedAccount(account);
+    const currentTotal = account.storage?.total;
+    if (currentTotal && currentTotal !== 'unlimited') {
+      // Parse current quota value (e.g. "2G" -> value=2, unit=G)
+      const match = currentTotal.match(/^([\d.]+)\s*([KMGT]?)$/i);
+      if (match) {
+        setQuotaFormData({
+          value: match[1],
+          unit: match[2]?.toUpperCase() || 'M',
+          unlimited: false,
+        });
+      } else {
+        setQuotaFormData({ value: '', unit: 'M', unlimited: false });
+      }
+    } else {
+      setQuotaFormData({ value: '', unit: 'G', unlimited: !currentTotal || currentTotal === 'unlimited' });
+    }
+    setShowQuotaModal(true);
+  };
+
+  const handleCloseQuotaModal = () => {
+    setShowQuotaModal(false);
+    setSelectedAccount(null);
+  };
+
+  const handleSubmitQuota = async (e) => {
+    e.preventDefault();
+    setErrorMessage(null);
+    setSuccessMessage(null);
+
+    try {
+      const quota = quotaFormData.unlimited ? '0' : `${quotaFormData.value}${quotaFormData.unit}`;
+      if (!quotaFormData.unlimited && (!quotaFormData.value || isNaN(quotaFormData.value) || Number(quotaFormData.value) <= 0)) {
+        setErrorMessage(t('accounts.quotaInvalid'));
+        return;
+      }
+      const result = await setAccountQuota(containerName, selectedAccount.mailbox, quota);
+      if (result.success) {
+        setSuccessMessage(t('accounts.quotaUpdated'));
+        handleCloseQuotaModal();
+        fetchAccounts(true);
+      } else {
+        setErrorMessage(result?.error);
+      }
+    } catch (error) {
+      errorLog('setQuota', error);
+      setErrorMessage('api.errors.setQuota');
+    }
+  };
+
   if (isLoading) {
     return <LoadingSpinner />;
   }
@@ -507,22 +568,29 @@ const Accounts = () => {
       key: 'storage',
       label: 'accounts.storage',
       noFilter: true,
-      render: (account) =>
-        account.storage?.used ? (
-          <div>
+      render: (account) => {
+        if (!account.storage?.used) return <span>N/A</span>;
+        const percent = parseInt(account.storage.percent) || 0;
+        const variant = percent >= 90 ? 'danger' : percent >= 70 ? 'warning' : 'success';
+        return (
+          <div
+            style={user.isAdmin == 1 ? { cursor: 'pointer' } : {}}
+            title={user.isAdmin == 1 ? t('accounts.setQuota') : ''}
+            onClick={user.isAdmin == 1 ? () => handleSetQuota(account) : undefined}
+          >
             <div>
               {account.storage.used} / {account.storage.total}
+              {account.storage.percent && <small className="text-muted ms-1">({account.storage.percent}%)</small>}
             </div>
-            {/* Use ProgressBar component */}
             <ProgressBar
-              now={parseInt(account.storage.percent)}
+              now={percent}
+              variant={variant}
               style={{ height: '5px' }}
               className="mt-1"
             />
           </div>
-        ) : (
-          <span>N/A</span>
-        ),
+        );
+      },
     },
     {
       key: 'actions',
@@ -724,6 +792,69 @@ const Accounts = () => {
             variant="primary"
             onClick={handleSubmitPasswordChange}
             text="password.changePassword"
+          />
+        </Modal.Footer>
+      </Modal>
+
+      {/* Quota Modal */}
+      <Modal show={showQuotaModal} onHide={handleCloseQuotaModal}>
+        <Modal.Header closeButton>
+          <Modal.Title>
+            {Translate('accounts.setQuota')} - {selectedAccount?.mailbox}
+          </Modal.Title>
+        </Modal.Header>
+        <Modal.Body>
+          {selectedAccount && (
+            <form onSubmit={handleSubmitQuota}>
+              <div className="mb-3">
+                <div className="form-check mb-3">
+                  <input
+                    className="form-check-input"
+                    type="checkbox"
+                    id="quotaUnlimited"
+                    checked={quotaFormData.unlimited}
+                    onChange={(e) => setQuotaFormData({ ...quotaFormData, unlimited: e.target.checked })}
+                  />
+                  <label className="form-check-label" htmlFor="quotaUnlimited">
+                    {t('accounts.quotaUnlimited')}
+                  </label>
+                </div>
+                {!quotaFormData.unlimited && (
+                  <div className="input-group">
+                    <input
+                      type="number"
+                      className="form-control"
+                      value={quotaFormData.value}
+                      onChange={(e) => setQuotaFormData({ ...quotaFormData, value: e.target.value })}
+                      placeholder={t('accounts.quotaValue')}
+                      min="1"
+                      step="1"
+                    />
+                    <select
+                      className="form-select"
+                      style={{ maxWidth: '80px' }}
+                      value={quotaFormData.unit}
+                      onChange={(e) => setQuotaFormData({ ...quotaFormData, unit: e.target.value })}
+                    >
+                      <option value="M">MB</option>
+                      <option value="G">GB</option>
+                    </select>
+                  </div>
+                )}
+              </div>
+            </form>
+          )}
+        </Modal.Body>
+        <Modal.Footer>
+          <Button
+            variant="secondary"
+            onClick={handleCloseQuotaModal}
+            text="common.cancel"
+          />
+          <Button
+            variant="primary"
+            onClick={handleSubmitQuota}
+            text="accounts.setQuota"
           />
         </Modal.Footer>
       </Modal>

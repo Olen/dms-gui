@@ -146,6 +146,11 @@
     "forceResync": "Force re-sync",
     "mailboxStatus": "Get mailbox status",
     "doveadmExecuted": "doveadm executed",
+    "setQuota": "Set Quota",
+    "quotaValue": "Quota value",
+    "quotaUnlimited": "Unlimited (no quota)",
+    "quotaUpdated": "Quota updated successfully!",
+    "quotaInvalid": "Please enter a valid quota value",
     "storage": "Storage Usage",
     "activeConnections": "active connections",
     "title": "Mailbox Management",
@@ -356,6 +361,7 @@
       "ping": "Error while reaching server",
       "reindexAccount": "Error reindexing account",
       "saveSettings": "Error saving settings",
+      "setQuota": "Error setting quota",
       "updateDNS": "Error updating DNS records",
       "updateLogin": "Error updating login"
     }
@@ -431,6 +437,9 @@
     "keysize": "Key Size",
     "accounts": "Accounts",
     "aliases": "Aliases",
+    "dnsProvider": "DNS Provider",
+    "noProvider": "— none —",
+    "providerSaved": "DNS provider saved",
     "noContainer": "No container selected. Please select a container from the sidebar.",
     "dnsStatus": "DNS Status",
     "checkDns": "Check DNS",
@@ -509,6 +518,17 @@
     "dmarcReportingHint": "<strong>DMARC reporting</strong> is not fully configured. Reports let you see who is sending mail on behalf of your domain and whether it passes authentication.",
     "dmarcRuaHint": "<strong>rua</strong> (aggregate reports) is missing. Add e.g. <strong>rua=mailto:dmarc@yourdomain.com</strong> to receive daily summaries of DMARC results from receiving servers. These XML reports show which IPs sent mail for your domain and pass/fail statistics — essential for monitoring before tightening your policy.",
     "dmarcRufHint": "<strong>ruf</strong> (forensic reports) is missing. Add e.g. <strong>ruf=mailto:dmarc@yourdomain.com</strong> to receive detailed reports for individual messages that fail DMARC. These contain message headers and help diagnose specific delivery problems. Note: not all providers send forensic reports due to privacy concerns."
+  },
+  "logs": {
+    "sidebar": "Logs",
+    "title": "Server Logs",
+    "source": "Log source",
+    "lines": "Lines",
+    "filter": "Filter",
+    "filterPlaceholder": "Type to filter lines...",
+    "sourceMail": "Mail Log",
+    "sourceRspamd": "Rspamd Log",
+    "noLogs": "No log lines found"
   },
   "resetPassword": {
     "title": "Reset Password",

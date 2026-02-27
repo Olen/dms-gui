@@ -117,6 +117,11 @@ const LeftSidebar = () => {
               <span> {Translate('rspamd.sidebar')}</span>
             </Nav.Link>
           )}
+
+          <Nav.Link as={NavLink} to="/logs" style={getNavLinkStyle}>
+            <i className="bi bi-terminal me-2"></i>
+            <span> {Translate('logs.sidebar')}</span>
+          </Nav.Link>
         </>)}
       </>)}
 

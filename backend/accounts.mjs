@@ -548,6 +548,39 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
 };
 
 
+// Set or remove quota for a mailbox account
+export const setQuota = async (containerName=null, mailbox=null, quota=null) => {
+  if (!mailbox) return {success: false, error: 'mailbox is null'};
+  if (!containerName) return {success: false, error: 'containerName is null'};
+
+  try {
+    const targetDict = getTargetDict('mailserver', containerName);
+    let results;
+
+    if (!quota || quota === '0') {
+      debugLog(`Removing quota for ${mailbox}`);
+      results = await execSetup(`quota del ${escapeShellArg(mailbox)}`, targetDict);
+    } else {
+      debugLog(`Setting quota for ${mailbox} to ${quota}`);
+      results = await execSetup(`quota set ${escapeShellArg(mailbox)} ${escapeShellArg(quota)}`, targetDict);
+    }
+
+    if (!results.returncode) {
+      successLog(`Quota updated for ${mailbox}: ${quota || 'unlimited'}`);
+      return { success: true, message: `Quota updated for ${mailbox}` };
+    } else {
+      let ErrorMsg = await formatDMSError('setQuota', results.stderr);
+      errorLog(ErrorMsg);
+      return { success: false, error: ErrorMsg };
+    }
+
+  } catch (error) {
+    errorLog(error.message);
+    throw new Error(error.message);
+  }
+};
+
+
 // was used for testing, we will likely never implement doveadm API
 /*
 export const doveadmAPIforTesting = async (containerName=null, command=null, mailbox=null, jsonDict={}) => {
