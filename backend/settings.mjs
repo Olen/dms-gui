@@ -1407,6 +1407,56 @@ export const getRspamdStats = async (plugin = 'mailserver', containerName = null
 };
 
 
+// Read-only rspamd config: action thresholds and Bayes autolearn settings
+export const getRspamdConfig = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getRspamdConfig containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getRspamdConfig: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+
+    // Read both config files in parallel
+    const [actionsResult, bayesResult] = await Promise.all([
+      execCommand('cat /etc/rspamd/override.d/actions.conf 2>/dev/null || cat /etc/rspamd/local.d/actions.conf 2>/dev/null || echo ""', targetDict, { timeout: 5 }),
+      execCommand('cat /etc/rspamd/local.d/classifier-bayes.conf 2>/dev/null || cat /etc/rspamd/override.d/classifier-bayes.conf 2>/dev/null || echo ""', targetDict, { timeout: 5 }),
+    ]);
+
+    const actionsText = actionsResult.stdout || '';
+    const bayesText = bayesResult.stdout || '';
+
+    // Parse action thresholds: key = value; or key = null;
+    const parseAction = (key) => {
+      const m = actionsText.match(new RegExp(`^\\s*${key}\\s*=\\s*(null|[\\d.]+)\\s*;`, 'm'));
+      return m ? (m[1] === 'null' ? null : parseFloat(m[1])) : undefined;
+    };
+
+    const actions = {
+      reject: parseAction('reject'),
+      add_header: parseAction('add_header'),
+      greylist: parseAction('greylist'),
+      rewrite_subject: parseAction('rewrite_subject'),
+    };
+
+    // Parse Bayes settings
+    const minLearnsMatch = bayesText.match(/^\s*min_learns\s*=\s*(\d+)\s*;/m);
+    const spamThreshMatch = bayesText.match(/score\s*>=\s*([\d.]+)/);
+    const hamThreshMatch = bayesText.match(/score\s*<=\s*(-?[\d.]+)/);
+
+    const bayes = {
+      min_learns: minLearnsMatch ? parseInt(minLearnsMatch[1]) : undefined,
+      spam_threshold: spamThreshMatch ? parseFloat(spamThreshMatch[1]) : undefined,
+      ham_threshold: hamThreshMatch ? parseFloat(hamThreshMatch[1]) : undefined,
+    };
+
+    return { success: true, message: { actions, bayes } };
+
+  } catch (error) {
+    errorLog(`getRspamdConfig error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
 // Per-user Bayes learn statistics from Redis
 // Returns an array of { user, ham, spam } sorted by user, plus a _total row
 export const getRspamdBayesUsers = async (plugin = 'mailserver', containerName = null) => {
@@ -1490,11 +1540,11 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
 
       // Build rows: dual-polarity symbols get two rows (+/-), others get one
       // Skip symbols that never contribute to the score
-      const result = [];
+      const output = [];
       for (const s of Object.values(symData)) {
         const hasBoth = s.posCount > 0 && s.negCount > 0;
         if (s.posCount > 0) {
-          result.push({
+          output.push({
             symbol: s.symbol,
             direction: hasBoth ? '+' : null,
             hits: hasBoth ? s.posCount : s.hits,
@@ -1503,7 +1553,7 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
           });
         }
         if (s.negCount > 0) {
-          result.push({
+          output.push({
             symbol: s.symbol,
             direction: hasBoth ? '−' : null,
             hits: hasBoth ? s.negCount : s.hits,
@@ -1511,11 +1561,10 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
             frequency: rows.length > 0 ? (hasBoth ? s.negCount : s.hits) / rows.length : 0,
           });
         }
-        // Omit pure-zero symbols entirely
       }
       // Sort by absolute average score (highest impact first)
-      result.sort((a, b) => Math.abs(b.avgScore) - Math.abs(a.avgScore));
-      return { success: true, message: result.slice(0, 30) };
+      output.sort((a, b) => Math.abs(b.avgScore) - Math.abs(a.avgScore));
+      return { success: true, message: output.slice(0, 30) };
     }
     return { success: false, error: result.stderr || 'rspamd history request failed' };
 

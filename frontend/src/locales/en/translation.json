@@ -312,7 +312,14 @@
       "user": "User",
       "ham": "Ham",
       "spam": "Spam",
-      "total": "Total"
+      "total": "Total",
+      "active": "Active",
+      "minLearns": "Bayes activates after {{count}} learns per class",
+      "autoHam": "Auto-ham",
+      "autoSpam": "Auto-spam",
+      "scoreBelow": "score \u2264 {{score}}",
+      "scoreAbove": "score \u2265 {{score}}",
+      "needsMore": "Needs at least {{count}} ham and {{count}} spam learns"
     },
     "topSymbols": "Top Symbols by Score Impact",
     "symbol": "Symbol",

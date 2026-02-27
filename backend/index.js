@@ -28,6 +28,7 @@ import {
   getDomains,
   getNodeInfos,
   getRspamdBayesUsers,
+  getRspamdConfig,
   getRspamdCounters,
   getRspamdHistory,
   getRspamdStats,
@@ -1754,6 +1755,26 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`GET /api/rspamd/bayes-users: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Read-only rspamd config (action thresholds, Bayes autolearn settings)
+app.get('/api/rspamd/:containerName/config',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getRspamdConfig('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/rspamd/config: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });
