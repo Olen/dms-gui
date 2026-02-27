@@ -1,4 +1,15 @@
 # Docker Mailserver GUI
+
+> [!NOTE]
+> This repo is a highly modified fork of [dms-gui](https://github.com/audioscavenger/dms-gui)
+> 
+> All my modifications are currently available in the branch called [Deploy](https://github.com/Olen/dms-gui/tree/deploy)
+>
+> I am currently keeping the `main` branch in sync with the upstream repository for easier merging should the owner of the original code request it.
+
+---
+
+
 [![Docker Pulls](https://img.shields.io/docker/pulls/audioscavenger/dms-gui)](https://hub.docker.com/r/audioscavenger/dms-gui)
 
 A graphical user interface for managing DMS ([Docker-Mailserver](https://github.com/docker-mailserver/docker-mailserver)) and other non-gui mailservers like Poste.io. This gui aims to manage all aspects of DMS including: email accounts, aliases, xapian indexes, DNS entries, and other stuff.
