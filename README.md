@@ -5,36 +5,41 @@ A graphical user interface for managing DMS ([Docker-Mailserver](https://github.
 
 It relies on a generic REST API written in python, that you have to mount in DMS compose.
 
+> **Note:** This is the `deploy` branch — a maintained fork with significant additions over the upstream `main` branch. See [Changes from upstream](#changes-from-upstream) below.
+
 ## Features
 
-- 🌐 Multi-arch: x86_64 (amd64) + aarch64 (arm64)
-- 🔐 Login page, crypto-secure hashed passwords, HTTP-Only cookies
-- 📊 Dashboard with server status information
-- 👥 User management with roles for their mailboxes
-  - 👤 Profile page
-  - 📬 Mailbox account management
-  - 📧 Email alias management (includes regex)
-- 🐋 DMS (Docker-Mailserver) connection configuration
-  - 🗃️ Multiple-DMS ready!
-  - 🔑 REST API Key management for direct access
-- 🛢️ better-sqlite3 database!
-  - 🩹 database patch auto-upgrade
-- 🌐 Multilingual support (English, Polish)
-- 👌 Cutting edge Node.JS v24
-
+- Multi-arch: x86_64 (amd64) + aarch64 (arm64)
+- Login page, crypto-secure hashed passwords, HTTP-Only cookies
+- Dashboard with server status, resource usage, and per-user spam summary
+- User management with roles for their mailboxes
+  - Profile page with password change (GUI + DMS Dovecot)
+  - Mailbox account management with storage quota display and active session indicators
+  - Email alias management (includes regex and multi-destination aliases)
+- Domains & DNS page with live record checks, DKIM generation, SPF/DMARC grading, and DNSBL lookups
+- Rspamd spam filtering dashboard with statistics, Bayes training, message history, and per-user stats
+- Mail Setup page with downloadable Thunderbird autoconfig and Apple .mobileconfig profiles
+- Self-service password reset via email (with rate limiting and token expiry)
+- Per-container branding (custom name, logo, colors)
+- DMS (Docker-Mailserver) connection configuration
+  - Multiple-DMS ready!
+  - REST API Key management for direct access
+- better-sqlite3 database with auto-upgrade patches
+- Multilingual support (English, Polish)
+- Node.JS v24
 
 ## Compatibility Chart
 
 | dms     | dms-gui | x86_64 | aarch64 | details |
 |---------|---------|--------|---------|---------|
-| v15.1.0 | v1.5 | ✔️ | ✔️ | dovecot 2.3 |
-| v16?    | ❌ | ❌ | ❌ | dovecot 2.4 |
+| v15.1.0 | v1.5 | yes | yes | dovecot 2.3 |
+| v16?    | no | no | no | dovecot 2.4 |
 
 
 ### FAQ
 
 * [x] How does dms-gui interact with DMS?
-> Simply, by executing `system` and `doveadm` commands inside DMS, through a python REST API. 
+> Simply, by executing `system` and `doveadm` commands inside DMS, through a python REST API.
 
 * [x] How does dms-gui execute commands in DMS?
 > Python REST API script and its loader are generated from dms-gui, and then mounted as a single volume in DMS compose, along with the exposed port. You don't need to alter `user-patches.sh` at all. The REST API script is conveniently placed in a folder that is mouted in DMS: `./config/dms-gui/`.
@@ -65,17 +70,17 @@ It relies on a generic REST API written in python, that you have to mount in DMS
 
 * [x] What do users have access to, in this portal?
 
-| user / Access| password | Profile   | Dashboard | Accounts | Aliases | Logins | Settings | Backups | Imports |
-| -------------|----------|-----------|---------|----------|---------|----------|----------|---------|---------|
-| admins       | dms-gui  | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ | ✔️ |
-| users        | dms-gui  | ✔️ | ✔️ | partial | partial | ❌ | ❌ | partial | ❌ |
-| linked users | DMS      | ✔️ | partial | ❌ | partial | ❌ | ❌ | partial | ❌ |
+| user / Access  | password | Profile | Dashboard | Accounts | Aliases | Mail Setup | Logins | Settings | Domains | Rspamd | Backups | Imports |
+| -------------- | -------- | ------- | --------- | -------- | ------- | ---------- | ------ | -------- | ------- | ------ | ------- | ------- |
+| admins         | dms-gui  | yes     | yes       | yes      | yes     | yes        | yes    | yes      | yes     | yes    | yes     | yes     |
+| users          | dms-gui  | yes     | yes       | partial  | partial | yes        | no     | no       | no      | no     | partial | no      |
+| linked users   | DMS      | yes     | partial   | no       | partial | yes        | no     | no       | no      | no     | partial | no      |
 
 * [x] Can normal users change their password?
 > Yes, users can change both their dms-gui password in their profile, and each of the mailboxes they control under Accounts. Logon password in dms-gui is saved in the database. Mailbox-linked users can only change the mailbox password, and their logon is handled by DMS dovecot directly.
 
 * [x] Can users reset their forgotten password?
-> Not yet, but it's coming.
+> Yes. A "Forgot password?" link on the login page sends a time-limited reset token (1 hour) to the user's mailbox. Rate-limited to 3 requests per 15 minutes per mailbox. Works for both DMS accounts and GUI-only logins.
 
 * [x] Is this project affected by React2Shell Critical Vulnerability (CVE-2025-55182)[https://www.cmu.edu/iso/news/2025/react2shell-critical-vulnerability.html]?
 > No. This project has none of the React or 3rd party affected components like react-server-dom-turbopack, and is not even of the React versions affected. As I understand it, turbopack is another memory unsafe web bundler written in Rust, yet again.
@@ -116,7 +121,9 @@ Mailbox users are automatically created, based off the scan of DMS dovecot serve
 
 Also called "_emails_", as per the DMS setup command to create new email boxes, I prefer calling them _mailboxes_. They are _Accounts_, that can receive/store/send emails.
 
-Accounts are automatically discovered and pulled from the local database for its speed. You can refresh the data manually with a simple click.
+Accounts are automatically discovered and pulled from DMS on first page load per session, and from the local database on subsequent loads. You can refresh the data manually with the refresh button.
+
+The accounts table shows storage usage with sortable columns (human-readable sizes like "1.9G" are sorted by actual bytes), quota progress bars, and green dot indicators for accounts with active IMAP sessions (showing connection count, services, and source IPs on hover).
 
 Creating accounts from here currently calls the DMS `setup` via `docker.sock`, but soon will rely on dovecot 2.4 API calls instead. Passwords entered are also stored in the local db.
 
@@ -124,9 +131,50 @@ Creating accounts from here currently calls the DMS `setup` via `docker.sock`, b
 
 ### Aliases
 
-Currently relying on DMS `setup` and a direct read of the `postfix-regexp.cf`file.
+Supports single and multi-destination aliases, regex aliases, and catch-all aliases (`@domain.com`). Non-admin users can view their own aliases (configurable as read-only or editable by the admin via User Config settings).
 
 ![Aliases](/assets/dms-gui-Aliases.webp)
+
+### Domains & DNS
+
+Admin-only page showing all domains served by the mail server with:
+- Account and alias counts per domain
+- Live DNS record checks: A, MX, SPF, DKIM, DMARC, TLSA, SRV
+- SPF and DMARC grading with actionable improvement hints
+- DNSBL (blacklist) checks against Spamhaus, Abusix, and others
+- DKIM key generation with configurable selector, key type (RSA/Ed25519), and key size
+- Copy-to-clipboard DNS records for easy configuration
+- External domain indicators for domains not directly managed by this server
+
+### Rspamd
+
+Admin-only rspamd spam filtering dashboard with:
+- Server statistics: version, uptime, scan counts, average processing time
+- Message action breakdown (clean/add header/greylist/reject) with visual progress bars
+- Per-user Bayes learning statistics (ham/spam counts, activity status)
+- Top symbols by score impact, with dual-polarity symbol handling
+- Message history browser with manual Bayes training (mark as ham/spam)
+- Bayes configuration context display (autolearn thresholds, min_learns)
+
+### Mail Setup
+
+Available to all logged-in users. Displays the mail server connection settings (IMAP, SMTP, POP3 hosts and ports) and provides one-click downloads for:
+- **Thunderbird autoconfig XML** — standard Mozilla ISP autoconfig format for desktop mail clients
+- **Apple .mobileconfig** — configuration profile for iPhone, iPad, and Mac Mail
+
+Profiles are generated server-side using the user's email address and admin-configured server settings.
+
+### Dashboard
+
+Admins see server status, CPU/memory/disk usage, and account/alias/login counts with clickable navigation cards.
+
+Non-admin users see a personalized dashboard with:
+- Server status indicator
+- Webmail quick-link (if configured)
+- Alias count and profile link
+- Mailbox quota progress bar (color-coded: green < 75%, warning 75-90%, danger > 90%)
+- Mail client configuration reference (IMAP/SMTP/POP3 settings)
+- Personal spam summary with message counts, recent spam table, and action badges
 
 ### Settings
 
@@ -134,17 +182,48 @@ Multiple sections to save UI settings, DMS REST API access, and show some intern
 
 ![Settings](/assets/dms-gui-Settings.webp)
 
+Includes:
+- **User Config** — Admin-configurable settings exposed to regular users: webmail URL, IMAP/SMTP/POP3 hosts and ports, user permissions (e.g. allow user alias editing), rspamd URL
+- **Branding** — Customizable per-container or global branding: name, icon, logo upload, primary button color, sidebar color
+
 dms-gui internals come from Node environment, and DMS values come from a mox of the `env` command and parsing dkim and dovecot configuration.
 
 Some environment values like FTS (Full Text Search) will enable some options on the _Accounts_ page (`reindex` for instance).
 
 ![Settings](/assets/dms-gui-ServerInfos.webp)
 
-### Dashboard
+## Changes from upstream
 
-A dumb dashboard, but now you can click the cards and navigate to the section selected.
+This `deploy` branch includes the following additions over the upstream `main` branch:
 
-![Dashboard](/assets/dms-gui-Dashboard.webp)
+### New pages
+- **Domains & DNS** — Live DNS diagnostics, DKIM generation, SPF/DMARC grading, DNSBL checks
+- **Rspamd** — Spam filter dashboard with statistics, Bayes training, message history
+- **Mail Setup** — Downloadable Thunderbird and Apple mail client configuration profiles
+- **Password Reset** — Self-service email-based password reset flow
+- **User Config** — Admin settings for mail server URLs and user permissions
+- **Branding** — Per-container customizable name, logo, and colors
+
+### Enhanced existing pages
+- **Dashboard** — User-specific view with quota bars, spam summary, webmail link, mail config
+- **Accounts** — Storage sorting by actual bytes, active IMAP session indicators, auto-refresh from DMS
+- **Aliases** — Multi-destination alias support, catch-all aliases, admin-configurable read-only mode
+- **Profile** — Improved password change for linked DMS accounts
+
+### Security hardening
+- Command injection fix: `escapeShellArg()` for all shell commands
+- REST API: shell pipes via `subprocess.Popen` chaining (not `shell=True`), redirect support
+- Replaced `eval()` with `JSON.parse()` in JSON processing
+- Password redaction in all backend logging
+- Per-IP rate limiting on authentication and password reset endpoints
+- Origin validation for password reset emails
+- `.dockerignore` to prevent local node_modules from entering the build
+
+### Infrastructure
+- DataTable sort fixes: null-safe object sorting, `isFinite()` for zero-value detection, sample-row type inference
+- Session-based account refresh (DMS pull once per browser session, instant DB reads after)
+- Branding system with logo upload via multer
+- Test files added for backend and frontend components
 
 ## Requirements
 
@@ -296,10 +375,10 @@ services:
       # 2. AFTER you create and inject the API key under dms-gui Settings page, enable the API by uncommenting the line below and restart DMS
       # 2. DO NOT enable the mount below until you created and saved the API in dms-gui, as the file is read only and cannot be created otherwise
       - ./config/dms-gui/rest-api.conf:/etc/supervisor/conf.d/rest-api.conf:ro
-      
+
     networks:
       frontend:                 # same network as dms-gui
-  
+
   gui:
     container_name: dms-gui
     hostname: dms-gui
@@ -309,26 +388,26 @@ services:
       - dms
 
     # Use this environment file or the environment section, or both:
-    # Note: the file is placed under DMS own config folder; 
+    # Note: the file is placed under DMS own config folder;
     # if using another one you will need to mount both the api.conf and api.py files in DMS
     env_file: ./config/dms-gui/.dms-gui.env
-    
+
     environment:
       - TZ=${TZ:-UTC}
-      
+
       # Debugging
       # - DEBUG=true
 
     expose:
       - 80                      # frontend
       - 3001                    # /docs
-    
+
     volumes:
       - /etc/timezone:/etc/timezone:ro
       - /etc/localtime:/etc/localtime:ro
       # we are mounted under DMS own config folder:
       - ./config/dms-gui/:/app/config/
-      
+
     networks:
       frontend:                 # same network as DMS
 
@@ -356,7 +435,7 @@ server {
    listen 443 quic;
     listen [::]:443 ssl;
    listen [::]:443 quic;
-  
+
   server_name dms.*;
 
   # swagger API docs
@@ -454,6 +533,24 @@ Subject to heavily change over time, please use https://dms.domain.com/docs for 
 - `POST /api/aliases` - Add a new alias
 - `DELETE /api/aliases` - Delete an alias
 - `GET /api/domains` - Get domains detected
+- `GET /api/domains/:containerName/:domain` - Domain details with DKIM status
+- `POST /api/domains/:containerName/:domain/dkim` - Generate DKIM keys
+- `GET /api/dns/:containerName/:domain` - DNS record lookups
+- `GET /api/dnsbl/:containerName/:domain` - DNSBL checks
+
+- `GET /api/rspamd/:containerName/stat` - Rspamd statistics
+- `GET /api/rspamd/:containerName/counters` - Top symbols
+- `GET /api/rspamd/:containerName/bayes-users` - Per-user Bayes stats
+- `GET /api/rspamd/:containerName/config` - Rspamd configuration
+- `GET /api/rspamd/:containerName/history` - Message history
+- `POST /api/rspamd/:containerName/learn` - Bayes training
+
+- `GET /api/mail-profile/:containerName/autoconfig` - Thunderbird autoconfig XML
+- `GET /api/mail-profile/:containerName/mobileconfig` - Apple configuration profile
+- `GET /api/dovecot/:containerName/sessions` - Active IMAP sessions
+
+- `POST /api/forgot-password` - Request password reset email
+- `POST /api/reset-password` - Reset password with token
 
 - `POST /api/getCount` - Get row count from a table
 - `POST /api/initAPI` - Create DMS API files and key
