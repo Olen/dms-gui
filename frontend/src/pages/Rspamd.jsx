@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Row, Col, Badge, ProgressBar, Spinner, Table } from 'react-bootstrap';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getRspamdStats, getRspamdCounters, getRspamdBayesUsers, getRspamdHistory, rspamdLearnMessage } from '../services/api.mjs';
+import { getRspamdStats, getRspamdCounters, getRspamdBayesUsers, getRspamdConfig, getRspamdHistory, rspamdLearnMessage } from '../services/api.mjs';
 
 import {
   AlertMessage,
@@ -36,6 +36,30 @@ const formatBytes = (bytes) => {
 
 const pct = (n, total) => total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
 
+const SortHeader = ({ label, field, sort, onSort, className }) => {
+  const active = sort.field === field;
+  const arrow = active ? (sort.dir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
+  return (
+    <th className={`${className || ''} user-select-none`} role="button"
+      onClick={() => onSort(field)}
+      style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {label}{arrow}
+    </th>
+  );
+};
+
+const sortRows = (rows, sort) => {
+  if (!sort.field) return rows;
+  return [...rows].sort((a, b) => {
+    let va = a[sort.field], vb = b[sort.field];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sort.dir === 'asc' ? -1 : 1;
+    if (va > vb) return sort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+};
+
 
 const Rspamd = () => {
   const { t } = useTranslation();
@@ -45,8 +69,18 @@ const Rspamd = () => {
   const [stat, setStat] = useState(null);
   const [counters, setCounters] = useState([]);
   const [bayesUsers, setBayesUsers] = useState([]);
+  const [rspamdConfig, setRspamdConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [bayesSort, setBayesSort] = useState({ field: null, dir: 'asc' });
+  const [symbolSort, setSymbolSort] = useState({ field: null, dir: 'desc' });
+
+  const toggleSort = (setter) => (field) => {
+    setter(prev => ({
+      field,
+      dir: prev.field === field && prev.dir === 'desc' ? 'asc' : 'desc',
+    }));
+  };
 
   // History & Bayes training state
   const [historyData, setHistoryData] = useState([]);
@@ -63,15 +97,17 @@ const Rspamd = () => {
     setLoading(true);
     setError(null);
     try {
-      const [statResult, countersResult, bayesUsersResult] = await Promise.all([
+      const [statResult, countersResult, bayesUsersResult, configResult] = await Promise.all([
         getRspamdStats(containerName),
         getRspamdCounters(containerName),
         getRspamdBayesUsers(containerName),
+        getRspamdConfig(containerName).catch(() => ({ success: false })),
       ]);
       if (statResult.success) setStat(statResult.message);
       else setError(statResult.error);
       if (countersResult.success) setCounters(countersResult.message || []);
       if (bayesUsersResult.success) setBayesUsers(bayesUsersResult.message || []);
+      if (configResult.success) setRspamdConfig(configResult.message);
 
       // Use admin-configured RSPAMD_URL if available (from user-experience PR)
       try {
@@ -268,47 +304,92 @@ const Rspamd = () => {
         </Row>
       </Card>
 
-      {/* Per-user Bayes stats */}
-      {bayesUsers.length > 0 && (
-        <Card title="rspamd.bayesUsers.title">
-          <Table size="sm" striped hover responsive>
-            <thead>
-              <tr>
-                <th>{Translate('rspamd.bayesUsers.user')}</th>
-                <th className="text-end">{Translate('rspamd.bayesUsers.ham')}</th>
-                <th className="text-end">{Translate('rspamd.bayesUsers.spam')}</th>
-                <th className="text-end">{Translate('rspamd.bayesUsers.total')}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {bayesUsers.map((u, i) => (
-                <tr key={i}>
-                  <td><code>{u.user}</code></td>
-                  <td className="text-end">
-                    <Badge bg="success">{u.ham}</Badge>
-                  </td>
-                  <td className="text-end">
-                    <Badge bg="danger">{u.spam}</Badge>
-                  </td>
-                  <td className="text-end">{u.ham + u.spam}</td>
+      {/* Per-user Bayes stats with config context */}
+      {bayesUsers.length > 0 && (() => {
+        const minLearns = rspamdConfig?.bayes?.min_learns;
+        const spamThresh = rspamdConfig?.bayes?.spam_threshold;
+        const hamThresh = rspamdConfig?.bayes?.ham_threshold;
+
+        return (
+          <Card title="rspamd.bayesUsers.title">
+            {rspamdConfig?.bayes && (
+              <div className="mb-3 small text-muted">
+                {minLearns != null && (
+                  <span className="me-3">
+                    <i className="bi bi-sliders me-1"></i>
+                    {t('rspamd.bayesUsers.minLearns', { count: minLearns })}
+                  </span>
+                )}
+                {hamThresh != null && (
+                  <span className="me-3">
+                    <Badge bg="success" className="me-1">{Translate('rspamd.bayesUsers.autoHam')}</Badge>
+                    {t('rspamd.bayesUsers.scoreBelow', { score: hamThresh })}
+                  </span>
+                )}
+                {spamThresh != null && (
+                  <span>
+                    <Badge bg="danger" className="me-1">{Translate('rspamd.bayesUsers.autoSpam')}</Badge>
+                    {t('rspamd.bayesUsers.scoreAbove', { score: spamThresh })}
+                  </span>
+                )}
+              </div>
+            )}
+            <Table size="sm" striped hover responsive>
+              <thead>
+                <tr>
+                  <SortHeader label={t('rspamd.bayesUsers.user')} field="user" sort={bayesSort} onSort={toggleSort(setBayesSort)} />
+                  <SortHeader label={t('rspamd.bayesUsers.ham')} field="ham" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
+                  <SortHeader label={t('rspamd.bayesUsers.spam')} field="spam" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
+                  <SortHeader label={t('rspamd.bayesUsers.total')} field="total" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
+                  {minLearns != null && <th className="text-center">{Translate('rspamd.bayesUsers.active')}</th>}
                 </tr>
-              ))}
-              {bayesUsers.length > 1 && (
-                <tr className="fw-bold">
-                  <td>{Translate('rspamd.bayesUsers.total')}</td>
-                  <td className="text-end">
-                    <Badge bg="success">{bayesUsers.reduce((s, u) => s + u.ham, 0)}</Badge>
-                  </td>
-                  <td className="text-end">
-                    <Badge bg="danger">{bayesUsers.reduce((s, u) => s + u.spam, 0)}</Badge>
-                  </td>
-                  <td className="text-end">{bayesUsers.reduce((s, u) => s + u.ham + u.spam, 0)}</td>
-                </tr>
-              )}
-            </tbody>
-          </Table>
-        </Card>
-      )}
+              </thead>
+              <tbody>
+                {sortRows(bayesUsers.map(u => ({ ...u, total: u.ham + u.spam })), bayesSort).map((u, i) => {
+                  const hamOk = minLearns == null || u.ham >= minLearns;
+                  const spamOk = minLearns == null || u.spam >= minLearns;
+                  return (
+                    <tr key={i}>
+                      <td><code>{u.user}</code></td>
+                      <td className="text-end">
+                        <Badge bg={hamOk ? 'success' : 'secondary'}>{u.ham}</Badge>
+                      </td>
+                      <td className="text-end">
+                        <Badge bg={spamOk ? 'danger' : 'secondary'}>{u.spam}</Badge>
+                      </td>
+                      <td className="text-end">{u.ham + u.spam}</td>
+                      {minLearns != null && (
+                        <td className="text-center">
+                          {hamOk && spamOk ? (
+                            <i className="bi bi-check-circle-fill text-success"></i>
+                          ) : (
+                            <span className="text-warning" title={t('rspamd.bayesUsers.needsMore', { count: minLearns })}>
+                              <i className="bi bi-exclamation-triangle-fill"></i>
+                            </span>
+                          )}
+                        </td>
+                      )}
+                    </tr>
+                  );
+                })}
+                {bayesUsers.length > 1 && (
+                  <tr className="fw-bold">
+                    <td>{Translate('rspamd.bayesUsers.total')}</td>
+                    <td className="text-end">
+                      <Badge bg="success">{bayesUsers.reduce((s, u) => s + u.ham, 0)}</Badge>
+                    </td>
+                    <td className="text-end">
+                      <Badge bg="danger">{bayesUsers.reduce((s, u) => s + u.spam, 0)}</Badge>
+                    </td>
+                    <td className="text-end">{bayesUsers.reduce((s, u) => s + u.ham + u.spam, 0)}</td>
+                    {minLearns != null && <td></td>}
+                  </tr>
+                )}
+              </tbody>
+            </Table>
+          </Card>
+        );
+      })()}
 
       {/* Top symbols by score impact */}
       {counters.length > 0 && (
@@ -316,14 +397,14 @@ const Rspamd = () => {
           <Table size="sm" striped hover responsive>
             <thead>
               <tr>
-                <th>{Translate('rspamd.symbol')}</th>
-                <th className="text-end">{Translate('rspamd.avgScore')}</th>
-                <th className="text-end">{Translate('rspamd.hits')}</th>
-                <th className="text-end">{Translate('rspamd.frequency')}</th>
+                <SortHeader label={t('rspamd.symbol')} field="symbol" sort={symbolSort} onSort={toggleSort(setSymbolSort)} />
+                <SortHeader label={t('rspamd.avgScore')} field="avgScore" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
+                <SortHeader label={t('rspamd.hits')} field="hits" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
+                <SortHeader label={t('rspamd.frequency')} field="frequency" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
               </tr>
             </thead>
             <tbody>
-              {counters.map((c, i) => (
+              {sortRows(counters, symbolSort).map((c, i) => (
                 <tr key={i}>
                   <td>
                     <code>{c.symbol}</code>

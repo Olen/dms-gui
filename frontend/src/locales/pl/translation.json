@@ -211,7 +211,14 @@
       "user": "Użytkownik",
       "ham": "Ham",
       "spam": "Spam",
-      "total": "Razem"
+      "total": "Razem",
+      "active": "Aktywny",
+      "minLearns": "Bayes aktywuje się po {{count}} naukach na klasę",
+      "autoHam": "Auto-ham",
+      "autoSpam": "Auto-spam",
+      "scoreBelow": "wynik \u2264 {{score}}",
+      "scoreAbove": "wynik \u2265 {{score}}",
+      "needsMore": "Potrzeba co najmniej {{count}} nauk ham i {{count}} nauk spam"
     },
     "topSymbols": "Symbole wg wpływu na wynik",
     "symbol": "Symbol",

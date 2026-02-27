@@ -504,6 +504,18 @@ export const getRspamdBayesUsers = async (containerName=null) => {
   }
 };
 
+export const getRspamdConfig = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/rspamd/${containerName}/config`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getRspamdHistory = async (containerName=null) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 
