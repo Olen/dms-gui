@@ -310,31 +310,32 @@ const Rspamd = () => {
         </Card>
       )}
 
-      {/* Top symbols */}
+      {/* Top symbols by score impact */}
       {counters.length > 0 && (
         <Card title="rspamd.topSymbols">
           <Table size="sm" striped hover responsive>
             <thead>
               <tr>
                 <th>{Translate('rspamd.symbol')}</th>
-                <th>{Translate('rspamd.frequency')}</th>
-                <th>{Translate('rspamd.weight')}</th>
-                <th>{Translate('rspamd.hits')}</th>
-                <th>{Translate('rspamd.time')}</th>
+                <th className="text-end">{Translate('rspamd.avgScore')}</th>
+                <th className="text-end">{Translate('rspamd.hits')}</th>
+                <th className="text-end">{Translate('rspamd.frequency')}</th>
               </tr>
             </thead>
             <tbody>
               {counters.map((c, i) => (
                 <tr key={i}>
-                  <td><code>{c.symbol}</code></td>
-                  <td>{c.frequency > 0 ? `${(c.frequency * 100).toFixed(1)}%` : '—'}</td>
                   <td>
-                    <span className={c.weight > 0 ? 'text-danger' : c.weight < 0 ? 'text-success' : ''}>
-                      {c.weight?.toFixed(2)}
-                    </span>
+                    <code>{c.symbol}</code>
+                    {c.direction && <Badge bg="secondary" className="ms-1" style={{fontSize: '0.7em'}}>{c.direction}</Badge>}
                   </td>
-                  <td>{c.hits?.toLocaleString()}</td>
-                  <td>{c.time?.toFixed(3)}s</td>
+                  <td className="text-end">
+                    <Badge bg={c.avgScore > 0 ? 'danger' : 'success'}>
+                      {c.avgScore > 0 ? '+' : ''}{c.avgScore?.toFixed(2)}
+                    </Badge>
+                  </td>
+                  <td className="text-end">{c.hits?.toLocaleString()}</td>
+                  <td className="text-end">{c.frequency > 0 ? `${(c.frequency * 100).toFixed(1)}%` : '—'}</td>
                 </tr>
               ))}
             </tbody>

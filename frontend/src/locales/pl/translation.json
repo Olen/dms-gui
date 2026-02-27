@@ -147,12 +147,11 @@
       "spam": "Spam",
       "total": "Razem"
     },
-    "topSymbols": "Najczęstsze symbole",
+    "topSymbols": "Symbole wg wpływu na wynik",
     "symbol": "Symbol",
-    "frequency": "Częstotliwość",
-    "weight": "Waga",
+    "avgScore": "Śr. wynik",
     "hits": "Trafienia",
-    "time": "Śr. czas",
+    "frequency": "Częstotliwość",
     "history": {
       "title": "Historia wiadomości i trening Bayesa",
       "time": "Czas",

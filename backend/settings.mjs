@@ -1471,28 +1471,51 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
       const history = JSON.parse(result.stdout);
       const rows = history.rows || [];
 
-      // Aggregate symbol hits and average weight from history
+      // Aggregate symbol scores split by polarity (positive vs negative)
       const symData = {};
       for (const row of rows) {
         for (const [name, info] of Object.entries(row.symbols || {})) {
-          if (!symData[name]) symData[name] = { symbol: name, hits: 0, weight: 0, time: 0 };
-          symData[name].hits += 1;
-          symData[name].weight += (info.score || 0);
-          symData[name].time += (info.time || 0);
+          if (!symData[name]) symData[name] = {
+            symbol: name, hits: 0,
+            posSum: 0, posCount: 0,
+            negSum: 0, negCount: 0,
+          };
+          const s = symData[name];
+          s.hits += 1;
+          const score = info.score || 0;
+          if (score > 0) { s.posSum += score; s.posCount += 1; }
+          else if (score < 0) { s.negSum += score; s.negCount += 1; }
         }
       }
-      // Compute averages and sort by hits
-      const sorted = Object.values(symData)
-        .map(s => ({
-          symbol: s.symbol,
-          hits: s.hits,
-          weight: s.hits > 0 ? s.weight / s.hits : 0,
-          time: s.hits > 0 ? s.time / s.hits : 0,
-          frequency: rows.length > 0 ? s.hits / rows.length : 0,
-        }))
-        .sort((a, b) => b.hits - a.hits)
-        .slice(0, 25);
-      return { success: true, message: sorted };
+
+      // Build rows: dual-polarity symbols get two rows (+/-), others get one
+      // Skip symbols that never contribute to the score
+      const result = [];
+      for (const s of Object.values(symData)) {
+        const hasBoth = s.posCount > 0 && s.negCount > 0;
+        if (s.posCount > 0) {
+          result.push({
+            symbol: s.symbol,
+            direction: hasBoth ? '+' : null,
+            hits: hasBoth ? s.posCount : s.hits,
+            avgScore: s.posSum / s.posCount,
+            frequency: rows.length > 0 ? (hasBoth ? s.posCount : s.hits) / rows.length : 0,
+          });
+        }
+        if (s.negCount > 0) {
+          result.push({
+            symbol: s.symbol,
+            direction: hasBoth ? '−' : null,
+            hits: hasBoth ? s.negCount : s.hits,
+            avgScore: s.negSum / s.negCount,
+            frequency: rows.length > 0 ? (hasBoth ? s.negCount : s.hits) / rows.length : 0,
+          });
+        }
+        // Omit pure-zero symbols entirely
+      }
+      // Sort by absolute average score (highest impact first)
+      result.sort((a, b) => Math.abs(b.avgScore) - Math.abs(a.avgScore));
+      return { success: true, message: result.slice(0, 30) };
     }
     return { success: false, error: result.stderr || 'rspamd history request failed' };
 
