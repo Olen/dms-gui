@@ -101,11 +101,6 @@ const LeftSidebar = () => {
             <span> {Translate('logins.sidebar')}</span>
           </Nav.Link>
 
-          <Nav.Link as={NavLink} to="/settings" style={getNavLinkStyle}>
-            <i className="bi bi-gear-fill me-2"></i>
-            <span> {Translate('settings.sidebar')}</span>
-          </Nav.Link>
-
           <Nav.Link as={NavLink} to="/domains" style={getNavLinkStyle}>
             <i className="bi bi-globe me-2"></i>
             <span> {Translate('domains.sidebar')}</span>
@@ -121,6 +116,11 @@ const LeftSidebar = () => {
           <Nav.Link as={NavLink} to="/logs" style={getNavLinkStyle}>
             <i className="bi bi-terminal me-2"></i>
             <span> {Translate('logs.sidebar')}</span>
+          </Nav.Link>
+
+          <Nav.Link as={NavLink} to="/settings" style={getNavLinkStyle}>
+            <i className="bi bi-gear-fill me-2"></i>
+            <span> {Translate('settings.sidebar')}</span>
           </Nav.Link>
         </>)}
       </>)}
