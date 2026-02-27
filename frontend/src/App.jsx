@@ -10,6 +10,7 @@ import Logins from './pages/Logins';
 import Profile from './pages/Profile';
 import Domains from './pages/Domains';
 import Rspamd from './pages/Rspamd';
+import MailSetup from './pages/MailSetup';
 
 import Container from 'react-bootstrap/Container'; // Import Container
 import Row from 'react-bootstrap/Row'; // Import Row
@@ -65,6 +66,7 @@ function App() {
                 <Route path="/profile"    element={<ProtectedRoute        ><Profile   key="profile"   /></ProtectedRoute>} />
                 <Route path="/domains"    element={<ProtectedRoute isAdmin><Domains   key="domains"   /></ProtectedRoute>} />
                 <Route path="/rspamd"     element={<ProtectedRoute isAdmin><Rspamd    key="rspamd"    /></ProtectedRoute>} />
+                <Route path="/mail-setup" element={<ProtectedRoute        ><MailSetup key="mail-setup" /></ProtectedRoute>} />
               </Routes>
           </Col>{' '}
           

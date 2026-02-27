@@ -2071,3 +2071,58 @@ export const dnsblCheck = async (containerName, domain) => {
 
   return { success: true, message: { domain, serverIp, results } };
 };
+
+
+/**
+ * Get active Dovecot IMAP/POP3 sessions via `doveadm who`
+ * Returns sessions grouped by username with connection count and IPs
+ */
+export const getDovecotSessions = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getDovecotSessions containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getDovecotSessions: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+    const result = await execCommand('doveadm who', targetDict, { timeout: 5 });
+
+    if (result.returncode) {
+      return { success: false, error: result.stderr || 'doveadm who failed' };
+    }
+
+    // Parse `doveadm who` output:
+    // username                 # proto (pids) (ips)
+    // user@domain.com          2 imap  (1234 5678) (192.168.1.1 10.0.0.1)
+    const sessions = {};
+    const lines = (result.stdout || '').split('\n').filter(l => l.trim());
+
+    for (const line of lines) {
+      // Skip header line
+      if (line.startsWith('username')) continue;
+
+      // Parse: username  connections  service  (pids)  (ips)
+      const match = line.match(/^(\S+)\s+(\d+)\s+(\S+)\s+\([^)]*\)\s+\(([^)]*)\)/);
+      if (match) {
+        const [, username, connections, service, ips] = match;
+        if (!sessions[username]) {
+          sessions[username] = { username, connections: 0, services: [], ips: [] };
+        }
+        sessions[username].connections += parseInt(connections);
+        if (!sessions[username].services.includes(service)) {
+          sessions[username].services.push(service);
+        }
+        const ipList = ips.split(/\s+/).filter(Boolean);
+        for (const ip of ipList) {
+          if (!sessions[username].ips.includes(ip)) {
+            sessions[username].ips.push(ip);
+          }
+        }
+      }
+    }
+
+    return { success: true, message: Object.values(sessions) };
+
+  } catch (error) {
+    errorLog(`getDovecotSessions error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};

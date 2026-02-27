@@ -44,6 +44,7 @@ import {
   initAPI,
   killContainer,
   rspamdLearnMessage,
+  getDovecotSessions,
   saveSettings,
 } from './settings.mjs';
 
@@ -53,6 +54,11 @@ import {
   doveadm,
   getAccounts,
 } from './accounts.mjs';
+
+import {
+  generateAutoconfig,
+  generateMobileconfig,
+} from './mailprofile.mjs';
 
 import {
   addAlias,
@@ -1306,6 +1312,84 @@ async (req, res) => {
 });
 
 
+// Mail profile download endpoints (no admin required)
+app.get('/api/mail-profile/:containerName/autoconfig',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+    if (!mailbox) return res.status(400).json({ error: 'No mailbox associated with this user' });
+
+    // Read UserConfig settings
+    const allSettings = dbAll(
+      `SELECT s.name, s.value FROM settings s
+       JOIN configs c ON s.configID = c.id
+       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
+      {}, 'userconfig', containerName
+    );
+    const settings = {};
+    if (allSettings.success && allSettings.message) {
+      for (const row of allSettings.message) settings[row.name] = row.value;
+    }
+
+    if (!settings.IMAP_HOST && !settings.SMTP_HOST) {
+      return res.status(404).json({ error: 'Mail server settings not configured' });
+    }
+
+    const xml = generateAutoconfig(mailbox, settings);
+    res.setHeader('Content-Type', 'application/xml');
+    res.setHeader('Content-Disposition', `attachment; filename="autoconfig-${mailbox}.xml"`);
+    res.send(xml);
+
+  } catch (error) {
+    errorLog(`GET /api/mail-profile/autoconfig: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+app.get('/api/mail-profile/:containerName/mobileconfig',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+    if (!mailbox) return res.status(400).json({ error: 'No mailbox associated with this user' });
+
+    // Read UserConfig settings
+    const allSettings = dbAll(
+      `SELECT s.name, s.value FROM settings s
+       JOIN configs c ON s.configID = c.id
+       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
+      {}, 'userconfig', containerName
+    );
+    const settings = {};
+    if (allSettings.success && allSettings.message) {
+      for (const row of allSettings.message) settings[row.name] = row.value;
+    }
+
+    if (!settings.IMAP_HOST && !settings.SMTP_HOST) {
+      return res.status(404).json({ error: 'Mail server settings not configured' });
+    }
+
+    const xml = generateMobileconfig(mailbox, settings);
+    res.setHeader('Content-Type', 'application/x-apple-aspen-config');
+    res.setHeader('Content-Disposition', `attachment; filename="mail.mobileconfig"`);
+    res.send(xml);
+
+  } catch (error) {
+    errorLog(`GET /api/mail-profile/mobileconfig: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // Endpoint for per-user rspamd summary (no admin required)
 app.get('/api/rspamd/:containerName/user-summary',
   authenticateToken,
@@ -2177,6 +2261,26 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`index GET /api/dnsbl: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for active Dovecot sessions (admin only)
+app.get('/api/dovecot/:containerName/sessions',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getDovecotSessions('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/dovecot/sessions: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

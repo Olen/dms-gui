@@ -64,38 +64,44 @@ const DataTable = ({
       // debugLog(`ddebug sortFunction col=${col} sortOrders=`,sortOrders);
       // debugLog('ddebug sortFunction currentData=',currentData);
 
-      // if currentData[0][col] is a dictionary
-      if (typeof currentData[0][col] == 'object') {
+      // if currentData[0][col] is a dictionary (typeof null == 'object', so guard with truthy check)
+      // Find first row with non-null, non-empty object for type detection (first row might have null/empty data)
+      const sampleRow = currentData.find(row => row[col] && typeof row[col] == 'object' && Object.keys(row[col]).length > 0);
+      if (sampleRow) {
         // find the first object in an array which exists in another array
         let sortKey = null;
         // we will filter object data only if a key from this data object was passed
-        if (sortKeysInObject) sortKey = Object.keys(currentData[0][col]).find((o2) => sortKeysInObject.some((o1) => o1 == o2));
-        
+        if (sortKeysInObject) sortKey = Object.keys(sampleRow[col]).find((o2) => sortKeysInObject.some((o1) => o1 == o2));
+
+        // Helper to safely get nested value (handles null/undefined objects in rows)
+        const getObjVal = (row, key) => row[col] != null ? row[col][key] : null;
+        const getObjFirst = (row) => row[col] != null && typeof row[col] == 'object' ? Object.values(row[col])[0] : null;
+
         // sort by the sortKey found
         if (sortKey) {
           debugLog('sortFunction, sortKey=',sortKey);
-          if (Number(currentData[0][col][sortKey])) {
-            if (sortOrders[col] == 0) currentData.sort((a, b) => Number(a[col][sortKey]) - Number(b[col][sortKey]) );
-            else                      currentData.sort((b, a) => Number(a[col][sortKey]) - Number(b[col][sortKey]) );
+          if (isFinite(sampleRow[col][sortKey])) {
+            if (sortOrders[col] == 0) currentData.sort((a, b) => (Number(getObjVal(a, sortKey)) || 0) - (Number(getObjVal(b, sortKey)) || 0) );
+            else                      currentData.sort((b, a) => (Number(getObjVal(a, sortKey)) || 0) - (Number(getObjVal(b, sortKey)) || 0) );
           } else {
-            if (sortOrders[col] == 0) currentData.sort((a, b) => JSON.stringify(a[col][sortKey]).localeCompare(JSON.stringify(b[col][sortKey])) );
-            else                      currentData.sort((b, a) => JSON.stringify(a[col][sortKey]).localeCompare(JSON.stringify(b[col][sortKey])) );
+            if (sortOrders[col] == 0) currentData.sort((a, b) => String(getObjVal(a, sortKey) ?? '').localeCompare(String(getObjVal(b, sortKey) ?? '')) );
+            else                      currentData.sort((b, a) => String(getObjVal(a, sortKey) ?? '').localeCompare(String(getObjVal(b, sortKey) ?? '')) );
           }
 
         // optional: try and sort by the first key of object, whatever it is
         } else {
-          if (Number(Object.values(currentData[0][col])[0])) {
-            if (sortOrders[col] == 0) currentData.sort((a, b) => Number(Object.values(a[col])[0]) - Number(Object.values(b[col])[0]) );
-            else                      currentData.sort((b, a) => Number(Object.values(a[col])[0]) - Number(Object.values(b[col])[0]) );
+          if (isFinite(Object.values(sampleRow[col])[0])) {
+            if (sortOrders[col] == 0) currentData.sort((a, b) => (Number(getObjFirst(a)) || 0) - (Number(getObjFirst(b)) || 0) );
+            else                      currentData.sort((b, a) => (Number(getObjFirst(a)) || 0) - (Number(getObjFirst(b)) || 0) );
           } else {
-            if (sortOrders[col] == 0) currentData.sort((a, b) => JSON.stringify(Object.values(a[col])[0]).localeCompare(JSON.stringify(Object.values(b[col])[0])) );
-            else                      currentData.sort((b, a) => JSON.stringify(Object.values(a[col])[0]).localeCompare(JSON.stringify(Object.values(b[col])[0])) );
+            if (sortOrders[col] == 0) currentData.sort((a, b) => String(getObjFirst(a) ?? '').localeCompare(String(getObjFirst(b) ?? '')) );
+            else                      currentData.sort((b, a) => String(getObjFirst(a) ?? '').localeCompare(String(getObjFirst(b) ?? '')) );
           }
         }
-        
+
       // or else stringify/number compare the currentData
       } else {
-        if (Number(currentData[0][col])) {
+        if (isFinite(currentData[0][col])) {
           if (sortOrders[col] == 0) currentData.sort((a, b) => Number(a[col]) - Number(b[col]) );
           else                      currentData.sort((b, a) => Number(a[col]) - Number(b[col]) );
         } else {

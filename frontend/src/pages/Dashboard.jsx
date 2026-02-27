@@ -8,6 +8,7 @@ import {
   getValueFromArrayOfObj,
 } from '../../../common.mjs';
 import {
+  getAccounts,
   getServerStatus,
   getUserSettings,
   getRspamdUserSummary,
@@ -26,6 +27,7 @@ import { useAuth } from '../hooks/useAuth';
 
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
+import ProgressBar from 'react-bootstrap/ProgressBar';
 
 const actionStyles = {
   'no action':       { bg: 'success',   label: 'clean',   tip: 'Message delivered normally' },
@@ -72,6 +74,7 @@ const Dashboard = () => {
   const [errorMessage, setErrorMessage] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
   const [spamSummary, setSpamSummary] = useState(null);
+  const [userQuota, setUserQuota] = useState(null);
 
   useEffect(() => {
     fetchAll();
@@ -87,6 +90,7 @@ const Dashboard = () => {
     if (user?.isAdmin != 1) {
       fetchUserSettings();
       fetchSpamSummary();
+      fetchUserQuota();
     }
   };
 
@@ -107,6 +111,20 @@ const Dashboard = () => {
       if (result.success) setSpamSummary(result.message);
     } catch (error) {
       // Non-critical - rspamd may not be enabled
+    }
+  };
+
+  const fetchUserQuota = async () => {
+    if (!containerName) return;
+    try {
+      const result = await getAccounts(containerName);
+      if (result.success && result.message) {
+        const mailbox = user.mailbox || (user.roles && user.roles[0]);
+        const account = result.message.find(a => a.mailbox === mailbox);
+        if (account?.storage) setUserQuota(account.storage);
+      }
+    } catch (error) {
+      // Non-critical - quota may not be available
     }
   };
 
@@ -333,6 +351,28 @@ const Dashboard = () => {
           />
         </Col>
       </Row>
+
+      {/* Mailbox quota */}
+      {userQuota && (
+        <Row>
+          <Col md={6} className="mb-3">
+            <Card title="dashboard.quota" icon="hdd">
+              <div className="mb-1">
+                <span className="fw-bold">{userQuota.used}</span>
+                <span className="text-muted"> / {userQuota.total === '0' ? t('dashboard.quotaUnlimited') : userQuota.total}</span>
+              </div>
+              {userQuota.total !== '0' && (
+                <ProgressBar
+                  now={parseInt(userQuota.percent) || 0}
+                  variant={parseInt(userQuota.percent) > 90 ? 'danger' : parseInt(userQuota.percent) > 75 ? 'warning' : 'success'}
+                  label={`${userQuota.percent}%`}
+                  style={{ height: '20px' }}
+                />
+              )}
+            </Card>
+          </Col>
+        </Row>
+      )}
 
       {/* Mail client configuration */}
       {userSettings?.IMAP_HOST && (

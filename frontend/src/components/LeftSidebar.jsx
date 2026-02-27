@@ -88,6 +88,11 @@ const LeftSidebar = () => {
             <i className="bi bi-arrow-left-right me-2"></i>
             <span> {Translate('aliases.sidebar')}</span>
           </Nav.Link>
+
+          <Nav.Link as={NavLink} to="/mail-setup" style={getNavLinkStyle}>
+            <i className="bi bi-phone me-2"></i>
+            <span> {Translate('mailSetup.sidebar')}</span>
+          </Nav.Link>
         </>)}
 
         {(user.isAdmin == 1) && (<>

@@ -27,6 +27,7 @@
 import {
   escapeShellArg,
   reduxArrayOfObjByValue,
+  humanSize2ByteSize,
 } from '../common.mjs';
 import {
   addAlias,
@@ -237,6 +238,7 @@ export const pullAccountsFromDMS = async (containerName=null) => {
               mailbox:mailbox,
               storage: {
                 used: usedSpace,
+                usedBytes: Number(humanSize2ByteSize(usedSpace)),
                 total: totalSpace,
                 percent: usagePercent,
               },
@@ -497,6 +499,14 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       },
       // doveadm(user@domain.com): Info: FTS Xapian: Optimize (1) : Checking expunges from db_6076763531fadb68571400008e1fe135_exp.db
       // doveadm(user@domain.com): Info: FTS Xapian: Optimize (1) : Checking expunges from db_e170c41cf00be3687d3400008e1fe135_exp.db
+    },
+    quota: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#quota%20get
+      mailbox: true,
+      cmd: 'doveadm quota get -u {mailbox}',
+      stdout: true,
+      messages: {
+        pass: 'Quota for {mailbox}:',
+      },
     },
   }
 

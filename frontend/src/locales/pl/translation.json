@@ -26,6 +26,8 @@
       "unknown": "Nieznany"
     },
     "error": "Nie można załadować danych dashboard. Sprawdź połączenie z serwerem.",
+    "quota": "Limit skrzynki",
+    "quotaUnlimited": "Bez limitu",
     "user": {
       "webmail": "Webmail",
       "openWebmail": "Otwórz Webmail",
@@ -55,6 +57,7 @@
     "newPassword": "Nowe Hasło",
     "confirmPassword": "Potwierdź Hasło",
     "storage": "Użycie Dysku",
+    "activeConnections": "aktywnych połączeń",
     "aliases": "Aliasy",
     "actions": "Akcje",
     "addAccount": "Dodaj Konto",
@@ -346,6 +349,18 @@
     "resetButton": "Zresetuj hasło",
     "success": "Twoje hasło zostało pomyślnie zresetowane. Możesz się teraz zalogować nowym hasłem.",
     "failed": "Nie udało się zresetować hasła. Link mógł wygasnąć."
+  },
+  "mailSetup": {
+    "sidebar": "Konfiguracja poczty",
+    "title": "Konfiguracja poczty",
+    "serverSettings": "Ustawienia serwera",
+    "username": "Nazwa użytkownika",
+    "downloadThunderbird": "Thunderbird / Desktop",
+    "downloadApple": "iPhone / Mac",
+    "howTo": "Pobierz plik konfiguracyjny poniżej, aby automatycznie skonfigurować konto e-mail. Dla Thunderbirda lub innych klientów desktopowych zaimportuj plik autoconfig w ustawieniach konta. Dla iPhone, iPad lub Mac otwórz plik .mobileconfig i postępuj zgodnie z instrukcjami instalacji profilu.",
+    "thunderbirdDesc": "Pobierz plik autoconfig XML dla Thunderbirda, Outlooka lub innego klienta poczty.",
+    "appleDesc": "Pobierz profil konfiguracji dla iPhone, iPad lub Mac Mail.",
+    "noSettings": "Ustawienia serwera poczty nie zostały jeszcze skonfigurowane. Skontaktuj się z administratorem."
   },
   "language": {
     "select": "Wybierz Język",

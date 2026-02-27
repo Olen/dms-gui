@@ -403,6 +403,18 @@ export const getRspamdUserSummary = async (containerName=null) => {
   }
 };
 
+export const getDovecotSessions = async (containerName=null) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  try {
+    const response = await api.get(`/dovecot/${containerName}/sessions`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getUserSettings = async (containerName=null) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 

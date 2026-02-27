@@ -49,6 +49,8 @@
       "unknown": "Unknown error: cannot tell what the proble is, open the browser debugger and look for clues."
     },
     "error": "Unable to load dashboard data. Please check server connection.",
+    "quota": "Mailbox Quota",
+    "quotaUnlimited": "Unlimited",
     "user": {
       "webmail": "Webmail",
       "openWebmail": "Open Webmail",
@@ -145,6 +147,7 @@
     "mailboxStatus": "Get mailbox status",
     "doveadmExecuted": "doveadm executed",
     "storage": "Storage Usage",
+    "activeConnections": "active connections",
     "title": "Mailbox Management",
     "sidebar": "Mailbox Accounts",
     "updateDNS": "Update DNS",
@@ -517,6 +520,18 @@
     "resetButton": "Reset Password",
     "success": "Your password has been reset successfully. You can now log in with your new password.",
     "failed": "Failed to reset password. The link may have expired."
+  },
+  "mailSetup": {
+    "sidebar": "Mail Setup",
+    "title": "Mail Setup",
+    "serverSettings": "Server Settings",
+    "username": "Username",
+    "downloadThunderbird": "Thunderbird / Desktop",
+    "downloadApple": "iPhone / Mac",
+    "howTo": "Download a configuration file below to automatically set up your email account. For Thunderbird or other desktop clients, import the autoconfig file via account settings. For iPhone, iPad, or Mac, open the .mobileconfig file and follow the prompts to install the profile.",
+    "thunderbirdDesc": "Download autoconfig XML for Thunderbird, Outlook, or other desktop mail clients.",
+    "appleDesc": "Download configuration profile for iPhone, iPad, or Mac Mail.",
+    "noSettings": "Mail server settings have not been configured yet. Please ask your administrator."
   },
   "language": {
     "select": "Select Language",

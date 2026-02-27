@@ -28,13 +28,14 @@ import {
 //   getValuesFromArrayOfObj,
 //   pluck,
 //   byteSize2HumanSize,
-//   humanSize2ByteSize,
+  humanSize2ByteSize,
 //   moveKeyToLast,
 } from '../../../common.mjs';
 
 import {
   getAccounts,
   getDomains,
+  getDovecotSessions,
   getServerEnvs,
   addAccount,
   deleteAccount,
@@ -59,7 +60,7 @@ import Modal from 'react-bootstrap/Modal'; // Import Modal
 import ProgressBar from 'react-bootstrap/ProgressBar'; // Import ProgressBar
 
 const Accounts = () => {
-  const sortKeysInObject = ['percent'];
+  const sortKeysInObject = ['usedBytes'];
   const { t } = useTranslation();
   const { user } = useAuth();
   const [containerName] = useLocalStorage("containerName", '');
@@ -67,6 +68,7 @@ const Accounts = () => {
 
   const [accounts, setAccounts] = useState([]);
   const [DOVECOT_FTS, setDOVECOT_FTS] = useState(0);
+  const [sessions, setSessions] = useState({});
 
   // Common states -------------------------------------------------
   const [isLoading, setLoading] = useState(true);
@@ -101,7 +103,9 @@ const Accounts = () => {
 
   // https://www.w3schools.com/react/react_useeffect.asp
   useEffect(() => {
-    fetchAccounts();
+    // Auto-refresh from DMS once per session; manual refresh button always available
+    const refreshed = sessionStorage.getItem('accountsRefreshed');
+    fetchAccounts(!refreshed);
   }, [mailservers, containerName]);
 
   const fetchAccounts = async (refresh=false) => {
@@ -118,16 +122,38 @@ const Accounts = () => {
       // ]);
       const accountsData = await getAccounts(containerName, refresh);
       if (accountsData.success) {
-        setAccounts(accountsData.message);
+        if (refresh) sessionStorage.setItem('accountsRefreshed', '1');
+        // Ensure usedBytes exists for sorting (computed from human-readable 'used' field)
+        const enriched = accountsData.message.map(a => {
+          if (a.storage && a.storage.used && !a.storage.usedBytes) {
+            a.storage.usedBytes = Number(humanSize2ByteSize(a.storage.used));
+          }
+          return a;
+        });
+        setAccounts(enriched);
         debugLog('ddebug accountsData', accountsData);
 
         const DOVECOT_FTSdata = await getServerEnvs('mailserver', containerName, refresh, 'DOVECOT_FTS');
         debugLog('ddebug DOVECOT_FTSdata', DOVECOT_FTSdata);
         if (DOVECOT_FTSdata.success) {
           setDOVECOT_FTS(DOVECOT_FTSdata.message);
-          
+
         } else setErrorMessage(DOVECOT_FTSdata?.error);
-        
+
+        // Fetch active sessions (admin only, non-critical)
+        if (user.isAdmin) {
+          try {
+            const sessionsData = await getDovecotSessions(containerName);
+            if (sessionsData.success && sessionsData.message) {
+              const sessionMap = {};
+              for (const s of sessionsData.message) {
+                sessionMap[s.username] = s;
+              }
+              setSessions(sessionMap);
+            }
+          } catch (e) { /* non-critical */ }
+        }
+
       } else setErrorMessage(accountsData?.error);
 
     } catch (error) {
@@ -426,9 +452,22 @@ const Accounts = () => {
         </>
       ),
     },
-    { 
+    {
       key: 'mailbox',
       label: 'accounts.mailbox',
+      render: (account) => (
+        <span>
+          {account.mailbox}
+          {sessions[account.mailbox] && (
+            <span
+              className="ms-2"
+              title={`${sessions[account.mailbox].connections} ${t('accounts.activeConnections')} (${sessions[account.mailbox].services.join(', ')}) — ${sessions[account.mailbox].ips.join(', ')}`}
+            >
+              <i className="bi bi-circle-fill text-success" style={{fontSize: '0.5rem', verticalAlign: 'middle'}}></i>
+            </span>
+          )}
+        </span>
+      ),
     },
     { 
       key: 'username',
@@ -439,7 +478,7 @@ const Accounts = () => {
       label: 'accounts.storage',
       noFilter: true,
       render: (account) =>
-        account.storage ? (
+        account.storage?.used ? (
           <div>
             <div>
               {account.storage.used} / {account.storage.total}
