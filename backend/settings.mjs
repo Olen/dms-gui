@@ -1415,14 +1415,30 @@ export const getRspamdConfig = async (plugin = 'mailserver', containerName = nul
   try {
     const targetDict = getTargetDict(plugin, containerName);
 
-    // Read both config files in parallel
-    const [actionsResult, bayesResult] = await Promise.all([
-      execCommand('cat /etc/rspamd/override.d/actions.conf 2>/dev/null || cat /etc/rspamd/local.d/actions.conf 2>/dev/null || echo ""', targetDict, { timeout: 5 }),
-      execCommand('cat /etc/rspamd/local.d/classifier-bayes.conf 2>/dev/null || cat /etc/rspamd/override.d/classifier-bayes.conf 2>/dev/null || echo ""', targetDict, { timeout: 5 }),
-    ]);
-
-    const actionsText = actionsResult.stdout || '';
-    const bayesText = bayesResult.stdout || '';
+    // Read config files — try override.d first, fall back to local.d
+    // rest-api.py uses shlex.split (no shell operators like || or 2>)
+    let actionsText = '';
+    let bayesText = '';
+    try {
+      const r = await execCommand('cat /etc/rspamd/override.d/actions.conf', targetDict, { timeout: 5 });
+      if (!r.returncode) actionsText = r.stdout || '';
+    } catch (e) { /* file not found */ }
+    if (!actionsText) {
+      try {
+        const r = await execCommand('cat /etc/rspamd/local.d/actions.conf', targetDict, { timeout: 5 });
+        if (!r.returncode) actionsText = r.stdout || '';
+      } catch (e) { /* file not found */ }
+    }
+    try {
+      const r = await execCommand('cat /etc/rspamd/local.d/classifier-bayes.conf', targetDict, { timeout: 5 });
+      if (!r.returncode) bayesText = r.stdout || '';
+    } catch (e) { /* file not found */ }
+    if (!bayesText) {
+      try {
+        const r = await execCommand('cat /etc/rspamd/override.d/classifier-bayes.conf', targetDict, { timeout: 5 });
+        if (!r.returncode) bayesText = r.stdout || '';
+      } catch (e) { /* file not found */ }
+    }
 
     // Parse action thresholds: key = value; or key = null;
     const parseAction = (key) => {
@@ -1564,7 +1580,7 @@ export const getRspamdCounters = async (plugin = 'mailserver', containerName = n
       }
       // Sort by absolute average score (highest impact first)
       output.sort((a, b) => Math.abs(b.avgScore) - Math.abs(a.avgScore));
-      return { success: true, message: output.slice(0, 30) };
+      return { success: true, message: output.slice(0, 40) };
     }
     return { success: false, error: result.stderr || 'rspamd history request failed' };
 

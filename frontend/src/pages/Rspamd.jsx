@@ -36,6 +36,30 @@ const formatBytes = (bytes) => {
 
 const pct = (n, total) => total > 0 ? ((n / total) * 100).toFixed(1) : '0.0';
 
+const SortHeader = ({ label, field, sort, onSort, className }) => {
+  const active = sort.field === field;
+  const arrow = active ? (sort.dir === 'asc' ? ' \u25B2' : ' \u25BC') : '';
+  return (
+    <th className={`${className || ''} user-select-none`} role="button"
+      onClick={() => onSort(field)}
+      style={{ cursor: 'pointer', whiteSpace: 'nowrap' }}>
+      {label}{arrow}
+    </th>
+  );
+};
+
+const sortRows = (rows, sort) => {
+  if (!sort.field) return rows;
+  return [...rows].sort((a, b) => {
+    let va = a[sort.field], vb = b[sort.field];
+    if (typeof va === 'string') va = va.toLowerCase();
+    if (typeof vb === 'string') vb = vb.toLowerCase();
+    if (va < vb) return sort.dir === 'asc' ? -1 : 1;
+    if (va > vb) return sort.dir === 'asc' ? 1 : -1;
+    return 0;
+  });
+};
+
 
 const Rspamd = () => {
   const { t } = useTranslation();
@@ -48,6 +72,15 @@ const Rspamd = () => {
   const [rspamdConfig, setRspamdConfig] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [bayesSort, setBayesSort] = useState({ field: null, dir: 'asc' });
+  const [symbolSort, setSymbolSort] = useState({ field: null, dir: 'desc' });
+
+  const toggleSort = (setter) => (field) => {
+    setter(prev => ({
+      field,
+      dir: prev.field === field && prev.dir === 'desc' ? 'asc' : 'desc',
+    }));
+  };
 
   // History & Bayes training state
   const [historyData, setHistoryData] = useState([]);
@@ -304,15 +337,15 @@ const Rspamd = () => {
             <Table size="sm" striped hover responsive>
               <thead>
                 <tr>
-                  <th>{Translate('rspamd.bayesUsers.user')}</th>
-                  <th className="text-end">{Translate('rspamd.bayesUsers.ham')}</th>
-                  <th className="text-end">{Translate('rspamd.bayesUsers.spam')}</th>
-                  <th className="text-end">{Translate('rspamd.bayesUsers.total')}</th>
+                  <SortHeader label={t('rspamd.bayesUsers.user')} field="user" sort={bayesSort} onSort={toggleSort(setBayesSort)} />
+                  <SortHeader label={t('rspamd.bayesUsers.ham')} field="ham" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
+                  <SortHeader label={t('rspamd.bayesUsers.spam')} field="spam" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
+                  <SortHeader label={t('rspamd.bayesUsers.total')} field="total" sort={bayesSort} onSort={toggleSort(setBayesSort)} className="text-end" />
                   {minLearns != null && <th className="text-center">{Translate('rspamd.bayesUsers.active')}</th>}
                 </tr>
               </thead>
               <tbody>
-                {bayesUsers.map((u, i) => {
+                {sortRows(bayesUsers.map(u => ({ ...u, total: u.ham + u.spam })), bayesSort).map((u, i) => {
                   const hamOk = minLearns == null || u.ham >= minLearns;
                   const spamOk = minLearns == null || u.spam >= minLearns;
                   return (
@@ -364,14 +397,14 @@ const Rspamd = () => {
           <Table size="sm" striped hover responsive>
             <thead>
               <tr>
-                <th>{Translate('rspamd.symbol')}</th>
-                <th className="text-end">{Translate('rspamd.avgScore')}</th>
-                <th className="text-end">{Translate('rspamd.hits')}</th>
-                <th className="text-end">{Translate('rspamd.frequency')}</th>
+                <SortHeader label={t('rspamd.symbol')} field="symbol" sort={symbolSort} onSort={toggleSort(setSymbolSort)} />
+                <SortHeader label={t('rspamd.avgScore')} field="avgScore" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
+                <SortHeader label={t('rspamd.hits')} field="hits" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
+                <SortHeader label={t('rspamd.frequency')} field="frequency" sort={symbolSort} onSort={toggleSort(setSymbolSort)} className="text-end" />
               </tr>
             </thead>
             <tbody>
-              {counters.map((c, i) => (
+              {sortRows(counters, symbolSort).map((c, i) => (
                 <tr key={i}>
                   <td>
                     <code>{c.symbol}</code>
