@@ -12,6 +12,76 @@ import {
 } from '../components/index.jsx';
 
 
+// Syntax coloring rules for log lines
+const colorRules = [
+  // Timestamps: ISO 8601 (mail.log) and rspamd-style
+  { pattern: /^(\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}[\d.+:\-Z]*)/,  color: '#6A9955' },
+  // Syslog hostname
+  { pattern: /^(?:\S+\s+)(mail)\b/,                                      color: '#569cd6' },
+  // Service names: postfix/*, dovecot*, fetchmail, opendkim, rspamd*
+  { pattern: /\b(postfix\/\w+|dovecot(?::\s*\w[\w-]*)?|fetchmail|opendkim|rspamd(?:_\w+)?)\b/i, color: '#4EC9B0' },
+  // Session/process IDs: [12345], <hex>, (hex)
+  { pattern: /(\[\d+\]|<[A-Fa-f0-9+/]+>)/g,                             color: '#C586C0' },
+  // Email addresses
+  { pattern: /<?(\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b)>?/g, color: '#DCDCAA' },
+  // IP addresses (v4)
+  { pattern: /\b(\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3})\b/g,              color: '#9CDCFE' },
+  // Error/warning keywords
+  { pattern: /\b(error|warning|fatal|panic|reject|refused|failed|mismatch|timeout|timed out|auth failed)\b/gi, color: '#F44747' },
+  // Success/info keywords
+  { pattern: /\b(Login|connect(?:ed)?|delivered|PASS OLD|PASS NEW|accepted|stored)\b/gi, color: '#B5CEA8' },
+  // Disconnect/close (neutral-warning)
+  { pattern: /\b(Disconnect(?:ed)?|Connection closed|removed)\b/gi,      color: '#CE9178' },
+];
+
+const colorizeLine = (line) => {
+  // Build a list of colored spans from the line
+  // Use a simple approach: find all matches, sort by position, render segments
+  const segments = [];
+  const used = new Array(line.length).fill(false);
+
+  for (const rule of colorRules) {
+    const regex = new RegExp(rule.pattern.source, rule.pattern.flags.includes('g') ? rule.pattern.flags : rule.pattern.flags + 'g');
+    let match;
+    while ((match = regex.exec(line)) !== null) {
+      // Use the first capture group if available, otherwise the full match
+      const text = match[1] || match[0];
+      const start = match.index + (match[1] ? match[0].indexOf(match[1]) : 0);
+      const end = start + text.length;
+
+      // Skip if this region overlaps with an earlier-matched rule
+      let overlap = false;
+      for (let k = start; k < end; k++) {
+        if (used[k]) { overlap = true; break; }
+      }
+      if (overlap) continue;
+
+      for (let k = start; k < end; k++) used[k] = true;
+      segments.push({ start, end, text, color: rule.color });
+    }
+  }
+
+  if (segments.length === 0) return line;
+
+  segments.sort((a, b) => a.start - b.start);
+
+  const parts = [];
+  let cursor = 0;
+  for (const seg of segments) {
+    if (seg.start > cursor) {
+      parts.push(<span key={`t${cursor}`}>{line.slice(cursor, seg.start)}</span>);
+    }
+    parts.push(<span key={`c${seg.start}`} style={{ color: seg.color }}>{seg.text}</span>);
+    cursor = seg.end;
+  }
+  if (cursor < line.length) {
+    parts.push(<span key={`t${cursor}`}>{line.slice(cursor)}</span>);
+  }
+
+  return parts;
+};
+
+
 const Logs = () => {
   const { t } = useTranslation();
   const [containerName] = useLocalStorage('containerName', '');
@@ -161,7 +231,7 @@ const Logs = () => {
             {filteredLines.length > 0
               ? filteredLines.map((line, i) => {
                   if (filter) {
-                    // Highlight matching text
+                    // Highlight matching text over syntax coloring
                     const regex = new RegExp(`(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'gi');
                     const parts = line.split(regex);
                     return (
@@ -170,13 +240,13 @@ const Logs = () => {
                           regex.test(part) ? (
                             <mark key={j} style={{ backgroundColor: '#ffc107', color: '#000', padding: 0 }}>{part}</mark>
                           ) : (
-                            <span key={j}>{part}</span>
+                            <span key={j}>{colorizeLine(part)}</span>
                           )
                         )}
                       </div>
                     );
                   }
-                  return <div key={i}>{line}</div>;
+                  return <div key={i}>{colorizeLine(line)}</div>;
                 })
               : t('logs.noLogs')
             }
