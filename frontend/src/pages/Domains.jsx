@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Badge, Modal, Form, Table } from 'react-bootstrap';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getDomains, getDnsLookup, generateDkim, getDnsblCheck, updateDomain, getConfigs } from '../services/api.mjs';
+import { getDomains, getDnsLookup, generateDkim, getDkimSelector, getDnsblCheck, updateDomain, getConfigs, getSettings, pushDnsRecord } from '../services/api.mjs';
 
 import {
   AlertMessage,
@@ -56,13 +56,25 @@ const Domains = () => {
   // Generated DKIM records (persisted across modal close, keyed by domain)
   const [generatedDkimRecords, setGeneratedDkimRecords] = useState({});
 
-  // External domain modal state
-  const [showExternalModal, setShowExternalModal] = useState(false);
-  const [externalModalDomain, setExternalModalDomain] = useState(null);
 
   // DNS provider state
   const [dnsProviders, setDnsProviders] = useState([]);
   const [providerSaving, setProviderSaving] = useState({});
+
+  // DKIM selector from DMS rspamd config
+  const [configDkimSelector, setConfigDkimSelector] = useState('mail');
+
+  // DNS record editing state
+  const [editingSection, setEditingSection] = useState(null); // 'spf' | 'dmarc'
+  const [editSaving, setEditSaving] = useState(false);
+  const [editError, setEditError] = useState(null);
+  const [editSuccess, setEditSuccess] = useState(null);
+  const [spfAllMode, setSpfAllMode] = useState('~all');
+  const [dmarcPolicy, setDmarcPolicy] = useState('none');
+  const [dmarcRua, setDmarcRua] = useState('');
+  const [dmarcRuf, setDmarcRuf] = useState('');
+  const [dkimPushing, setDkimPushing] = useState(false);
+  const [dkimPushResult, setDkimPushResult] = useState(null);
 
   useEffect(() => {
     if (!containerName) {
@@ -70,14 +82,27 @@ const Domains = () => {
       return;
     }
     fetchDomains();
-    // Fetch available DNS providers from dnscontrol plugin configs
-    getConfigs('dnscontrol')
+    // Fetch DKIM selector from DMS rspamd config
+    getDkimSelector(containerName)
+      .then(result => { if (result.selector) setConfigDkimSelector(result.selector); })
+      .catch(() => {});
+    // Fetch saved DNS provider profiles from settings (configured in Settings > DNS Providers)
+    getSettings('dnscontrol', containerName, undefined, true, 'dnscontrol')
       .then(result => {
         if (result.success && result.message) {
-          // result.message is array of provider names from the dnscontrol plugin
-          const providers = result.message.map(p => p.value || p.name).filter(Boolean);
-          setDnsProviders(providers);
+          const items = Array.isArray(result.message) ? result.message : [];
+          const providers = items.map(p => p.name).filter(Boolean);
+          if (providers.length) {
+            setDnsProviders(providers);
+            return;
+          }
         }
+        // No saved profiles — fall back to template names
+        return getConfigs('dnscontrol').then(r => {
+          if (r.success && r.message) {
+            setDnsProviders(r.message.map(p => p.name).filter(Boolean));
+          }
+        });
       })
       .catch(() => {});
   }, [containerName]);
@@ -171,6 +196,10 @@ const Domains = () => {
 
   const showDetails = (domain) => {
     setModalDomain(domain);
+    setEditingSection(null);
+    setEditError(null);
+    setEditSuccess(null);
+    setDkimPushResult(null);
     setShowModal(true);
   };
 
@@ -184,7 +213,7 @@ const Domains = () => {
     setDkimDomain(domain);
     setDkimKeytype(RECOMMENDED_KEYTYPE);
     setDkimKeysize(RECOMMENDED_KEYSIZE);
-    setDkimSelector(domainData?.dkim || 'mail');
+    setDkimSelector(domainData?.dkim || configDkimSelector);
     setDkimForce(false);
     setDkimResult(null);
     setDkimError(null);
@@ -192,11 +221,12 @@ const Domains = () => {
   };
 
   const handleGenerateDkim = async () => {
+    const domain = dkimDomain;
     setDkimLoading(true);
     setDkimError(null);
     setDkimResult(null);
     try {
-      const result = await generateDkim(containerName, dkimDomain, {
+      const result = await generateDkim(containerName, domain, {
         keytype: dkimKeytype,
         keysize: dkimKeysize,
         selector: dkimSelector,
@@ -204,16 +234,16 @@ const Domains = () => {
       });
       if (result.success) {
         setDkimResult(result.message);
-        // Store generated record for later access from DNS details modal
+        // Store generated record for later access
         if (result.message?.dnsRecord) {
-          setGeneratedDkimRecords(prev => ({ ...prev, [dkimDomain]: {
+          setGeneratedDkimRecords(prev => ({ ...prev, [domain]: {
             record: result.message.dnsRecord,
             selector: result.message.selector,
-            domain: dkimDomain,
+            domain: domain,
           }}));
         }
-        // Refresh DNS and domains list in background (don't block success state)
-        checkDns(dkimDomain);
+        // Refresh DNS and domains list in background
+        checkDns(domain);
         getDomains(containerName).then(r => {
           if (r.success) setDomains(r.message || []);
         }).catch(() => {});
@@ -240,6 +270,139 @@ const Domains = () => {
     if (policy === 'reject') return 'success';
     if (policy === 'quarantine') return 'success';
     return 'warning'; // p=none
+  };
+
+  // --- DNS record editing helpers ---
+
+  const domainHasProvider = (domain) => !!domains.find(d => d.domain === domain)?.dnsProvider;
+
+  const startEditSpf = (currentSpf) => {
+    setEditError(null);
+    setEditSuccess(null);
+    if (currentSpf) {
+      const match = currentSpf.match(/([~\-?+]all)\s*$/);
+      setSpfAllMode(match ? match[1] : '~all');
+    } else {
+      setSpfAllMode('~all');
+    }
+    setEditingSection('spf');
+  };
+
+  const computeSpfRecord = () => {
+    const currentSpf = modalDns?.spf;
+    if (currentSpf) {
+      return currentSpf.replace(/[~\-?+]all\s*$/, spfAllMode);
+    }
+    // Build a reasonable default: include mx, a, and any MX hosts
+    const mechanisms = ['mx', 'a'];
+    if (modalDns?.mx?.length) {
+      for (const mx of modalDns.mx) {
+        const host = mx.exchange?.replace(/\.$/, '');
+        if (host && host !== modalDomain) {
+          mechanisms.push(`include:${host}`);
+        }
+      }
+    }
+    return `v=spf1 ${mechanisms.join(' ')} ${spfAllMode}`;
+  };
+
+  const handleSaveSpf = async () => {
+    setEditSaving(true);
+    setEditError(null);
+    setEditSuccess(null);
+    try {
+      const result = await pushDnsRecord(containerName, modalDomain, {
+        name: modalDomain,
+        type: 'TXT',
+        data: computeSpfRecord(),
+      });
+      if (result.success) {
+        setEditSuccess('domains.dnsRecordSaved');
+        checkDns(modalDomain);
+        setTimeout(() => setEditingSection(null), 1500);
+      } else {
+        setEditError(result.error || 'domains.dnsRecordError');
+      }
+    } catch (err) {
+      setEditError(err.message || 'domains.dnsRecordError');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const startEditDmarc = (currentDmarc) => {
+    setEditError(null);
+    setEditSuccess(null);
+    if (currentDmarc) {
+      setDmarcPolicy(currentDmarc.match(/;\s*p=([^;\s]+)/i)?.[1]?.toLowerCase() || 'none');
+      setDmarcRua(currentDmarc.match(/rua=mailto:([^;\s]+)/i)?.[1] || '');
+      setDmarcRuf(currentDmarc.match(/ruf=mailto:([^;\s]+)/i)?.[1] || '');
+    } else {
+      setDmarcPolicy('none');
+      setDmarcRua('');
+      setDmarcRuf('');
+    }
+    setEditingSection('dmarc');
+  };
+
+  const computeDmarcRecord = () => {
+    let record = `v=DMARC1; p=${dmarcPolicy}`;
+    if (dmarcRua.trim()) record += `; rua=mailto:${dmarcRua.trim()}`;
+    if (dmarcRuf.trim()) record += `; ruf=mailto:${dmarcRuf.trim()}`;
+    return record;
+  };
+
+  const handleSaveDmarc = async () => {
+    setEditSaving(true);
+    setEditError(null);
+    setEditSuccess(null);
+    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (dmarcRua && !emailRe.test(dmarcRua.trim())) {
+      setEditError('domains.invalidEmail');
+      setEditSaving(false);
+      return;
+    }
+    if (dmarcRuf && !emailRe.test(dmarcRuf.trim())) {
+      setEditError('domains.invalidEmail');
+      setEditSaving(false);
+      return;
+    }
+    try {
+      const result = await pushDnsRecord(containerName, modalDomain, {
+        name: `_dmarc.${modalDomain}`,
+        type: 'TXT',
+        data: computeDmarcRecord(),
+      });
+      if (result.success) {
+        setEditSuccess('domains.dnsRecordSaved');
+        checkDns(modalDomain);
+        setTimeout(() => setEditingSection(null), 1500);
+      } else {
+        setEditError(result.error || 'domains.dnsRecordError');
+      }
+    } catch (err) {
+      setEditError(err.message || 'domains.dnsRecordError');
+    } finally {
+      setEditSaving(false);
+    }
+  };
+
+  const handlePushDkim = async (domain, selector, record) => {
+    setDkimPushing(true);
+    setDkimPushResult(null);
+    try {
+      const result = await pushDnsRecord(containerName, domain, {
+        name: `${selector}._domainkey.${domain}`,
+        type: 'TXT',
+        data: record,
+      });
+      setDkimPushResult(result);
+      if (result.success) checkDns(domain);
+    } catch (err) {
+      setDkimPushResult({ success: false, error: err.message || 'domains.dkimPushError' });
+    } finally {
+      setDkimPushing(false);
+    }
   };
 
   const DnsBadge = ({ label, value, grade }) => (
@@ -425,29 +588,6 @@ const Domains = () => {
         );
       },
     },
-    {
-      key: 'actions',
-      label: 'common.actions',
-      noSort: true,
-      noFilter: true,
-      render: (item) => item.accountCount > 0 ? (
-        <Button
-          variant="outline-primary"
-          size="sm"
-          icon="key"
-          text="domains.generateDkim"
-          onClick={() => openDkimModal(item.domain)}
-        />
-      ) : (
-        <Button
-          variant="outline-secondary"
-          size="sm"
-          icon="globe2"
-          text="domains.externalDomainBtn"
-          onClick={() => { setExternalModalDomain(item.domain); setShowExternalModal(true); }}
-        />
-      ),
-    },
   ];
 
   if (loading) return <LoadingSpinner />;
@@ -507,8 +647,39 @@ const Domains = () => {
                 <ul>{modalDns.mx.map((r, i) => <li key={i}>{r.priority} — {r.exchange}</li>)}</ul>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
 
-              <h6><DnsBadge label="SPF" value={modalDns.spf} grade={spfGrade(modalDns.spf)} /> {Translate('domains.spfRecord')}</h6>
-              {modalDns.spf ? (
+              <h6 className="d-flex align-items-center">
+                <DnsBadge label="SPF" value={modalDns.spf} grade={spfGrade(modalDns.spf)} />
+                <span className="flex-grow-1">{Translate('domains.spfRecord')}</span>
+                {domainHasProvider(modalDomain) && editingSection !== 'spf' && (
+                  <Button variant="outline-secondary" size="sm" icon="pencil"
+                    onClick={() => startEditSpf(modalDns.spf)} />
+                )}
+              </h6>
+              {editingSection === 'spf' ? (
+                <div className="border rounded p-3 mb-3 bg-light">
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('domains.spfAllMechanism')}</Form.Label>
+                    <Form.Select value={spfAllMode} onChange={(e) => setSpfAllMode(e.target.value)}>
+                      <option value="~all">{t('domains.spfSoftfail')}</option>
+                      <option value="-all">{t('domains.spfHardfail')}</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      {spfAllMode === '-all' ? t('domains.spfHardfailDesc') : t('domains.spfSoftfailDesc')}
+                    </Form.Text>
+                  </Form.Group>
+                  <p className="mb-1"><strong>{t('domains.dnsPreview')}:</strong></p>
+                  <pre className="bg-dark text-light p-2 rounded">{computeSpfRecord()}</pre>
+                  {editError && <AlertMessage type="danger" message={editError} translate={false} />}
+                  {editSuccess && <AlertMessage type="success" message={editSuccess} />}
+                  <div className="d-flex gap-2">
+                    <Button variant="primary" size="sm" icon="cloud-upload" text="domains.pushToDns"
+                      onClick={handleSaveSpf} disabled={editSaving} />
+                    <Button variant="secondary" size="sm" text="common.cancel"
+                      onClick={() => setEditingSection(null)} disabled={editSaving} />
+                    {editSaving && <span className="spinner-border spinner-border-sm align-self-center" />}
+                  </div>
+                </div>
+              ) : modalDns.spf ? (
                 <>
                   <pre className="bg-light p-2 rounded">{modalDns.spf}</pre>
                   {spfGrade(modalDns.spf) === 'warning' && (
@@ -520,21 +691,82 @@ const Domains = () => {
                 </>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
 
-              <h6><DnsBadge label="DKIM" value={modalDns.dkim} /> {Translate('domains.dkimRecord')}</h6>
+              <h6 className="d-flex align-items-center">
+                <DnsBadge label="DKIM" value={modalDns.dkim} />
+                <span className="flex-grow-1">{Translate('domains.dkimRecord')}</span>
+                <Button variant="outline-secondary" size="sm" icon="key"
+                  onClick={() => openDkimModal(modalDomain)} />
+              </h6>
               {modalDns.dkim ? (
                 <pre className="bg-light p-2 rounded" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all'}}>{modalDns.dkim}</pre>
               ) : <p className="text-muted">{Translate('domains.missing')}</p>}
               {!modalDns.dkim && generatedDkimRecords[modalDomain] && (
                 <div className="alert alert-info py-2 mt-1">
                   <strong><i className="bi bi-info-circle me-1" />{Translate('domains.dkimPendingDns')}</strong>
-                  <pre className="bg-dark text-light p-2 rounded mt-2 mb-0" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85em'}}>
+                  <pre className="bg-dark text-light p-2 rounded mt-2 mb-1" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85em'}}>
                     {generatedDkimRecords[modalDomain].selector}._domainkey.{modalDomain} IN TXT "{generatedDkimRecords[modalDomain].record}"
                   </pre>
+                  {domainHasProvider(modalDomain) && (
+                    <div className="mt-2">
+                      <Button variant="primary" size="sm" icon="cloud-upload" text="domains.pushDkimToDns"
+                        onClick={() => handlePushDkim(modalDomain, generatedDkimRecords[modalDomain].selector, generatedDkimRecords[modalDomain].record)}
+                        disabled={dkimPushing} />
+                      {dkimPushing && <span className="spinner-border spinner-border-sm ms-2" />}
+                      {dkimPushResult?.success && <AlertMessage type="success" message="domains.dkimPushed" />}
+                      {dkimPushResult && !dkimPushResult.success && <AlertMessage type="danger" message={dkimPushResult.error} translate={false} />}
+                    </div>
+                  )}
                 </div>
               )}
 
-              <h6><DnsBadge label="DMARC" value={modalDns.dmarc} grade={dmarcGrade(modalDns.dmarc)} /> {Translate('domains.dmarcRecord')}</h6>
-              {modalDns.dmarc ? (
+              <h6 className="d-flex align-items-center">
+                <DnsBadge label="DMARC" value={modalDns.dmarc} grade={dmarcGrade(modalDns.dmarc)} />
+                <span className="flex-grow-1">{Translate('domains.dmarcRecord')}</span>
+                {domainHasProvider(modalDomain) && editingSection !== 'dmarc' && (
+                  <Button variant="outline-secondary" size="sm" icon="pencil"
+                    onClick={() => startEditDmarc(modalDns.dmarc)} />
+                )}
+              </h6>
+              {editingSection === 'dmarc' ? (
+                <div className="border rounded p-3 mb-3 bg-light">
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('domains.dmarcPolicyLabel')}</Form.Label>
+                    <Form.Select value={dmarcPolicy} onChange={(e) => setDmarcPolicy(e.target.value)}>
+                      <option value="none">{t('domains.dmarcPolicyNone')}</option>
+                      <option value="quarantine">{t('domains.dmarcPolicyQuarantine')}</option>
+                      <option value="reject">{t('domains.dmarcPolicyReject')}</option>
+                    </Form.Select>
+                    <Form.Text className="text-muted">
+                      {t(`domains.dmarcPolicy${dmarcPolicy.charAt(0).toUpperCase() + dmarcPolicy.slice(1)}Desc`)}
+                    </Form.Text>
+                  </Form.Group>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('domains.dmarcRuaLabel')}</Form.Label>
+                    <Form.Control type="email" value={dmarcRua}
+                      onChange={(e) => setDmarcRua(e.target.value)}
+                      placeholder="dmarc-reports@example.com" />
+                    <Form.Text className="text-muted">{t('domains.dmarcRuaDesc')}</Form.Text>
+                  </Form.Group>
+                  <Form.Group className="mb-3">
+                    <Form.Label>{t('domains.dmarcRufLabel')}</Form.Label>
+                    <Form.Control type="email" value={dmarcRuf}
+                      onChange={(e) => setDmarcRuf(e.target.value)}
+                      placeholder="dmarc-forensic@example.com" />
+                    <Form.Text className="text-muted">{t('domains.dmarcRufDesc')}</Form.Text>
+                  </Form.Group>
+                  <p className="mb-1"><strong>{t('domains.dnsPreview')}:</strong></p>
+                  <pre className="bg-dark text-light p-2 rounded" style={{whiteSpace:'pre-wrap',wordBreak:'break-all'}}>{computeDmarcRecord()}</pre>
+                  {editError && <AlertMessage type="danger" message={editError} translate={false} />}
+                  {editSuccess && <AlertMessage type="success" message={editSuccess} />}
+                  <div className="d-flex gap-2">
+                    <Button variant="primary" size="sm" icon="cloud-upload" text="domains.pushToDns"
+                      onClick={handleSaveDmarc} disabled={editSaving} />
+                    <Button variant="secondary" size="sm" text="common.cancel"
+                      onClick={() => setEditingSection(null)} disabled={editSaving} />
+                    {editSaving && <span className="spinner-border spinner-border-sm align-self-center" />}
+                  </div>
+                </div>
+              ) : modalDns.dmarc ? (
                 <>
                   <pre className="bg-light p-2 rounded">{modalDns.dmarc}</pre>
                   {(() => {
@@ -638,6 +870,16 @@ const Domains = () => {
                   <pre className="bg-dark text-light p-3 rounded" style={{whiteSpace: 'pre-wrap', wordBreak: 'break-all', fontSize: '0.85em'}}>
                     {dkimResult.selector}._domainkey.{dkimDomain} IN TXT "{dkimResult.dnsRecord}"
                   </pre>
+                  {domainHasProvider(dkimDomain) && (
+                    <div className="mb-3">
+                      <Button variant="primary" size="sm" icon="cloud-upload" text="domains.pushDkimToDns"
+                        onClick={() => handlePushDkim(dkimDomain, dkimResult.selector, dkimResult.dnsRecord)}
+                        disabled={dkimPushing} />
+                      {dkimPushing && <span className="spinner-border spinner-border-sm ms-2" />}
+                      {dkimPushResult?.success && <AlertMessage type="success" message="domains.dkimPushed" />}
+                      {dkimPushResult && !dkimPushResult.success && <AlertMessage type="danger" message={dkimPushResult.error} translate={false} />}
+                    </div>
+                  )}
                 </>
               )}
               <p className="text-muted mb-3">
@@ -709,7 +951,7 @@ const Domains = () => {
                   type="text"
                   value={dkimSelector}
                   onChange={(e) => setDkimSelector(e.target.value)}
-                  placeholder="mail"
+                  placeholder="default"
                 />
                 <Form.Text className="text-muted"><Trans i18nKey="domains.dkimSelectorHelp" components={i18nHtmlComponents} /></Form.Text>
               </Form.Group>
@@ -745,20 +987,6 @@ const Domains = () => {
               </Button>
             </>
           )}
-        </Modal.Footer>
-      </Modal>
-
-      {/* External Domain Modal */}
-      <Modal show={showExternalModal} onHide={() => setShowExternalModal(false)}>
-        <Modal.Header closeButton>
-          <Modal.Title><i className="bi bi-globe2 me-2" />{Translate('domains.externalDomain')} — {externalModalDomain}</Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          <p><Trans i18nKey="domains.externalExplanation" values={{domain: externalModalDomain}} components={i18nHtmlComponents} /></p>
-          <p className="text-muted mb-0">{Translate('domains.externalDnsNote')}</p>
-        </Modal.Body>
-        <Modal.Footer>
-          <Button variant="secondary" text="common.cancel" onClick={() => setShowExternalModal(false)} />
         </Modal.Footer>
       </Modal>
 

@@ -499,6 +499,17 @@ export const getDnsLookup = async (containerName=null, domain) => {
   }
 };
 
+export const getDkimSelector = async (containerName) => {
+  if (!containerName) return { success: false, selector: 'mail' };
+  try {
+    const response = await api.get(`/domains/${containerName}/dkim-selector`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    return { success: true, selector: 'mail' };
+  }
+};
+
 export const generateDkim = async (containerName, domain, options = {}) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
   if (!domain) return {success: false, error: 'domain is required'};
@@ -716,5 +727,25 @@ export const resetPassword = async (token, password) => {
   }
 };
 
+
+export const testDnsProvider = async (credentials) => {
+  try {
+    const response = await api.post(`/dnscontrol/test`, credentials);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    return { success: false, error: error.response?.data?.error || error.message };
+  }
+};
+
+export const pushDnsRecord = async (containerName, domain, record) => {
+  try {
+    const response = await api.post(`/dnscontrol/${containerName}/${domain}/records`, record);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    return { success: false, error: error.response?.data?.error || error.message };
+  }
+};
 
 export default api;

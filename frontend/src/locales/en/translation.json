@@ -305,7 +305,25 @@
     "logoDeleted": "Logo removed successfully!",
     "logoUploadError": "Failed to upload logo.",
     "logoDeleteError": "Failed to remove logo.",
-    "colorReset": "Reset"
+    "colorReset": "Reset",
+    "titleDnscontrol": "DNS Providers",
+    "dnsProvider": {
+      "title": "DNS Provider Profiles",
+      "addProfile": "Add Profile",
+      "profileName": "Profile Name",
+      "profileNamePlaceholder": "e.g. domeneshop-personal",
+      "providerType": "Provider Type",
+      "docsLink": "Documentation",
+      "saved": "Profile saved",
+      "deleted": "Profile deleted",
+      "noContainer": "Select a mailserver first",
+      "description": "Configure DNS provider profiles for dnscontrol. Each profile is a named set of credentials for a provider. You can have multiple profiles for the same provider type. Credentials are stored encrypted.",
+      "confirmDelete": "Delete profile \"{{name}}\"?",
+      "nameRequired": "Profile name is required",
+      "nameExists": "A profile with this name already exists",
+      "testButton": "Test Connection",
+      "testNotSupported": "Test not supported for this provider"
+    }
   },
   "common": {
     "actions": "Actions",
@@ -472,6 +490,7 @@
     "dkimExistsNote": "If a DKIM key already exists for this domain and you do <strong>not</strong> check \"Overwrite existing key\", the generation will fail and your current key will remain unchanged. Check the overwrite option only when you intend to replace the existing key.",
     "dkimKeytypeHelp": "RSA 2048 is the most widely supported. Ed25519 is more compact but not yet supported by all providers.",
     "dkimSelectorHelp": "The selector is part of the DNS record name (e.g. <strong>mail</strong>._domainkey). Use a different selector if you want to rotate keys without downtime.",
+    "dkimSelectorConfigNote": "The selector is configured in the DMS rspamd signing config (<strong>dkim_signing.conf</strong>).",
     "dkimRecommended": "recommended",
     "dkimCurrentNotice": "This domain currently uses <strong>{{keytype}} {{keysize}}</strong>. The recommended configuration is <strong>RSA 2048</strong>. The form defaults to the recommended values, but you can change them to match your current setup if preferred.",
     "dkimForceWarning": "The old key will stop working immediately when a new key is generated. Make sure to update your DNS record right away, or outgoing mail may fail DKIM verification until the new record is published.",
@@ -517,7 +536,35 @@
     "dmarcQuarantineHint": "Good — <strong>p=quarantine</strong> sends failing messages to spam. For maximum protection, consider upgrading to <strong>p=reject</strong> once you have confirmed all legitimate mail passes DMARC checks.",
     "dmarcReportingHint": "<strong>DMARC reporting</strong> is not fully configured. Reports let you see who is sending mail on behalf of your domain and whether it passes authentication.",
     "dmarcRuaHint": "<strong>rua</strong> (aggregate reports) is missing. Add e.g. <strong>rua=mailto:dmarc@yourdomain.com</strong> to receive daily summaries of DMARC results from receiving servers. These XML reports show which IPs sent mail for your domain and pass/fail statistics — essential for monitoring before tightening your policy.",
-    "dmarcRufHint": "<strong>ruf</strong> (forensic reports) is missing. Add e.g. <strong>ruf=mailto:dmarc@yourdomain.com</strong> to receive detailed reports for individual messages that fail DMARC. These contain message headers and help diagnose specific delivery problems. Note: not all providers send forensic reports due to privacy concerns."
+    "dmarcRufHint": "<strong>ruf</strong> (forensic reports) is missing. Add e.g. <strong>ruf=mailto:dmarc@yourdomain.com</strong> to receive detailed reports for individual messages that fail DMARC. These contain message headers and help diagnose specific delivery problems. Note: not all providers send forensic reports due to privacy concerns.",
+
+    "pushToDns": "Push to DNS",
+    "dnsPreview": "Preview",
+    "dnsRecordSaved": "DNS record updated successfully!",
+    "dnsRecordError": "Failed to update DNS record",
+    "invalidEmail": "Invalid email address",
+
+    "spfAllMechanism": "SPF enforcement mode",
+    "spfSoftfail": "Softfail — recommended during setup (~all)",
+    "spfHardfail": "Hardfail — recommended for production (-all)",
+    "spfSoftfailDesc": "Receivers will flag unauthorized senders but still deliver the message. Use this while confirming all legitimate senders are included.",
+    "spfHardfailDesc": "Receivers should reject mail from servers not listed in your SPF record. Use this once all legitimate sending sources are confirmed.",
+
+    "dmarcPolicyLabel": "DMARC policy",
+    "dmarcPolicyNone": "None (monitor only)",
+    "dmarcPolicyQuarantine": "Quarantine (send to spam)",
+    "dmarcPolicyReject": "Reject (block entirely)",
+    "dmarcPolicyNoneDesc": "p=none — No action is taken on failing messages. Use during initial setup to monitor via reports.",
+    "dmarcPolicyQuarantineDesc": "p=quarantine — Failing messages are delivered to the spam folder. A good middle ground.",
+    "dmarcPolicyRejectDesc": "p=reject — Failing messages are blocked entirely. Maximum protection against spoofing.",
+    "dmarcRuaLabel": "Aggregate reports (rua)",
+    "dmarcRuaDesc": "Email address for daily aggregate reports showing which IPs send mail for your domain. Can be a 3rd party service like DMARCian.",
+    "dmarcRufLabel": "Forensic reports (ruf)",
+    "dmarcRufDesc": "Email address for detailed failure reports on individual messages. Not all providers send these.",
+
+    "pushDkimToDns": "Push DKIM to DNS",
+    "dkimPushed": "DKIM record pushed to DNS successfully!",
+    "dkimPushError": "Failed to push DKIM record to DNS"
   },
   "logs": {
     "sidebar": "Logs",

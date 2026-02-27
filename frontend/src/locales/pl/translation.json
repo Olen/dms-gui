@@ -171,7 +171,25 @@
     "logoDeleted": "Logo usunięte pomyślnie!",
     "logoUploadError": "Nie udało się przesłać logo.",
     "logoDeleteError": "Nie udało się usunąć logo.",
-    "colorReset": "Resetuj"
+    "colorReset": "Resetuj",
+    "titleDnscontrol": "Dostawcy DNS",
+    "dnsProvider": {
+      "title": "Profile dostawców DNS",
+      "addProfile": "Dodaj profil",
+      "profileName": "Nazwa profilu",
+      "profileNamePlaceholder": "np. domeneshop-prywatny",
+      "providerType": "Typ dostawcy",
+      "docsLink": "Dokumentacja",
+      "saved": "Profil zapisany",
+      "deleted": "Profil usunięty",
+      "noContainer": "Najpierw wybierz serwer pocztowy",
+      "description": "Konfiguracja profili dostawców DNS dla dnscontrol. Każdy profil to nazwany zestaw danych uwierzytelniających. Możesz mieć wiele profili dla tego samego dostawcy. Dane są przechowywane w formie zaszyfrowanej.",
+      "confirmDelete": "Usunąć profil \"{{name}}\"?",
+      "nameRequired": "Nazwa profilu jest wymagana",
+      "nameExists": "Profil o tej nazwie już istnieje",
+      "testButton": "Testuj połączenie",
+      "testNotSupported": "Test nie jest obsługiwany dla tego dostawcy"
+    }
   },
   "common": {
     "loading": "Ładowanie...",
@@ -300,6 +318,7 @@
     "dkimExistsNote": "Jeśli klucz DKIM już istnieje dla tej domeny i <strong>nie</strong> zaznaczysz \"Nadpisz istniejący klucz\", generowanie zakończy się błędem, a obecny klucz pozostanie bez zmian. Zaznacz opcję nadpisywania tylko gdy zamierzasz zastąpić istniejący klucz.",
     "dkimKeytypeHelp": "RSA 2048 jest najszerzej obsługiwany. Ed25519 jest bardziej kompaktowy, ale nie jest jeszcze obsługiwany przez wszystkich dostawców.",
     "dkimSelectorHelp": "Selektor jest częścią nazwy rekordu DNS (np. <strong>mail</strong>._domainkey). Użyj innego selektora, jeśli chcesz rotować klucze bez przestoju.",
+    "dkimSelectorConfigNote": "Selektor jest skonfigurowany w pliku rspamd DMS (<strong>dkim_signing.conf</strong>).",
     "dkimRecommended": "zalecane",
     "dkimCurrentNotice": "Ta domena obecnie używa <strong>{{keytype}} {{keysize}}</strong>. Zalecana konfiguracja to <strong>RSA 2048</strong>. Formularz domyślnie wybiera zalecane wartości, ale możesz je zmienić, aby dopasować do obecnej konfiguracji.",
     "dkimForceWarning": "Stary klucz przestanie działać natychmiast po wygenerowaniu nowego. Zaktualizuj rekord DNS od razu, w przeciwnym razie wychodząca poczta może nie przejść weryfikacji DKIM do czasu opublikowania nowego rekordu.",
@@ -345,7 +364,35 @@
     "dmarcQuarantineHint": "Dobrze — <strong>p=quarantine</strong> przenosi wiadomości do spamu. Dla maksymalnej ochrony rozważ zmianę na <strong>p=reject</strong>, gdy potwierdzisz, że cała legalna poczta przechodzi weryfikację DMARC.",
     "dmarcReportingHint": "<strong>Raportowanie DMARC</strong> nie jest w pełni skonfigurowane. Raporty pozwalają zobaczyć, kto wysyła pocztę w imieniu Twojej domeny i czy przechodzi ona uwierzytelnianie.",
     "dmarcRuaHint": "<strong>rua</strong> (raporty zbiorcze) nie jest ustawione. Dodaj np. <strong>rua=mailto:dmarc@twojadomena.com</strong>, aby otrzymywać dzienne podsumowania wyników DMARC od serwerów odbiorczych. Te raporty XML pokazują, które adresy IP wysyłały pocztę z Twojej domeny oraz statystyki weryfikacji — niezbędne do monitorowania przed zaostrzeniem polityki.",
-    "dmarcRufHint": "<strong>ruf</strong> (raporty szczegółowe) nie jest ustawione. Dodaj np. <strong>ruf=mailto:dmarc@twojadomena.com</strong>, aby otrzymywać szczegółowe raporty o poszczególnych wiadomościach, które nie przeszły DMARC. Zawierają nagłówki wiadomości i pomagają diagnozować konkretne problemy z dostarczaniem. Uwaga: nie wszyscy dostawcy wysyłają raporty szczegółowe ze względu na prywatność."
+    "dmarcRufHint": "<strong>ruf</strong> (raporty szczegółowe) nie jest ustawione. Dodaj np. <strong>ruf=mailto:dmarc@twojadomena.com</strong>, aby otrzymywać szczegółowe raporty o poszczególnych wiadomościach, które nie przeszły DMARC. Zawierają nagłówki wiadomości i pomagają diagnozować konkretne problemy z dostarczaniem. Uwaga: nie wszyscy dostawcy wysyłają raporty szczegółowe ze względu na prywatność.",
+
+    "pushToDns": "Wyślij do DNS",
+    "dnsPreview": "Podgląd",
+    "dnsRecordSaved": "Rekord DNS zaktualizowany pomyślnie!",
+    "dnsRecordError": "Nie udało się zaktualizować rekordu DNS",
+    "invalidEmail": "Nieprawidłowy adres e-mail",
+
+    "spfAllMechanism": "Tryb egzekwowania SPF",
+    "spfSoftfail": "Softfail — zalecany podczas konfiguracji (~all)",
+    "spfHardfail": "Hardfail — zalecany w produkcji (-all)",
+    "spfSoftfailDesc": "Odbiorcy oznaczą nieautoryzowanych nadawców, ale dostarczą wiadomość. Używaj podczas potwierdzania wszystkich legalnych nadawców.",
+    "spfHardfailDesc": "Odbiorcy powinni odrzucić pocztę z serwerów niewymienionych w rekordzie SPF. Używaj po potwierdzeniu wszystkich legalnych źródeł.",
+
+    "dmarcPolicyLabel": "Polityka DMARC",
+    "dmarcPolicyNone": "Brak (tylko monitorowanie)",
+    "dmarcPolicyQuarantine": "Kwarantanna (do spamu)",
+    "dmarcPolicyReject": "Odrzuć (zablokuj całkowicie)",
+    "dmarcPolicyNoneDesc": "p=none — Brak działań wobec wiadomości niespełniających wymagań. Używaj podczas początkowej konfiguracji do monitorowania.",
+    "dmarcPolicyQuarantineDesc": "p=quarantine — Wiadomości niespełniające wymagań trafiają do spamu. Dobry kompromis.",
+    "dmarcPolicyRejectDesc": "p=reject — Wiadomości niespełniające wymagań są blokowane. Maksymalna ochrona przed spoofingiem.",
+    "dmarcRuaLabel": "Raporty zbiorcze (rua)",
+    "dmarcRuaDesc": "Adres e-mail na dzienne raporty zbiorcze pokazujące, które IP wysyłają pocztę z Twojej domeny. Może być usługa zewnętrzna jak DMARCian.",
+    "dmarcRufLabel": "Raporty szczegółowe (ruf)",
+    "dmarcRufDesc": "Adres e-mail na szczegółowe raporty o poszczególnych wiadomościach. Nie wszyscy dostawcy je wysyłają.",
+
+    "pushDkimToDns": "Wyślij DKIM do DNS",
+    "dkimPushed": "Rekord DKIM wysłany do DNS pomyślnie!",
+    "dkimPushError": "Nie udało się wysłać rekordu DKIM do DNS"
   },
   "logs": {
     "sidebar": "Logi",

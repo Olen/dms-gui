@@ -483,10 +483,13 @@ domains: {
                ON CONFLICT(domain) DO UPDATE SET dkim=excluded.dkim, keytype=excluded.keytype, keysize=excluded.keysize, path=excluded.path, configID=excluded.configID`,
   },
   
+  update: {
+  },
+
   delete: {
     domain:   `DELETE FROM domains WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND domain = ?`,
   },
-  
+
   init:  `BEGIN TRANSACTION;
           CREATE TABLE IF NOT EXISTS domains (
           id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -1027,7 +1030,7 @@ export const generateIv = () => {
 
 export const encrypt = data => {
   const iv = generateIv();
-  const cipher = crypto.createCipheriv(env.AES_ALGO, Buffer.from(key), iv);
+  const cipher = crypto.createCipheriv(env.AES_ALGO, Buffer.from(env.AES_KEY), iv);
   let encrypted = cipher.update(data, 'utf-8', 'hex');
   encrypted += cipher.final('hex');
   // Combine IV and encrypted data for storage
@@ -1038,7 +1041,7 @@ export const decrypt = encryptedData => {
   const ivLength = env.IV_LEN * 2; // env.IV_LEN bytes * 2 for hex representation
   const iv = Buffer.from(encryptedData.slice(0, ivLength), 'hex');
   const ciphertext = encryptedData.slice(ivLength);
-  const decipher = crypto.createDecipheriv(env.AES_ALGO, Buffer.from(key), iv);
+  const decipher = crypto.createDecipheriv(env.AES_ALGO, Buffer.from(env.AES_KEY), iv);
   let decrypted = decipher.update(ciphertext, 'hex', 'utf-8');
   decrypted += decipher.final('utf-8');
   return decrypted;

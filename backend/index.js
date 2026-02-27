@@ -4,7 +4,8 @@ import {
   infoLog,
 } from './backend.mjs';
 import {
-  env
+  env,
+  plugins,
 } from './env.mjs';
 
 import {
@@ -28,6 +29,7 @@ import {
   dnsLookup,
   dnsblCheck,
   generateDkim,
+  getDkimSelector,
   getConfigs,
   getDomains,
   getNodeInfos,
@@ -61,6 +63,10 @@ import {
   generateAutoconfig,
   generateMobileconfig,
 } from './mailprofile.mjs';
+
+import {
+  upsertDnsRecord,
+} from './dnsProviders.mjs';
 
 import {
   addAlias,
@@ -1602,8 +1608,20 @@ async (req, res) => {
     // for non-admins:  for mailserver plugin we send scope=roles, for anything else we send scope=userID
     debugLog(            `getConfigs(${plugin}, ${(req.user.isAdmin) ? [] : (plugin == 'mailserver') ? req.user.roles : [req.user.id]}, ${name})`)
     const configs = await getConfigs(plugin,      (req.user.isAdmin) ? [] : (plugin == 'mailserver') ? req.user.roles : [req.user.id],    name);
+
+    // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
+    // always serve the static templates — DB rows are container configs, not templates
+    if (plugin !== 'mailserver' && plugins[plugin]) {
+      const templateEntries = Object.entries(plugins[plugin]).map(([key, val]) => ({ name: key, value: val }));
+      if (name) {
+        const filtered = templateEntries.filter(e => e.name === name);
+        return res.json({ success: true, message: filtered });
+      }
+      return res.json({ success: true, message: templateEntries });
+    }
+
     res.json(configs);
-    
+
   } catch (error) {
     errorLog(`GET /api/configs: ${error.message}`);
     res.status(500).json({ error: error.message });
@@ -1685,6 +1703,91 @@ async (req, res) => {
     errorLog(`index POST /api/settings: ${error.message}`);
     // res.status(500).json({ error: 'Unable to save settings' });
     res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for testing DNS provider credentials
+app.post('/api/dnscontrol/test',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { type, ...creds } = req.body;
+    if (!type) return res.status(400).json({ success: false, error: 'Provider type is required' });
+
+    const providerType = type.toUpperCase();
+    let testResult;
+
+    if (providerType === 'DOMAINNAMESHOP') {
+      // Domeneshop: GET /v0/domains with HTTP Basic (token:secret)
+      const response = await fetch('https://api.domeneshop.no/v0/domains', {
+        headers: { 'Authorization': 'Basic ' + Buffer.from(`${creds.token}:${creds.secret}`).toString('base64') },
+      });
+      if (response.ok) {
+        const domains = await response.json();
+        testResult = { success: true, message: `OK — ${domains.length} domain(s) found` };
+      } else {
+        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+      }
+
+    } else if (providerType === 'CLOUDFLAREAPI') {
+      // Cloudflare: GET /client/v4/user/tokens/verify with Bearer token
+      const response = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
+        headers: { 'Authorization': `Bearer ${creds.apitoken}` },
+      });
+      const data = await response.json();
+      if (data.success) {
+        testResult = { success: true, message: `OK — token status: ${data.result?.status || 'active'}` };
+      } else {
+        testResult = { success: false, error: data.errors?.[0]?.message || `HTTP ${response.status}` };
+      }
+
+    } else if (providerType === 'ROUTE53') {
+      // Route53: would need AWS SDK — not practical for a quick test
+      testResult = { success: false, error: 'Test not supported for Route53 — verify credentials by assigning a domain' };
+
+    } else if (providerType === 'ORACLE') {
+      testResult = { success: false, error: 'Test not supported for Oracle — verify credentials by assigning a domain' };
+
+    } else if (providerType === 'AZURE_PRIVATE_DNS') {
+      testResult = { success: false, error: 'Test not supported for Azure Private DNS — verify credentials by assigning a domain' };
+
+    } else {
+      testResult = { success: false, error: `Test not supported for provider type: ${type}` };
+    }
+
+    res.json(testResult);
+
+  } catch (error) {
+    errorLog(`POST /api/dnscontrol/test: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
+  }
+});
+
+
+// Endpoint for pushing DNS records to a domain's assigned DNS provider
+app.post('/api/dnscontrol/:containerName/:domain/records',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName, domain } = req.params;
+    if (!containerName) return res.status(400).json({ success: false, error: 'containerName is required' });
+    if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
+    if (!isValidDomain(domain)) return res.status(400).json({ success: false, error: 'Invalid domain format' });
+
+    const { name, type, data } = req.body;
+    if (!name || !type || !data) return res.status(400).json({ success: false, error: 'name, type, and data are required' });
+
+    const result = await upsertDnsRecord(containerName, domain, { name, type, data });
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`POST /api/dnscontrol/records: ${error.message}`);
+    res.status(500).json({ success: false, error: error.message });
   }
 });
 
@@ -2178,6 +2281,22 @@ app.post('/api/logout', authenticateToken, async (req, res) => {
   }
 });
 
+
+// Get DKIM selector from rspamd signing config
+app.get('/api/domains/:containerName/dkim-selector',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    const result = await getDkimSelector('mailserver', containerName);
+    res.json(result);
+  } catch (error) {
+    errorLog(`index GET /api/domains/dkim-selector: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
 
 // Endpoint for retrieving domains
 /**
