@@ -1407,6 +1407,53 @@ export const getRspamdStats = async (plugin = 'mailserver', containerName = null
 };
 
 
+// Per-user Bayes learn statistics from Redis
+// Returns an array of { user, ham, spam } sorted by user, plus a _total row
+export const getRspamdBayesUsers = async (plugin = 'mailserver', containerName = null) => {
+  debugLog(`getRspamdBayesUsers containerName=${containerName}`);
+  if (!containerName) return { success: false, error: 'getRspamdBayesUsers: containerName is required' };
+
+  try {
+    const targetDict = getTargetDict(plugin, containerName);
+
+    // Single Redis EVAL: find all RS<user@domain> metadata keys, return user/ham/spam
+    const luaScript = `
+      local result = {}
+      local keys = redis.call('KEYS', 'RS*')
+      for _, k in ipairs(keys) do
+        local user = k:sub(3)
+        if user:find('@') and not user:find('_[%dA-Fa-f]') then
+          local ham = redis.call('HGET', k, 'learns_ham') or '0'
+          local spam = redis.call('HGET', k, 'learns_spam') or '0'
+          table.insert(result, user .. ' ' .. ham .. ' ' .. spam)
+        end
+      end
+      table.sort(result)
+      return table.concat(result, '\\n')
+    `.replace(/\n\s*/g, ' ').trim();
+
+    const cmd = `redis-cli --no-auth-warning EVAL "${luaScript}" 0`;
+    const result = await execCommand(cmd, targetDict, { timeout: 10 });
+
+    if (result.returncode) {
+      return { success: false, error: result.stderr || 'Redis query failed' };
+    }
+
+    const lines = (result.stdout || '').trim().split('\n').filter(l => l.trim());
+    const users = lines.map(line => {
+      const [user, ham, spam] = line.trim().split(/\s+/);
+      return { user, ham: parseInt(ham) || 0, spam: parseInt(spam) || 0 };
+    });
+
+    return { success: true, message: users };
+
+  } catch (error) {
+    errorLog(`getRspamdBayesUsers error:`, error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
 // Rspamd top symbol counters (aggregated from history)
 // Note: rspamd's history buffer defaults to 200 rows (in-memory) or is configured via
 // history_redis.conf (nrows = N) when using the history_redis module. To increase the

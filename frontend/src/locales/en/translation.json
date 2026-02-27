@@ -307,6 +307,13 @@
     "memory": "Memory",
     "fuzzyHashes": "Fuzzy Hashes",
     "totalLearned": "Total Learned",
+    "bayesUsers": {
+      "title": "Per-User Bayes Statistics",
+      "user": "User",
+      "ham": "Ham",
+      "spam": "Spam",
+      "total": "Total"
+    },
     "topSymbols": "Top Symbols",
     "symbol": "Symbol",
     "frequency": "Frequency",

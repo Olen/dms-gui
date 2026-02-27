@@ -27,6 +27,7 @@ import {
   getConfigs,
   getDomains,
   getNodeInfos,
+  getRspamdBayesUsers,
   getRspamdCounters,
   getRspamdHistory,
   getRspamdStats,
@@ -1733,6 +1734,26 @@ async (req, res) => {
 
   } catch (error) {
     errorLog(`index GET /api/rspamd/counters: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
+// Endpoint for per-user Bayes learn statistics from Redis
+app.get('/api/rspamd/:containerName/bayes-users',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const result = await getRspamdBayesUsers('mailserver', containerName);
+    res.json(result);
+
+  } catch (error) {
+    errorLog(`GET /api/rspamd/bayes-users: ${error.message}`);
     res.status(500).json({ error: error.message });
   }
 });

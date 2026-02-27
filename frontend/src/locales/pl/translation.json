@@ -140,6 +140,13 @@
     "memory": "Pamięć",
     "fuzzyHashes": "Hasze Fuzzy",
     "totalLearned": "Łącznie nauczone",
+    "bayesUsers": {
+      "title": "Statystyki Bayes na użytkownika",
+      "user": "Użytkownik",
+      "ham": "Ham",
+      "spam": "Spam",
+      "total": "Razem"
+    },
     "topSymbols": "Najczęstsze symbole",
     "symbol": "Symbol",
     "frequency": "Częstotliwość",
