@@ -2,7 +2,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Row, Col, Badge, ProgressBar, Spinner, Table } from 'react-bootstrap';
 import { useLocalStorage } from '../hooks/useLocalStorage';
-import { getRspamdStats, getRspamdCounters, getRspamdHistory, rspamdLearnMessage } from '../services/api.mjs';
+import { getRspamdStats, getRspamdCounters, getRspamdBayesUsers, getRspamdHistory, rspamdLearnMessage } from '../services/api.mjs';
 
 import {
   AlertMessage,
@@ -44,6 +44,7 @@ const Rspamd = () => {
   const [adminRspamdUrl, setAdminRspamdUrl] = useState('');
   const [stat, setStat] = useState(null);
   const [counters, setCounters] = useState([]);
+  const [bayesUsers, setBayesUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
 
@@ -62,13 +63,15 @@ const Rspamd = () => {
     setLoading(true);
     setError(null);
     try {
-      const [statResult, countersResult] = await Promise.all([
+      const [statResult, countersResult, bayesUsersResult] = await Promise.all([
         getRspamdStats(containerName),
         getRspamdCounters(containerName),
+        getRspamdBayesUsers(containerName),
       ]);
       if (statResult.success) setStat(statResult.message);
       else setError(statResult.error);
       if (countersResult.success) setCounters(countersResult.message || []);
+      if (bayesUsersResult.success) setBayesUsers(bayesUsersResult.message || []);
 
       // Use admin-configured RSPAMD_URL if available (from user-experience PR)
       try {
@@ -264,6 +267,48 @@ const Rspamd = () => {
           </Col>
         </Row>
       </Card>
+
+      {/* Per-user Bayes stats */}
+      {bayesUsers.length > 0 && (
+        <Card title="rspamd.bayesUsers.title">
+          <Table size="sm" striped hover responsive>
+            <thead>
+              <tr>
+                <th>{Translate('rspamd.bayesUsers.user')}</th>
+                <th className="text-end">{Translate('rspamd.bayesUsers.ham')}</th>
+                <th className="text-end">{Translate('rspamd.bayesUsers.spam')}</th>
+                <th className="text-end">{Translate('rspamd.bayesUsers.total')}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bayesUsers.map((u, i) => (
+                <tr key={i}>
+                  <td><code>{u.user}</code></td>
+                  <td className="text-end">
+                    <Badge bg="success">{u.ham}</Badge>
+                  </td>
+                  <td className="text-end">
+                    <Badge bg="danger">{u.spam}</Badge>
+                  </td>
+                  <td className="text-end">{u.ham + u.spam}</td>
+                </tr>
+              ))}
+              {bayesUsers.length > 1 && (
+                <tr className="fw-bold">
+                  <td>{Translate('rspamd.bayesUsers.total')}</td>
+                  <td className="text-end">
+                    <Badge bg="success">{bayesUsers.reduce((s, u) => s + u.ham, 0)}</Badge>
+                  </td>
+                  <td className="text-end">
+                    <Badge bg="danger">{bayesUsers.reduce((s, u) => s + u.spam, 0)}</Badge>
+                  </td>
+                  <td className="text-end">{bayesUsers.reduce((s, u) => s + u.ham + u.spam, 0)}</td>
+                </tr>
+              )}
+            </tbody>
+          </Table>
+        </Card>
+      )}
 
       {/* Top symbols */}
       {counters.length > 0 && (
