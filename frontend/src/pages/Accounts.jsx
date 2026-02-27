@@ -36,6 +36,7 @@ import {
   getAccounts,
   getDomains,
   getDovecotSessions,
+  generatePassword,
   getServerEnvs,
   addAccount,
   deleteAccount,
@@ -83,6 +84,7 @@ const Accounts = () => {
     createLogin: 1,
   });
   const [newAccountFormErrors, setNewAccountFormErrors] = useState({});
+  const [suggestedPassword, setSuggestedPassword] = useState(null);
 
   // State for password change modal -------------------------------
   const [selectedAccount, setSelectedAccount] = useState(null);
@@ -181,6 +183,24 @@ const Accounts = () => {
     }
   };
 
+  const handleSuggestPassword = async () => {
+    try {
+      const result = await generatePassword(4);
+      if (result.success) {
+        const passphrase = result.message;
+        setNewAccountFormData({
+          ...newAccountformData,
+          password: passphrase,
+          confirmPassword: passphrase,
+        });
+        setSuggestedPassword(passphrase);
+        setNewAccountFormErrors({ ...newAccountFormErrors, password: null, confirmPassword: null });
+      }
+    } catch (error) {
+      errorLog('generatePassword', error);
+    }
+  };
+
   const validateNewAccountForm = () => {
     const errors = {};
 
@@ -188,6 +208,15 @@ const Accounts = () => {
       errors.mailbox = 'accounts.mailboxRequired';
     } else if (!regexEmailStrict.test(newAccountformData.mailbox)) {
       errors.mailbox = 'accounts.invalidMailbox';
+    } else {
+      // Check if domain is known (from existing accounts)
+      const domain = newAccountformData.mailbox.split('@')[1];
+      const knownDomains = [...new Set(accounts.map(a => a.domain).filter(Boolean))];
+      if (domain && knownDomains.length && !knownDomains.includes(domain)) {
+        if (!window.confirm(t('accounts.unknownDomain', { domain }))) {
+          errors.mailbox = 'accounts.unknownDomainError';
+        }
+      }
     }
 
     if (!newAccountformData.password) {
@@ -227,6 +256,7 @@ const Accounts = () => {
           confirmPassword: '',
           createLogin: 1,
         });
+        setSuggestedPassword(null);
         fetchAccounts(true); // Refresh the accounts list
         setSuccessMessage('accounts.accountCreated');
         
@@ -574,7 +604,21 @@ const Accounts = () => {
               onChange={handleNewAccountInputChange}
               error={newAccountFormErrors.password}
               required
-            />
+            >
+              <Button
+                variant="outline-secondary"
+                icon="dice-5-fill"
+                title={t('accounts.suggestPassword')}
+                onClick={handleSuggestPassword}
+              />
+            </FormField>
+
+            {suggestedPassword && (
+              <div className="mb-3 p-2 bg-light border rounded d-flex align-items-center justify-content-between">
+                <code className="fs-6 user-select-all">{suggestedPassword}</code>
+                <small className="text-muted ms-2">{t('accounts.suggestPasswordHint')}</small>
+              </div>
+            )}
 
             <FormField
               type="password"

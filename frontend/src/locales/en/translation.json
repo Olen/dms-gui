@@ -151,7 +151,11 @@
     "title": "Mailbox Management",
     "sidebar": "Mailbox Accounts",
     "updateDNS": "Update DNS",
-    "changePassword": "Update Password"
+    "changePassword": "Update Password",
+    "suggestPassword": "Suggest passphrase",
+    "suggestPasswordHint": "Note this down before submitting",
+    "unknownDomain": "The domain \"{{domain}}\" has no existing accounts on this server. Are you sure you want to create an account for this domain?",
+    "unknownDomainError": "Account creation cancelled — unknown domain"
   },
   "aliases": {
     "addAlias": "Add Alias",

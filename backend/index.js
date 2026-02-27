@@ -1390,6 +1390,24 @@ async (req, res) => {
 });
 
 
+// Generate a random passphrase
+import { generatePassphrase } from './passphrase.mjs';
+app.get('/api/generate-password',
+  authenticateToken,
+  requireActive,
+(req, res) => {
+  try {
+    const words = parseInt(req.query.words) || 4;
+    const count = Math.min(Math.max(words, 3), 8); // clamp 3-8 words
+    const passphrase = generatePassphrase(count);
+    res.json({ success: true, message: passphrase });
+  } catch (error) {
+    errorLog(`GET /api/generate-password: ${error.message}`);
+    res.status(500).json({ error: error.message });
+  }
+});
+
+
 // Endpoint for per-user rspamd summary (no admin required)
 app.get('/api/rspamd/:containerName/user-summary',
   authenticateToken,

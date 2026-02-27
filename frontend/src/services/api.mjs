@@ -403,6 +403,16 @@ export const getRspamdUserSummary = async (containerName=null) => {
   }
 };
 
+export const generatePassword = async (words=4) => {
+  try {
+    const response = await api.get(`/generate-password`, { params: { words } });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getDovecotSessions = async (containerName=null) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 
