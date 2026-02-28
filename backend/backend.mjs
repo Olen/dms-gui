@@ -243,6 +243,9 @@ export const ping = async (host=null) => {
 
   if (env.isDEMO) return {success: true, message: "mock response"};
   try {
+    if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(host)) {
+      return {success: false, error: 'Invalid hostname'};
+    }
     const { stdout, stderr } = await exec(`ping -q -c 1 -A ${host}`);
     // debugLog(`stdout: ${stdout}`);
     if (stderr) {

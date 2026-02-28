@@ -66,7 +66,11 @@ export const getLogin = async (credential, guess=false) => {
       }
 
     } else if (typeof credential == "object" && Object.keys(credential).length == 1) {
-      login = dbGet(sql.logins.select.loginObj.replace("{key}", Object.keys(credential)[0]), credential);
+      const key = Object.keys(credential)[0];
+      if (!['id', 'mailbox', 'username'].includes(key)) {
+        return {success: false, message: 'invalid credential key'};
+      }
+      login = dbGet(sql.logins.select.loginObj.replace("{key}", key), credential);
     }
     if (login.success) {
       
@@ -156,7 +160,11 @@ export const getRoles = async (credential=null) => {
     if (typeof credential == "string") {
       roles = dbGet(sql.logins.select.roles, {[sql.logins.id]: credential});
     } else if (typeof credential == "object" && Object.keys(credential).length == 1) {
-      roles = dbGet(sql.logins.select.rolesObj.replace("{key}", Object.keys(credential)[0]), credential);
+      const key = Object.keys(credential)[0];
+      if (!['id', 'mailbox', 'username'].includes(key)) {
+        return {success: false, message: 'invalid credential key'};
+      }
+      roles = dbGet(sql.logins.select.rolesObj.replace("{key}", key), credential);
     }
     if (roles.success) {
       return {success: true, message: JSON.parse(roles.message)};

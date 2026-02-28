@@ -55,11 +55,14 @@ const mockGetAccounts = vi.fn();
 const mockAddAlias = vi.fn();
 const mockDeleteAlias = vi.fn();
 
+const mockGetUserSettings = vi.fn();
+
 vi.mock('../services/api.mjs', () => ({
   getAliases: (...args) => mockGetAliases(...args),
   getAccounts: (...args) => mockGetAccounts(...args),
   addAlias: (...args) => mockAddAlias(...args),
   deleteAlias: (...args) => mockDeleteAlias(...args),
+  getUserSettings: (...args) => mockGetUserSettings(...args),
 }));
 
 vi.mock('../components/index.jsx', () => ({
@@ -117,6 +120,7 @@ function setupMocks({ aliases = defaultAliases, accounts = defaultAccounts } = {
   mockGetAliases.mockResolvedValue({ success: true, message: aliases });
   mockGetAccounts.mockResolvedValue({ success: true, message: accounts });
   mockAddAlias.mockResolvedValue({ success: true });
+  mockGetUserSettings.mockResolvedValue({ success: true, message: { ALLOW_USER_ALIASES: 'true' } });
 }
 
 /** Get the react-select combobox input */

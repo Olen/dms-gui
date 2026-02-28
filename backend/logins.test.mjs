@@ -26,11 +26,17 @@ vi.mock('./db.mjs', () => ({
   verifyPassword: vi.fn(async () => true),
   sql: {
     logins: {
+      id: 'mailbox',
       insert: { login: 'INSERT INTO logins ...' },
       select: {
+        login: 'SELECT * FROM logins WHERE mailbox = @mailbox',
+        loginObj: 'SELECT * FROM logins WHERE {key} = @value',
+        loginGuess: 'SELECT * FROM logins WHERE mailbox = @mailbox OR username = @username',
         loginByMailbox: 'SELECT ...',
         loginByUsername: 'SELECT ...',
         loginById: 'SELECT ...',
+        roles: 'SELECT roles FROM logins WHERE mailbox = @mailbox',
+        rolesObj: 'SELECT roles FROM logins WHERE {key} = @value',
       },
     },
   },
@@ -38,7 +44,8 @@ vi.mock('./db.mjs', () => ({
 
 vi.mock('../common.mjs', () => ({}));
 
-import { addLogin } from './logins.mjs';
+import { addLogin, getLogin, getRoles } from './logins.mjs';
+import { dbGet } from './db.mjs';
 
 describe('addLogin — password redaction', () => {
   beforeEach(() => {
@@ -93,5 +100,53 @@ describe('addLogin — password redaction', () => {
 
     const firstCall = mockDebugLog.mock.calls[0];
     expect(firstCall).toContain('[REDACTED]');
+  });
+});
+
+
+describe('getLogin — key validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects invalid credential key', async () => {
+    const result = await getLogin({ invalidKey: 'test' });
+    expect(result).toEqual({ success: false, message: 'invalid credential key' });
+    expect(dbGet).not.toHaveBeenCalled();
+  });
+
+  it('accepts valid key and calls dbGet', async () => {
+    dbGet.mockReturnValueOnce({ success: false });
+    await getLogin({ id: 'test' });
+    expect(dbGet).toHaveBeenCalled();
+  });
+
+  it('uses parameterized query for string credential', async () => {
+    dbGet.mockReturnValueOnce({ success: false });
+    await getLogin('user@example.com');
+    expect(dbGet).toHaveBeenCalledWith(
+      expect.any(String),
+      { mailbox: 'user@example.com' },
+    );
+  });
+});
+
+
+describe('getRoles — key validation', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('rejects invalid credential key', async () => {
+    const result = await getRoles({ badKey: 'test' });
+    expect(result).toEqual({ success: false, message: 'invalid credential key' });
+    expect(dbGet).not.toHaveBeenCalled();
+  });
+
+  it('accepts valid key and calls dbGet', async () => {
+    dbGet.mockReturnValueOnce({ success: true, message: '["admin"]' });
+    const result = await getRoles({ mailbox: 'user@test.com' });
+    expect(dbGet).toHaveBeenCalled();
+    expect(result).toEqual({ success: true, message: ['admin'] });
   });
 });

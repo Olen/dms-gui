@@ -72,8 +72,8 @@ export const env = {
   AES_ALGO: process.env.AES_ALGO || 'aes-256-cbc',
   // AES_HASH is the used to hash the secret key
   AES_HASH: process.env.AES_HASH || 'sha512',
-  // Derive a 256-bit key from your secretKey
-  AES_KEY: crypto.createHash(process.env.AES_HASH || 'sha512').update(process.env.AES_SECRET || 'changeme').digest('hex').substring(0, 32),
+  // Derive a 256-bit key from your secretKey (raw 32 bytes for true AES-256)
+  AES_KEY: crypto.createHash(process.env.AES_HASH || 'sha512').update(process.env.AES_SECRET || 'changeme').digest().subarray(0, 32),
 
   // doveadm API port, possible to especially with dovecot 2.4, but not used and likely never will
   // DOVEADM_PORT: ((process.env.DOVEADM_PORT) ? process.env.DOVEADM_PORT : 8080),

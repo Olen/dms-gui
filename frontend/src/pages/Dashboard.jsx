@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import {
@@ -76,6 +76,15 @@ const Dashboard = () => {
   const [spamSummary, setSpamSummary] = useState(null);
   const [userQuota, setUserQuota] = useState(null);
 
+  const fetchAll = useCallback(async () => {
+    fetchDashboard();
+    if (user?.isAdmin != 1) {
+      fetchUserSettings();
+      fetchSpamSummary();
+      fetchUserQuota();
+    }
+  }, [containerName, user, mailservers]);
+
   useEffect(() => {
     fetchAll();
 
@@ -83,16 +92,7 @@ const Dashboard = () => {
     const interval = setInterval(fetchAll, 30000);
 
     return () => clearInterval(interval);
-  }, []);
-
-  const fetchAll = async () => {
-    fetchDashboard();
-    if (user?.isAdmin != 1) {
-      fetchUserSettings();
-      fetchSpamSummary();
-      fetchUserQuota();
-    }
-  };
+  }, [fetchAll]);
 
   const fetchUserSettings = async () => {
     if (!containerName) return;

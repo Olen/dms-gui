@@ -16,6 +16,7 @@ import {
 import {
   moveKeyToLast,
   pluck,
+  regexUsername,
 } from '../../../common.mjs';
 
 import {

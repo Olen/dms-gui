@@ -58,7 +58,7 @@ export const AuthProvider = ({ children }) => {
       mailservers,
       isDEMO,
     }),
-    [user, containerName, mailservers]
+    [user, containerName, mailservers, isDEMO]
   );
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 };

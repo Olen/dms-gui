@@ -6,3 +6,7 @@
 docker-compose.yml
 vitest.config.js
 CODE-REVIEW.md
+**/*.test.*
+.env*
+config/
+eslint.config.js

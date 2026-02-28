@@ -15,8 +15,8 @@ vi.mock('./env.mjs', () => {
       AES_KEY: crypto
         .createHash('sha512')
         .update(secret)
-        .digest('hex')
-        .substring(0, 32),
+        .digest()
+        .subarray(0, 32),
       IV_LEN: 16,
       HASH_LEN: 64,
       DATABASE: ':memory:',

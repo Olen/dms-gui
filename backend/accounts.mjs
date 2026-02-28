@@ -514,14 +514,15 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
     if (!doveadm[command]) throw new Error(`unknown command: ${command}`);
     const targetDict = getTargetDict('mailserver', containerName);
     
-    let formattedCommand = doveadm[command].cmd.replace(/{mailbox}/g, mailbox);
+    let formattedCommand = doveadm[command].cmd.replace(/{mailbox}/g, escapeShellArg(mailbox));
     let formattedPass    = doveadm[command].messages.pass.replace(/{mailbox}/g, mailbox);
     // also apply whatever is in the jsonDict if anything like fields or mailboxes... and also apply defaults if any
     // by parsing the defaults instead of the jsonDict, we also ensure only valid keys are replaced
     if (doveadm[command]?.defaults) {
       for (const [key, defaultValue] of Object.entries(doveadm[command].defaults)) {
-        formattedCommand = (jsonDict[key]) ? formattedCommand.replace(`{${key}}`, jsonDict[key]) : formattedCommand.replace(`{${key}}`, defaultValue);
-        formattedPass = (jsonDict[key]) ? formattedPass.replace(`{${key}}`, jsonDict[key]) : formattedPass.replace(`{${key}}`, defaultValue);
+        const value = jsonDict[key] || defaultValue;
+        formattedCommand = formattedCommand.replace(`{${key}}`, escapeShellArg(value));
+        formattedPass = formattedPass.replace(`{${key}}`, jsonDict[key] || defaultValue);
       }
     }
     
