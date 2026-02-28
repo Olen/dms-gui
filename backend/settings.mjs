@@ -82,7 +82,8 @@ export const getSettings = (plugin='mailserver', containerName=null, name=null, 
   if (!containerName)             return {success: false, error: 'getSettings: scope=containerName is required'};
   if (!plugin)             return {success: false, error: 'getSettings: plugin is required'};
 
-  const demo = demoResponse('settings');
+  const demoKey = plugin === 'dnscontrol' ? 'dnsProviderSettings' : 'settings';
+  const demo = demoResponse(demoKey);
   if (demo) {
     if (name) {
       const found = demo.message.find(s => s.name === name);

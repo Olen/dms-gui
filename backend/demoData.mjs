@@ -530,10 +530,17 @@ const settings = [
   { name: 'schema', value: 'dms' },
 ];
 
+// --- DNS provider profiles (saved in settings with plugin=dnscontrol) ---
+const dnsProviderSettings = [
+  { name: 'cloudflare-main',  value: '{"type":"CLOUDFLAREAPI","apitoken":"demo-cf-token-redacted"}' },
+  { name: 'domeneshop-prod',  value: '{"type":"DOMAINNAMESHOP","token":"demo-ds-token","secret":"demo-ds-secret"}' },
+];
+
 // --- Export ---
 export const demoData = {
   configs,
   settings,
+  dnsProviderSettings,
   logins,
   userSettings,
   accounts,
