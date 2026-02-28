@@ -82,8 +82,8 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 |-----------|
 | <img width="1555" height="522" alt="image" src="https://github.com/user-attachments/assets/475b240c-ca19-4558-b9a2-4370a18a01b1" /> |
 
-| Accounts |
-|----------|
+| Email Accounts |
+|----------------|
 | <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" /> -
 
 
@@ -93,7 +93,7 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 | User logins |
 |-------------|
-| <img width="1554" height="430" alt="image" src="https://github.com/user-attachments/assets/a6fe9e1a-5f46-4cc3-9756-57f8822e80fe" /> |
+| <img width="1529" height="709" alt="image" src="https://github.com/user-attachments/assets/3a2869ff-6ba0-4138-8786-3a9ca4f825dc" /> |
 All accounts can also be allowed to log in as Users in DMS-GUI to be able to change password, see their own quotas, aliases etc
 
 
@@ -101,7 +101,14 @@ All accounts can also be allowed to log in as Users in DMS-GUI to be able to cha
 
 | Domains & DNS |
 |---------------|
-| |
+| <img width="1533" height="455" alt="image" src="https://github.com/user-attachments/assets/581ac687-38be-454f-a1aa-e8b210b75896" /> |
+
+| DNS Details per domain | Blacklist Details per domain |
+|------------------------|------------------------------|
+| <img width="813" height="913" alt="image" src="https://github.com/user-attachments/assets/88f9d756-5d2a-4694-9f48-c21a17717254" /> | <img width="814" height="576" alt="image" src="https://github.com/user-attachments/assets/9f734c96-075a-423e-81d0-9c42206d9c8b" /> |
+| You can update important parameters of SPF and DMARC, as well as generating and deploying new DKIM-keys | |
+
+
 
 | Rspamd |
 |--------|
