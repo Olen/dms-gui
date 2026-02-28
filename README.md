@@ -1,807 +1,318 @@
 # Docker Mailserver GUI
+
 [![Docker Pulls](https://img.shields.io/docker/pulls/audioscavenger/dms-gui)](https://hub.docker.com/r/audioscavenger/dms-gui)
 
-A graphical user interface for managing DMS ([Docker-Mailserver](https://github.com/docker-mailserver/docker-mailserver)) and other non-gui mailservers like Poste.io. This gui aims to manage all aspects of DMS including: email accounts, aliases, xapian indexes, DNS entries, and other stuff.
+A web-based management interface for [Docker-Mailserver](https://github.com/docker-mailserver/docker-mailserver) (DMS). Manage email accounts, aliases, domains, DNS records, spam filtering, and more — all from a single dashboard.
 
-It relies on a generic REST API written in python, that you have to mount in DMS compose.
+Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy. Communicates with DMS via a lightweight Python REST API running inside the DMS container.
 
-> **Note:** This is the `deploy` branch — a maintained fork with significant additions over the upstream `main` branch. See [Changes from upstream](#changes-from-upstream) below.
+![Dashboard](assets/dashboard.webp)
 
 ## Features
 
-- Multi-arch: x86_64 (amd64) + aarch64 (arm64)
-- Login page, crypto-secure hashed passwords, HTTP-Only cookies
-- Dashboard with server status, resource usage, and per-user spam summary
-- User management with roles for their mailboxes
-  - Profile page with password change (GUI + DMS Dovecot)
-  - Mailbox account management with storage quota display and active session indicators
-  - Email alias management (includes regex and multi-destination aliases)
-- Domains & DNS page with live record checks, DKIM generation, SPF/DMARC grading, and DNSBL lookups
-- Rspamd spam filtering dashboard with statistics, Bayes training, message history, and per-user stats
-- Mail Setup page with downloadable Thunderbird autoconfig and Apple .mobileconfig profiles
-- Self-service password reset via email (with rate limiting and token expiry)
-- Per-container branding (custom name, logo, colors)
-- DMS (Docker-Mailserver) connection configuration
-  - Multiple-DMS ready!
-  - REST API Key management for direct access
-- better-sqlite3 database with auto-upgrade patches
-- Multilingual support (English, Polish)
-- Node.JS v24
+### Core
+- **Dashboard** — Server status, resource usage, account/alias/login counts (admin); personal quota, spam summary, webmail link (users)
+- **Accounts** — Create, delete, and manage email accounts with storage quota display, active IMAP session indicators, and sortable columns
+- **Aliases** — Single and multi-destination aliases, regex aliases, catch-all (`@domain.com`)
+- **Logins** — Three user types: admins, users (manage multiple mailboxes), and linked mailbox users (DMS Dovecot auth)
+- **Profile** — Password change for both GUI and DMS Dovecot accounts
 
-## Compatibility Chart
+### DNS & Domains
+- **Live DNS checks** — A, MX, SPF, DKIM, DMARC, TLSA, SRV with color-coded status badges
+- **DKIM generation** — Configurable selector, key type (RSA/Ed25519), key size; runs `setup config dkim` inside DMS
+- **SPF/DMARC editor** — Click-to-edit with guided setup and grading
+- **DNS push** — One-click record push to Domeneshop or Cloudflare (more providers available but untested)
+- **DNSBL checks** — Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others
 
-| dms     | dms-gui | x86_64 | aarch64 | details |
-|---------|---------|--------|---------|---------|
-| v15.1.0 | v1.5 | yes | yes | dovecot 2.3 |
-| v16?    | no | no | no | dovecot 2.4 |
+### Spam Filtering (rspamd)
+- Server statistics: version, uptime, scan counts, processing time
+- Message action breakdown with progress bars (clean/add header/greylist/reject)
+- Per-user Bayes learning stats and manual training (mark as ham/spam)
+- Top symbols by score impact
+- Message history browser
 
+### Other
+- **Mail Setup** — Downloadable Thunderbird autoconfig and Apple .mobileconfig profiles
+- **Password Reset** — Self-service email-based reset with rate limiting and token expiry
+- **Branding** — Custom name, logo, icon, and colors per container
+- **Multi-DMS** — Connect and switch between multiple DMS instances
+- **Multilingual** — English, Norwegian (Bokmal), Polish; language preference saved per user
+- **better-sqlite3** database with automatic migration patches
 
-### FAQ
+## Compatibility
 
-* [x] How does dms-gui interact with DMS?
-> Simply, by executing `system` and `doveadm` commands inside DMS, through a python REST API.
+| DMS     | dms-gui | x86_64 | aarch64 |
+|---------|---------|--------|---------|
+| v15.x   | v1.5    | yes    | yes     |
 
-* [x] How does dms-gui execute commands in DMS?
-> Python REST API script and its loader are generated from dms-gui, and then mounted as a single volume in DMS compose, along with the exposed port. You don't need to alter `user-patches.sh` at all. The REST API script is conveniently placed in a folder that is mouted in DMS: `./config/dms-gui/`.
+## Screenshots
 
-* [x] How secure is this REST API?
-> REST API Access security is handled with a key generated from dms-gui itself. The key is sent in query header of the http calls. Since the DMS REST API port is exposed on the docker network only, no one else has access to it.
+> Screenshots use anonymized demo data. Sensitive information (addresses, domains, subjects) has been redacted.
 
-* [x] I don't trust you, can I see the python code for this REST API?
-> Sure, it's in the `/backend/env.js` file.
+### Login
+![Login](assets/login.webp)
 
-* [x] How about logon security?
-> Top notch: best practice for React has been followed: CORS same-domain Strict + HTTPonly cookies + backend verification of credentials, zero trust of the frontend.
+### Dashboard (admin)
+![Dashboard admin](assets/dashboard.webp)
 
-* [x] Tell me more about logon security?
-> Two 32 bits secrets are generated when container starts: one for generateToken (valid 1h) and the other for refreshToken (valid 7 days). Refresh tokens are saved in the db for each user and invalidated when container restarts, since the secrets have changed.
-
-* [x] Security really bothers me, anything more?
-> Yes, the container relies on node-cron and restarts daily at 11PM to regenerate new secret keys. You can alter the schedule with the environment variable `DMSGUI_CRON`.
-
-* [x] How about password security?
-> Standard practice: passwords are stored in a local sqlite3 db as separate salt and hash. We only force users to use 8+ characters.
-
-* [x] Can a linked mailbox user hack their way into admin or unauthorized commands?
-> No, their credentials are set in the HTTPonly cookie and the backend only relies on its values to determine what's allowed.
-
-* [x] Can a user do path transversal or sql injections or anything to exploit this portal?
-> No, sql commands are stored in a backend dictionary, and no frontend module can send sql commands directly. SQL is variabilized in the backend and cannot be injected. Routes are also protected following React best practices. The separation between frontend and backend is complete and interfaced with an API, just like Electron.js.
-
-* [x] What do users have access to, in this portal?
-
-| user / Access  | password | Profile | Dashboard | Accounts | Aliases | Mail Setup | Logins | Settings | Domains | Rspamd | Backups | Imports |
-| -------------- | -------- | ------- | --------- | -------- | ------- | ---------- | ------ | -------- | ------- | ------ | ------- | ------- |
-| admins         | dms-gui  | yes     | yes       | yes      | yes     | yes        | yes    | yes      | yes     | yes    | yes     | yes     |
-| users          | dms-gui  | yes     | yes       | partial  | partial | yes        | no     | no       | no      | no     | partial | no      |
-| linked users   | DMS      | yes     | partial   | no       | partial | yes        | no     | no       | no      | no     | partial | no      |
-
-* [x] Can normal users change their password?
-> Yes, users can change both their dms-gui password in their profile, and each of the mailboxes they control under Accounts. Logon password in dms-gui is saved in the database. Mailbox-linked users can only change the mailbox password, and their logon is handled by DMS dovecot directly.
-
-* [x] Can users reset their forgotten password?
-> Yes. A "Forgot password?" link on the login page sends a time-limited reset token (1 hour) to the user's mailbox. Rate-limited to 3 requests per 15 minutes per mailbox. Works for both DMS accounts and GUI-only logins.
-
-* [x] Is this project affected by React2Shell Critical Vulnerability [CVE-2025-55182](https://www.cmu.edu/iso/news/2025/react2shell-critical-vulnerability.html)?
-> No. This project has none of the React or 3rd party affected components like react-server-dom-turbopack, and is not even of the React versions affected. As I understand it, turbopack is another memory unsafe web bundler written in Rust, yet again.
-
-### Login page
-
-As long as the default admin user (_admin_ / password=_changeme_) exist, you are greeted with this message:
-
-![Login](/assets/dms-gui-Login.webp)
-
-### Profile page
-
-There you can change your dms-gui / DMS Dovecot password. Users managers of multiple mailboxes cannot change individual mailboxes yet.
-
-![Login](/assets/dms-gui-Profile.webp)
-
-### Logins Management
-
-Logins are 3 types:
-
-| type | perks | details |
-| -----|-------|---------|
-| admins | Administrator | Can even demote itself |
-| users | Can manage multiple mailboxes | Not admin, cannot change managed mailboxes, Authentication by dms-gui |
-| linked users | Can change their mailbox password | Authentication provided by DMS Dovecot |
-
-![Logins](/assets/dms-gui-Logins-new-user.webp)
-
-Mailbox selection list comes from DMS directly. Password will be saved in both dms-gui and Dovecot in DMS, but Authentication for linked mailbox users is provided by DMS.
-
-![Logins](/assets/dms-gui-Logins-new-linkbox.webp)
-
-Mailbox users are automatically created, based off the scan of DMS dovecot server. The mechanic does not check if mailboxes have been deleted, it only pulls the current list and update the local db.
-
-![Logins](/assets/dms-gui-Logins-auto.webp)
+### Dashboard (user)
+![Dashboard user](assets/dashboard-user.webp)
 
 ### Accounts
-
-Also called "_emails_", as per the DMS setup command to create new email boxes, I prefer calling them _mailboxes_. They are _Accounts_, that can receive/store/send emails.
-
-Accounts are automatically discovered and pulled from DMS on first page load per session, and from the local database on subsequent loads. You can refresh the data manually with the refresh button.
-
-The accounts table shows storage usage with sortable columns (human-readable sizes like "1.9G" are sorted by actual bytes), quota progress bars, and green dot indicators for accounts with active IMAP sessions (showing connection count, services, and source IPs on hover).
-
-Creating accounts from here currently calls the DMS `setup` via `docker.sock`, but soon will rely on dovecot 2.4 API calls instead. Passwords entered are also stored in the local db.
-
-![Accounts](/assets/dms-gui-Accounts.webp)
+![Accounts](assets/accounts.webp)
 
 ### Aliases
-
-Supports single and multi-destination aliases, regex aliases, and catch-all aliases (`@domain.com`). Non-admin users can view their own aliases (configurable as read-only or editable by the admin via User Config settings).
-
-![Aliases](/assets/dms-gui-Aliases.webp)
+![Aliases](assets/aliases.webp)
 
 ### Domains & DNS
-
-Admin-only page showing all domains served by the mail server with:
-- Account and alias counts per domain
-- Live DNS record checks: A, MX, SPF, DKIM, DMARC, TLSA, SRV
-- SPF and DMARC grading with actionable improvement hints
-- DNSBL (blacklist) checks against Spamhaus, Abusix, and others
-- DKIM key generation with configurable selector, key type (RSA/Ed25519), and key size
-- One-click DNS record push to Domeneshop or Cloudflare
-- Click-to-edit SPF and DMARC records with guided setup
-- External domain indicators for domains not directly managed by this server
-
-#### Setting up DNS — step by step
-
-To push DNS records (SPF, DKIM, DMARC) directly from dms-gui, you need a **DNS Provider profile** configured first. Without one, you can still view DNS status and copy records manually.
-
-##### 1. Create a DNS Provider profile
-
-Go to **Settings > DNS Providers** and click **Add Profile**.
-
-| Provider | Credentials needed | Test supported |
-|----------|--------------------|----------------|
-| **Domeneshop** | API token + secret ([generate at domeneshop.no/admin](https://www.domeneshop.no/admin?view=api)) | Yes |
-| **Cloudflare** | API token with DNS edit permission | Yes |
-| AWS Route53 | Access key + secret key (+ optional STS token) | No |
-| Oracle Cloud | Compartment, fingerprint, private key, region, tenancy, user OCID | No |
-| Azure Private DNS | Subscription ID, resource group, tenant/client ID + secret | No |
-
-After entering credentials, click **Test** to verify they work, then **Save**. Credentials are stored encrypted (AES-256-CBC) in the local database.
-
-##### 2. Assign a DNS Provider to each domain
-
-On the **Domains & DNS** page, each domain row has a DNS Provider dropdown. Select the provider profile you created. This assignment is saved immediately — no extra "save" button needed.
-
-Only domains with an assigned provider can push records to DNS. Domains without a provider still show DNS status badges and allow DKIM generation (you'll just need to copy-paste the records manually).
-
-##### 3. Generate DKIM keys
-
-Click the DNS status badges on any domain row to open the **DNS Details** modal, then click the key icon next to DKIM:
-
-1. Select **key type** (RSA recommended) and **key size** (2048 recommended)
-2. Enter a **selector** (defaults to the global selector from your rspamd config, typically `mail` or `default`)
-3. Click **Generate** — dms-gui runs `setup config dkim` inside the DMS container
-4. The generated DNS record is displayed. If the domain has a DNS provider, click **Push DKIM to DNS** to add it automatically. Otherwise, copy the record and add it to your DNS manually.
-
-> **Note:** DKIM generation runs inside the DMS container via the REST API. The key files are placed in rspamd's `keys/{domain}/{selector}.private` path and ownership is set to `_rspamd:_rspamd`.
-
-##### 4. Configure SPF
-
-In the DNS Details modal, click the pencil icon next to the SPF record:
-
-1. Choose **soft-fail** (`~all`, recommended during initial setup) or **hard-fail** (`-all`, recommended for production)
-2. A preview of the SPF record is shown (auto-includes `mx`, `a`, and your MX hostname)
-3. Click **Push to DNS** to create or update the TXT record at your DNS provider
-
-##### 5. Configure DMARC
-
-In the DNS Details modal, click the pencil icon next to the DMARC record:
-
-1. Choose a **policy**: `none` (monitoring), `quarantine`, or `reject` (recommended after verifying SPF/DKIM work)
-2. Optionally add **RUA** (aggregate report) and **RUF** (forensic report) email addresses
-3. Click **Push to DNS** to create or update the `_dmarc.{domain}` TXT record
-
-##### 6. Check blacklists (optional)
-
-Click the shield icon on any domain row to run DNSBL checks against multiple blacklist providers:
-
-- **Open RBLs** (no API key): Barracuda, SpamCop, UCEProtect, PSBL, Mailspike
-- **Spamhaus ZEN + DBL** (requires `SPAMHAUS_DQS_KEY` in Settings > User Config)
-- **Abusix Combined + DBL** (requires `ABUSIX_KEY` in Settings > User Config)
-
-Results show listed/clean status for each RBL with return codes.
-
-#### DNS status badges
-
-Each domain row shows color-coded badges for A, MX, SPF, DKIM, DMARC (and optionally TLSA, SRV). Click the badges to open the DNS Details modal with full record information.
-
-| Badge | Green | Orange | Red |
-|-------|-------|--------|-----|
-| **A** | Records found | — | Missing |
-| **MX** | Records found | — | Missing |
-| **SPF** | `-all` (hard-fail) | `~all` (soft-fail) | Missing or weak |
-| **DKIM** | Record found | — | Missing |
-| **DMARC** | `p=quarantine` or `p=reject` | `p=none` | Missing |
+![Domains](assets/domains.webp)
 
 ### Rspamd
-
-Admin-only rspamd spam filtering dashboard with:
-- Server statistics: version, uptime, scan counts, average processing time
-- Message action breakdown (clean/add header/greylist/reject) with visual progress bars
-- Per-user Bayes learning statistics (ham/spam counts, activity status)
-- Top symbols by score impact, with dual-polarity symbol handling
-- Message history browser with manual Bayes training (mark as ham/spam)
-- Bayes configuration context display (autolearn thresholds, min_learns)
-
-### Mail Setup
-
-Available to all logged-in users. Displays the mail server connection settings (IMAP, SMTP, POP3 hosts and ports) and provides one-click downloads for:
-- **Thunderbird autoconfig XML** — standard Mozilla ISP autoconfig format for desktop mail clients
-- **Apple .mobileconfig** — configuration profile for iPhone, iPad, and Mac Mail
-
-Profiles are generated server-side using the user's email address and admin-configured server settings.
-
-### Dashboard
-
-Admins see server status, CPU/memory/disk usage, and account/alias/login counts with clickable navigation cards.
-
-Non-admin users see a personalized dashboard with:
-- Server status indicator
-- Webmail quick-link (if configured)
-- Alias count and profile link
-- Mailbox quota progress bar (color-coded: green < 75%, warning 75-90%, danger > 90%)
-- Mail client configuration reference (IMAP/SMTP/POP3 settings)
-- Personal spam summary with message counts, recent spam table, and action badges
+![Rspamd](assets/rspamd.webp)
 
 ### Settings
+![Settings](assets/settings.webp)
 
-Multiple sections to save UI settings, DMS REST API access, and show some internals + DMS environment values.
+## Quick Start
 
-![Settings](/assets/dms-gui-Settings.webp)
+### 1. Docker Compose
 
-Includes:
-- **User Config** — Admin-configurable settings exposed to regular users: webmail URL, IMAP/SMTP/POP3 hosts and ports, user permissions (e.g. allow user alias editing), rspamd URL
-- **Branding** — Customizable per-container or global branding: name, icon, logo upload, primary button color, sidebar color
-
-dms-gui internals come from Node environment, and DMS values come from a mox of the `env` command and parsing dkim and dovecot configuration.
-
-Some environment values like FTS (Full Text Search) will enable some options on the _Accounts_ page (`reindex` for instance).
-
-![Settings](/assets/dms-gui-ServerInfos.webp)
-
-## Changes from upstream
-
-This `deploy` branch includes the following additions over the upstream `main` branch:
-
-### New pages
-- **Domains & DNS** — Live DNS diagnostics, DKIM generation, SPF/DMARC grading, DNSBL checks
-- **Rspamd** — Spam filter dashboard with statistics, Bayes training, message history
-- **Mail Setup** — Downloadable Thunderbird and Apple mail client configuration profiles
-- **Password Reset** — Self-service email-based password reset flow
-- **User Config** — Admin settings for mail server URLs and user permissions
-- **Branding** — Per-container customizable name, logo, and colors
-
-### Enhanced existing pages
-- **Dashboard** — User-specific view with quota bars, spam summary, webmail link, mail config
-- **Accounts** — Storage sorting by actual bytes, active IMAP session indicators, auto-refresh from DMS
-- **Aliases** — Multi-destination alias support, catch-all aliases, admin-configurable read-only mode
-- **Profile** — Improved password change for linked DMS accounts
-
-### Security hardening
-- Command injection fix: `escapeShellArg()` for all shell commands
-- REST API: shell pipes via `subprocess.Popen` chaining (not `shell=True`), redirect support
-- Replaced `eval()` with `JSON.parse()` in JSON processing
-- Password redaction in all backend logging
-- Per-IP rate limiting on authentication and password reset endpoints
-- Origin validation for password reset emails
-- `.dockerignore` to prevent local node_modules from entering the build
-
-### Infrastructure
-- DataTable sort fixes: null-safe object sorting, `isFinite()` for zero-value detection, sample-row type inference
-- Session-based account refresh (DMS pull once per browser session, instant DB reads after)
-- Branding system with logo upload via multer
-- Test files added for backend and frontend components
-
-## Requirements
-
-- [Docker-Mailserver](https://docker-mailserver.github.io/docker-mailserver/latest/) (installed and configured)
-- dms-gui definition in DMS compose, will extra port, volumes, and environment variables in DMS section
-
-## Project Structure
-
-- Node.js (v24 is embedded)
-- npm and a dozen of modules
-
-The application consists of two parts:
-
-- **Backend**: Node.js/Express API for communicating with Docker-Mailserver
-- **Frontend**: React user interface with i18n support
-
-## Installation
-
-You have nothing to install, this is an all-included docker image that provides a GUI for DMS.
-
-If you want to develop/pull requests and test, see README.docker.md and each README under the subfolders `backend` and `frontend`.
-
-## Configuration
-
-`./config/dms-gui/` will host dms-gui.sqlite3 and its environment config file. This is a subfolder of the DMS `config` repository, for convenience; use any folder you want and update all the mounting points accordingly.
-
-Rename `./config/dms-gui/.dms-gui.env.example` as `./config/dms-gui/.dms-gui.env` and update for your own environment:
-
-```
-###############################################################################
-## dms-gui Configuration: all is handled by React.
-## Only the defaults used in dms-gui will be mentionned here.
-###############################################################################
-## JWT_SECRET = secret for salting the cookies, regenerated during container start, before starting node
-## JWT_SECRET_REFRESH = secret for salting the refresh cookies, regenerated during container start, before starting node
-## Those keys cannot be defined anywhere else then during container start, and are secret as the name suggests
-## docker/start.sh creates them
-###############################################################################
-
-## Optional: Dev Environment
-# NODE_ENV=development
-NODE_ENV=production
-
-## Debugging
-# DEBUG=true
-
-## how long before rotation of the secrets:
-ACCESS_TOKEN_EXPIRY=1h
-REFRESH_TOKEN_EXPIRY=1d
-
-## encryption options:
-## IV_LEN is the length of the unique Initialization Vector (IV) = random salt used for encryption and hashing
-IV_LEN=16
-## HASH_LEN is the length of the hashed keys for passwords
-HASH_LEN=64
-## AES_SECRET = encrypted data secret key, that one is set in the environment as well but must never change or you won;t be able to read your encrypted data anymore
-## generate it once and for all with node or openssl:
-##   openssl rand -hex 32
-##   node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"
-AES_SECRET=replaceme
-## encrypted data algorithm
-AES_ALGO=aes-256-cbc
-## AES_HASH is the used to hash the secret key
-AES_HASH=sha512
-
-## utility paths for internal database
-DMSGUI_CONFIG_PATH=/app/config
-DATABASE=${DMSGUI_CONFIG_PATH}/dms-gui.sqlite3
-
-## Override the daily restart of the container, with this simple trick: default is 11PM
-## The container must restart regularly to regenerate the secret keys. Security first.
-##           ┌────────────── second (optional)
-##           │ ┌──────────── minute
-##           │ │ ┌────────── hour
-##           │ │ │  ┌──────── day of month
-##           │ │ │  │ ┌────── month
-##           │ │ │  │ │ ┌──── day of week
-##           │ │ │  │ │ │
-##           │ │ │  │ │ │
-##           * * *  * * *
-DMSGUI_CRON="0 1 23 * * *"
-
-# make this a demo server
-# isDEMO=true
-
-# disable colors in backend logs, some terminals can't handle them
-# LOG_COLORS=false
-```
-
-### Environment Variables for dms-gui in .dms-gui.env
-
-All is optional, as they will be superseeded by the ones defined and saved within dms-gui:
-
-- `DEBUG`: Node.js environment: (*production or development)
-- `ACCESS_TOKEN_EXPIRY`: lifetime of the generated HTTPonly token (1h)
-- `REFRESH_TOKEN_EXPIRY`: lifetime of the generated HTTPonly refresh token (1d)
-- `DMSGUI_CRON`: crontab format for daily restarts ("0 1 23 * * *")
-- `LOG_COLORS`: set false to disable colors in backend logs (*true)
-- `isDEMO`: set false to disable colors in backend logs (*false)
-The ones you should never alter unless you want to develop:
-
-- `PORT_NODEJS`: Internal port for the Node.js server (*3001)
-- `API_URL`: defaults to `http://localhost:3001`
-- `NODE_ENV`: Node.js environment: (*production or development)
-
-### Environment Variables for dms REST API in compose
-
-- `DMS_API_HOST`: defaults to 0.0.0.0
-- `DMS_API_PORT`: defaults to 8888
-- `DMS_API_KEY`: format is "dms-uuid" or whatever you like, must be created in dms-gui first
-- `DMS_API_SIZE`: defaults to 1024
-- `LOG_LEVEL`: defaults to 'info', value is set in your `mailserver.env`
-
-## Language Support
-
-The application supports multiple languages throught i18n.js:
-
-- English
-- Polish
-
-Languages can be switched using the language selector in the top navigation bar.
-
-## Docker Deployment
-
-There are two ways to deploy using Docker:
-
-### Option 1: Docker Compose with dms + proxy (Recommended)
-
-#### Compose for dms + dms-gui
-
-Sample extract from `docker-compose.yml`, rename `dms` to the actual name of your docker-Mailserver container!
+Add dms-gui alongside your DMS container. Both must share a Docker network.
 
 ```yaml
 services:
-  dms:
-    <your dms compose here>
-    ...
+  mailserver:
+    # your existing DMS config
     environment:
-      # DMS_API_HOST:           # defaults to 0.0.0.0
-      DMS_API_PORT: 8888        # defaults to 8888, must match what you se in dms-gui/Settings
-      DMS_API_KEY: uuid-random  # key generated by you or dms-gui
-      # DMS_API_SIZE: 1024      # defaults to 1024
+      DMS_API_PORT: 8888
+      DMS_API_KEY: your-api-key-here  # generate in dms-gui Settings
     expose:
-      - "8888"                  # local python REST API, must match what you se in dms-gui/Settings
+      - "8888"
     volumes:
-      ...
-
-      # 1. you MUST create a subfolder "dms-gui" under your DMS config folder and mount in in the dms-gui section as "/app/config/"
-      # 2. AFTER you create and inject the API key under dms-gui Settings page, enable the API by uncommenting the line below and restart DMS
-      # 2. DO NOT enable the mount below until you created and saved the API in dms-gui, as the file is read only and cannot be created otherwise
+      # enable after generating the API key in dms-gui Settings:
       - ./config/dms-gui/rest-api.conf:/etc/supervisor/conf.d/rest-api.conf:ro
-
     networks:
-      frontend:                 # same network as dms-gui
+      - mail
 
-  gui:
-    container_name: dms-gui
-    hostname: dms-gui
+  dms-gui:
     image: audioscavenger/dms-gui:latest
+    container_name: dms-gui
     restart: unless-stopped
     depends_on:
-      - dms
-
-    # Use this environment file or the environment section, or both:
-    # Note: the file is placed under DMS own config folder;
-    # if using another one you will need to mount both the api.conf and api.py files in DMS
+      - mailserver
     env_file: ./config/dms-gui/.dms-gui.env
-
     environment:
       - TZ=${TZ:-UTC}
-
-      # Debugging
-      # - DEBUG=true
-
     expose:
-      - 80                      # frontend
-      - 3001                    # /docs
-
+      - 80
     volumes:
-      - /etc/timezone:/etc/timezone:ro
-      - /etc/localtime:/etc/localtime:ro
-      # we are mounted under DMS own config folder:
       - ./config/dms-gui/:/app/config/
-
     networks:
-      frontend:                 # same network as DMS
+      - mail
 
-# use the network of your choice, or default internal;
-# DMS and dms-gui must be on the same network to see each others
 networks:
-  frontend:
-    external: true
-    name: frontend
+  mail:
+    name: mail
 ```
 
-**Note:** Replace `dms` with the name of your docker-mailserver container.
+### 2. Configure environment
 
-**Note:** Replace `frontend` with the name of the external network your proxy also uses, or simply let compose use a default internal network
+Copy the example env file and generate an AES secret:
 
-#### Reverse proxy
+```bash
+cp config/dms-gui/.dms-gui.env.example config/dms-gui/.dms-gui.env
 
-We recommend this reverse proxy for its simplicity: [swag](https://docs.linuxserver.io/general/swag/).
+# Generate AES_SECRET (set this once, never change it):
+openssl rand -hex 32
+```
 
-Sample proxy configuration:
+Edit `.dms-gui.env` and set `AES_SECRET` to the generated value.
+
+### 3. Start and connect
+
+```bash
+docker compose up -d
+```
+
+1. Open dms-gui in your browser (via your reverse proxy)
+2. Log in with `admin` / `changeme` — you'll be prompted to change the password
+3. Go to **Settings** and configure the DMS connection (container name, API key)
+4. Generate the REST API key — this creates `rest-api.conf` and `rest-api.py`
+5. Restart DMS to activate the REST API
+
+## Configuration
+
+### Environment Variables (.dms-gui.env)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `NODE_ENV` | `production` | Node.js environment |
+| `DEBUG` | `false` | Enable debug logging |
+| `AES_SECRET` | — | **Required.** Encryption key for stored credentials. Generate once, never change. |
+| `AES_ALGO` | `aes-256-cbc` | Encryption algorithm |
+| `ACCESS_TOKEN_EXPIRY` | `1h` | JWT access token lifetime |
+| `REFRESH_TOKEN_EXPIRY` | `1d` | JWT refresh token lifetime |
+| `DMSGUI_CRON` | `0 1 23 * * *` | Daily restart schedule (regenerates JWT secrets) |
+| `IV_LEN` | `16` | Initialization vector length |
+| `HASH_LEN` | `64` | Password hash key length |
+| `LOG_COLORS` | `true` | Colored backend logs |
+| `isDEMO` | `false` | Demo mode |
+
+### DMS REST API Environment (in your DMS compose)
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| `DMS_API_HOST` | `0.0.0.0` | API listen address |
+| `DMS_API_PORT` | `8888` | API listen port |
+| `DMS_API_KEY` | — | API authentication key (must match dms-gui Settings) |
+| `DMS_API_SIZE` | `1024` | Maximum request payload size |
+
+## Reverse Proxy
+
+dms-gui serves on port 80 (nginx). Place it behind your reverse proxy of choice.
+
+**Traefik example** (labels on the dms-gui container):
+
+```yaml
+labels:
+  - "traefik.enable=true"
+  - "traefik.http.routers.dms-gui.rule=Host(`mail-admin.example.com`)"
+  - "traefik.http.routers.dms-gui.entrypoints=websecure"
+  - "traefik.http.routers.dms-gui.tls.certresolver=letsencrypt"
+  - "traefik.http.services.dms-gui.loadbalancer.server.port=80"
+```
+
+**Nginx example:**
 
 ```nginx
 server {
     listen 443 ssl;
-   listen 443 quic;
-    listen [::]:443 ssl;
-   listen [::]:443 quic;
+    server_name mail-admin.example.com;
 
-  server_name dms.*;
-
-  # swagger API docs
-  location /docs {
-
-    # enable the next two lines for http auth
-    auth_basic "Restricted";
-    auth_basic_user_file /config/nginx/.htpasswd;
-
-    include /config/nginx/proxy.conf;
-    include /config/nginx/resolver.conf;
-
-    set $upstream_app dms-gui;
-    set $upstream_port 3001;
-    set $upstream_proto http;
-    proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-
-  }
-
-  location / {
-
-    # enable the next two lines for http auth (use you own)
-    # auth_basic "Restricted";
-    # auth_basic_user_file /config/nginx/.htpasswd;
-
-    include /config/nginx/proxy.conf;
-    include /config/nginx/resolver.conf;
-
-    set $upstream_app dms-gui;
-    set $upstream_port 80;
-    set $upstream_proto http;
-    proxy_pass $upstream_proto://$upstream_app:$upstream_port;
-
-  }
-
+    location / {
+        proxy_pass http://dms-gui:80;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+    }
 }
 ```
 
-You can and _should_ add a form of authentication at the proxy level, unless you totally trust React AuthContext and its implementation (which I don't).
+## Security
 
-### Option 2: Manual using the pre-built image from Docker Hub
+### Authentication
+- Crypto-secure hashed passwords (scrypt) with per-user salt
+- HTTP-Only cookies with JWT access and refresh tokens
+- JWT secrets regenerated daily via scheduled container restart
+- Per-IP rate limiting on login and password reset endpoints
+- `crypto.timingSafeEqual()` for password comparison (timing-attack safe)
 
-Untested, sample below is missing lots of variables, and I don't care since you are supposed to use compose.
+### Authorization
 
-```bash
-docker run -d \
-  --name dms-gui \
-  --env-file ./config/dms-gui/.dms-gui.env \
-  -p 127.0.0.1:80:80 \
-  -p 127.0.0.1:3001:3001 \
-  -v /var/run/docker.sock:/var/run/docker.sock:ro \
-  -v /etc/timezone:/etc/timezone:ro \
-  -v /etc/localtime:/etc/localtime:ro \
-  -v./config/dms-gui/:/app/config/ \
-  audioscavenger/dms-gui:latest
+| Access | Admin | User | Linked mailbox user |
+|--------|-------|------|---------------------|
+| Auth method | GUI password | GUI password | DMS Dovecot |
+| Dashboard | full | personal | personal |
+| Accounts | full | partial | password only |
+| Aliases | full | own (configurable) | own |
+| Domains & DNS | full | — | — |
+| Rspamd | full | — | — |
+| Logins | full | — | — |
+| Settings | full | — | — |
+| Mail Setup | full | full | full |
+| Profile | full | full | full |
+
+### Data Protection
+- AES-256-CBC encryption for stored DNS provider credentials
+- Command injection prevention via `escapeShellArg()` on all shell commands
+- REST API uses `subprocess.Popen` (not `shell=True`)
+- CORS restricted to configured origins
+- SQL parameterized via named bindings (no string interpolation)
+
+## Architecture
+
 ```
-
-**Note:** Replace `dms` with the name of your docker-mailserver container.
-
-## Docker Features
-
-- Single container with both frontend and backend
-- Communication with docker-mailserver via Docker API
-- Minimal configuration (just set the container name)
-- optional Nginx to serve the React frontend and proxies API requests with http, disabled in Dockerfile
-
-For detailed Docker setup instructions, please refer to:
-- [README.docker.md](README.docker.md) - Detailed Docker setup guide
-- [README.dockerhub.md](README.dockerhub.md) - Docker Hub specific information
-
-## Available endpoints (non exhaustive)
-
-Subject to heavily change over time, please use https://dms.domain.com/docs for current list.
-
-- `GET /api/status` - Server status
-- `GET /api/infos` - Server environment
-- `GET /api/settings` - Get settings
-- `GET /api/configs` - Get all config names in config table
-- `GET /api/roles` - Get a login's roles
-- `POST /api/envs` - Get DMS environment
-- `POST /api/settings` - Save settings
-- `GET /api/logins` - Get login
-- `POST /api/logins` - Add login
-- `PATCH /api/logins` - Update a login
-- `DELETE /api/logins` - delete login
-- `POST /api/loginUser` - login user true/false
-- `POST /api/logout` - logout
-
-- `PUT /api/doveadm` - send doveadm commands
-- `GET /api/accounts` - List email accounts
-- `POST /api/accounts` - Add a new account
-- `DELETE /api/accounts` - Delete an account
-- `PATCH /api/accounts` - Update account password
-- `GET /api/aliases` - List aliases
-- `POST /api/aliases` - Add a new alias
-- `DELETE /api/aliases` - Delete an alias
-- `GET /api/domains` - Get domains detected
-- `GET /api/domains/:containerName/:domain` - Domain details with DKIM status
-- `POST /api/domains/:containerName/:domain/dkim` - Generate DKIM keys
-- `GET /api/dns/:containerName/:domain` - DNS record lookups
-- `GET /api/dnsbl/:containerName/:domain` - DNSBL checks
-
-- `GET /api/rspamd/:containerName/stat` - Rspamd statistics
-- `GET /api/rspamd/:containerName/counters` - Top symbols
-- `GET /api/rspamd/:containerName/bayes-users` - Per-user Bayes stats
-- `GET /api/rspamd/:containerName/config` - Rspamd configuration
-- `GET /api/rspamd/:containerName/history` - Message history
-- `POST /api/rspamd/:containerName/learn` - Bayes training
-
-- `GET /api/mail-profile/:containerName/autoconfig` - Thunderbird autoconfig XML
-- `GET /api/mail-profile/:containerName/mobileconfig` - Apple configuration profile
-- `GET /api/dovecot/:containerName/sessions` - Active IMAP sessions
-
-- `POST /api/forgot-password` - Request password reset email
-- `POST /api/reset-password` - Reset password with token
-
-- `POST /api/getCount` - Get row count from a table
-- `POST /api/initAPI` - Create DMS API files and key
-- `POST /api/kill` - Reboot dms-gui
-
-
-### Swagger API docs
-
-OAS description of all API endpoints is available at:
-* using compose + proxy: http://localhost/docs or https://dms.domain.com/docs (with proxy)
-* using raw ports: http://localhost:3001/
-
-<!--
-![API](https://github.com/audioscavenger/dms-gui/blob/main/assets/dms-gui-docs.webp?raw=true)
--->
-![API](/assets/dms-gui-docs.webp)
-
-
-### API call Example:
-
-```shell
-curl -sSL https://dms.domain.com/api/status
+Browser
+  |
+  v
+[Reverse Proxy] (Traefik / Nginx / ...)
+  |
+  v
+[dms-gui container]
+  ├── nginx (:80) ── serves React SPA
+  │                   proxies /api/* to backend
+  └── node (:3001) ── Express API server
+       |                ├── SQLite database
+       |                └── JWT auth
+       v
+  [DMS container]
+  └── rest-api.py (:8888) ── executes setup/doveadm commands
 ```
-
-Result (outdated):
-
-```json
-{
-  "status": {
-    "status": "running",
-    "error": "",
-  },
-  "resources": {
-    "cpuUsage": 0.0051578073089701,
-    "memoryUsage": 200925184,
-    "diskUsage": "N/A"
-  }
-}
-```
-
-
-## Behind the Scenes
 
 ### REST API
 
-The REST API injected into DMS is *generic*: all it does is listen for POST requests, verify the KEY passed in the Authorization header, execute the system command passed in the body, and return the result in json format. You can use it free of charge in any other container having python3.
+The Python REST API runs inside DMS as a supervisor service. It accepts authenticated POST requests, executes system commands (`setup`, `doveadm`, etc.), and returns JSON results. The API key is verified on every request, and the port is only exposed on the Docker network.
 
-This API is started as a deamon by simply mounting this supervisor service inside DMS, and shall be placed in a subfolder named `dms-gui` under the `config` folder of DMS. dms-gui creates both those files when you generate the API key in Settings, and only the supervisor conf shall be mounted in DMS compose:
-
-`./config/dms-gui/rest-api.conf:/etc/supervisor/conf.d/rest-api.conf:ro`
-
-The supervisor code is pretty generic:
-
-```
-[program:rest-api]
-startsecs=1
-stopwaitsecs=0
-autostart=true
-autorestart=true
-stdout_logfile=/var/log/supervisor/%(program_name)s.log
-stderr_logfile=/var/log/supervisor/%(program_name)s.log
-command=/usr/bin/python3 /tmp/docker-mailserver/dms-gui/rest-api.py
-```
-
-This REST API logs in `logs/supervisor/rest-api.log` like any other supervisor service, and I have found that `PYTHONUNBUFFERED=1` will not print the messages in the docker log when run as a daemon.
-
-To use it with a Node.js client, it's pretty basic and simple:
-
-```js
-const DMS_API_KEY = 'dms-uuid';
-const jsonData = {
-  command: 'ls -l /some/folder',
-  timeout: 4,
-  };
-const response = await postJsonToApi(`http://dms:8888`, jsonData, DMS_API_KEY);
-
-export const postJsonToApi = async (apiUrl, jsonData, Authorization) => {
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': Authorization
-      },
-      body: JSON.stringify(jsonData),
-    });
-    if (!response.ok) {
-      <your error handling here>
-    }
-    return await response.json(); // Parse the JSON response
-
-  } catch (error) {
-    <your error handling here>
-  }
-}
-```
-
-Sample of a response from the REST API:
-
-```
-Response {
-  status: 200,
-  statusText: 'OK',
-  headers: Headers {
-    server: 'BaseHTTP/0.6 Python/3.11.2',
-    date: 'Sun, 21 Dec 2025 05:35:39 GMT',
-    'content-type': 'application/json'
-  },
-  body: ReadableStream { locked: false, state: 'readable', supportsBYOB: true },
-  bodyUsed: false,
-  ok: true,
-  redirected: false,
-  type: 'basic',
-  url: 'http://dms:8888/'
-}
-```
-
-Format of the json returned from the response by `postJsonToApi`:
-
-```json
-{
-  error: <error>,
-  returncode: 0,
-  stdout: <stdout>,
-  stderr: <stderr>
-}
-```
-
-Cannot be simpler then that, and super secure since the script also controls the maximum size of the payload received in the POST request. The API key is added manually as an environment variable in DMS compose.
-
-### Logging
-
-Formatted logging with colors, that actually helps!
-![Logins](/assets/dms-gui-logs.webp)
+Both `rest-api.py` and `rest-api.conf` are generated by dms-gui when you create the API key in Settings. The source template is embedded in `backend/env.mjs`.
 
 ## Development
 
-### Automatic Formatting
+### Prerequisites
 
-Absolutely unnecessary, but this project uses [Prettier](https://prettier.io/) for consistent code formatting. Configuration is defined in the root `.prettierrc.json` file.
+- Node.js v24+ (embedded in the Docker image)
+- npm
 
-Formatting was automatically applied to staged files before each commit using [Husky](https://typicode.github.io/husky/) and [lint-staged](https://github.com/okonet/lint-staged). This ensured that all committed code adheres to the defined style guide. I gave up using this as VScode does a fantastic job.
-
-### Manual Formatting
-
-You can also manually format the code using the npm scripts available in both the `backend` and `frontend` directories:
+### Running tests
 
 ```bash
-# Navigate to the respective directory (backend or frontend)
-cd backend # or cd frontend
-
-# Format all relevant files
-npm run format
-
-# Check if all relevant files are formatted correctly
-npm run format:check
+cd backend && npx vitest run
 ```
 
-### Backend
+### Building
 
 ```bash
-cd backend
-npx npm-check-updates -u
-npm install
-npm audit fix
+docker build -t dms-gui:latest .
 ```
 
-### Frontend
+### Project structure
 
-```bash
-cd frontend
-npx npm-check-updates -u
-npm install
-npm audit fix
+```
+├── backend/            Express API server
+│   ├── routes/         Route handlers (auth, logins, accounts, aliases, etc.)
+│   ├── db.mjs          SQLite database layer
+│   ├── middleware.js    Auth, validation, error handling
+│   ├── env.mjs         Environment config, REST API template
+│   ├── settings.mjs    DMS status, DKIM generation, DNS lookup
+│   └── dnsProviders.mjs  DNS provider abstraction
+├── frontend/           React SPA (Vite, Bootstrap)
+│   └── src/
+│       ├── pages/      Page components
+│       ├── components/ Reusable UI components
+│       ├── services/   API client
+│       ├── hooks/      React hooks (auth, localStorage, branding)
+│       └── locales/    i18n translations (en, no, pl)
+├── common.mjs          Shared utilities (frontend + backend)
+├── Dockerfile          Multi-stage build
+└── config/             Example configuration files
 ```
 
-After running both parts, the application will be available at http://localhost:3001
+## FAQ
+
+**How does dms-gui communicate with DMS?**
+Via a Python REST API that runs inside the DMS container as a supervisor service. It executes `setup` and `doveadm` commands and returns results as JSON.
+
+**How secure is the REST API?**
+The API port is only exposed on the Docker network (not to the host). Every request requires an API key in the Authorization header. Commands use `subprocess.Popen` with `shlex.split()` — never `shell=True`.
+
+**Can I see the REST API source code?**
+Yes, the template is in `backend/env.mjs`. The actual files are generated in `config/dms-gui/` when you create the API key.
+
+**Can a non-admin user escalate privileges?**
+No. The backend strips `isAdmin`, `isActive`, and `roles` from non-admin PATCH requests. Authorization is checked server-side on every request using the JWT payload.
+
+**Can users reset forgotten passwords?**
+Yes. The login page has a "Forgot password?" link that sends a time-limited reset token (1 hour) to the user's email. Rate-limited to 3 requests per 15 minutes.
 
 ## License
 
