@@ -6,6 +6,8 @@ A web-based management interface for [Docker-Mailserver](https://github.com/dock
 
 Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy. Communicates with DMS via a lightweight Python REST API running inside the DMS container.
 
+> **Fork notice** — This is a fork of [audioscavenger/dms-gui](https://github.com/audioscavenger/docker-mailserver-GUI) with significant additions: rspamd integration, DNS record pushing (Domeneshop + Cloudflare), DKIM generation, DNSBL checks, demo mode, and more.
+
 ---
 
 ## 📖 Table of Contents
@@ -18,6 +20,7 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 - [🔒 Security](#-security)
 - [🏗️ Architecture](#️-architecture)
 - [🛠️ Development](#️-development)
+- [🎭 Demo Mode](#-demo-mode)
 - [❓ FAQ](#-faq)
 - [📄 License](#-license)
 
@@ -338,6 +341,19 @@ docker build -t dms-gui:latest .
 ├── Dockerfile          Multi-stage build
 └── config/             Example configuration files
 ```
+
+---
+
+## 🎭 Demo Mode
+
+Set `isDEMO=true` in your `.dms-gui.env` to run dms-gui with realistic anonymized data — no DMS container required. All pages are fully populated with fake accounts, aliases, domains, DNS records, rspamd statistics, and log entries. Write operations (add/delete accounts, learn spam, push DNS, etc.) return success without doing anything.
+
+Demo mode is useful for:
+- **Evaluating the UI** before connecting to a real DMS instance
+- **Screenshots and documentation** with safe, anonymized data
+- **Development and testing** without a running mail server
+
+Default login: `admin` / `changeme`
 
 ---
 
