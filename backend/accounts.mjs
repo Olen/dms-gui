@@ -47,6 +47,7 @@ import {
 import {
   env
 } from './env.mjs';
+import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
 import {
   dbAll,
@@ -63,8 +64,13 @@ import { getConfigs } from './settings.mjs';
 export const getAccounts = async (containerName=null, refresh=false, roles=[]) => {
   debugLog(containerName, refresh, roles);
   if (!containerName) return {success: false, error: 'containerName is needed'};
-  refresh = env.isDEMO ? false : refresh;
-  
+
+  const demo = demoResponse('accounts');
+  if (demo) {
+    if (roles.length) demo.message = reduxArrayOfObjByValue(demo.message, 'mailbox', roles);
+    return demo;
+  }
+
   let result, config;
   let accounts = [];
   try {
@@ -279,6 +285,10 @@ export const addAccount = async (schema='dms', containerName=null, mailbox=null,
   if (!password) return {success: false, error: 'password is null'};
   if (!mailbox) return {success: false, error: 'mailbox is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
+
+  const demo = demoWriteResponse(`Account created: ${mailbox}`);
+  if (demo) return demo;
+
   let result, results;
 
   try {
@@ -327,6 +337,9 @@ export const addAccount = async (schema='dms', containerName=null, mailbox=null,
 export const deleteAccount = async (schema='dms', containerName=null, mailbox=null) => {
   if (!mailbox) return {success: false, error: 'containerName is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
+
+  const demo = demoWriteResponse(`Account deleted: ${mailbox}`);
+  if (demo) return demo;
 
   let result, results;
   try {
@@ -412,6 +425,10 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
   if (!mailbox) return {success: false, error: 'mailbox is null'};
   if (!command) return {success: false, error: 'command is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
+
+  const demo = demoWriteResponse(`doveadm ${command} ${mailbox}`);
+  if (demo) return demo;
+
   debugLog(`for ${containerName}: ${command} ${mailbox}`, jsonDict);
 
   const doveadm = {
@@ -553,6 +570,9 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
 export const setQuota = async (containerName=null, mailbox=null, quota=null) => {
   if (!mailbox) return {success: false, error: 'mailbox is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
+
+  const demo = demoWriteResponse(`Quota updated for ${mailbox}`);
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict('mailserver', containerName);

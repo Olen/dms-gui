@@ -28,6 +28,8 @@ import {
 import {
   processTopData,
 } from './topParser.mjs';
+import { demoResponse, demoWriteResponse } from './demoMode.mjs';
+import { demoData } from './demoData.mjs';
 
 import {
   dbAll,
@@ -250,6 +252,9 @@ export const getMailLogs = async (containerName=null, source='mail', lines=100) 
 
   const numLines = Math.min(Math.max(parseInt(lines) || 100, 10), 500);
 
+  const demo = demoResponse('mailLogs');
+  if (demo) return demo;
+
   try {
     const targetDict = getTargetDict('mailserver', containerName);
     targetDict.timeout = 10;
@@ -275,6 +280,9 @@ export const getServerStatus = async (plugin='mailserver', containerName=null, t
   debugLog(plugin, containerName, test, settings);
   if (!containerName)             return {success: false, error: 'getServerStatus: containerName is required'};
   if (!plugin)             return {success: false, error: 'getServerStatus: plugin is required'};
+
+  const demo = demoResponse('serverStatus');
+  if (demo) return demo;
 
   let result, results, schema;
   let status = {
@@ -349,10 +357,6 @@ export const getServerStatus = async (plugin='mailserver', containerName=null, t
             status.status.error = 'unknown';
           }
           return {success: true, message: status};  // api errors are not errors unless we add an error
-        }
-
-        if (env.isDEMO) {
-          return {success: true, message: status};
         }
 
         if (test == 'execSetup') {
@@ -1110,8 +1114,10 @@ export const getServerEnvs = async (plugin='mailserver', containerName=null, ref
   debugLog(`plugin=${plugin}, containerName=${containerName}, refresh=${refresh}, name=${name}`);
   if (!containerName)             return {success: false, error: 'getServerEnvs: containerName is required'};
   if (!plugin)             return {success: false, error: 'getServerEnvs: plugin is required'};
-  refresh = env.isDEMO ? false : refresh;
-  
+
+  const demo = demoResponse('serverEnvs');
+  if (demo) return demo;
+
   if (!refresh) {
     if (name) return getServerEnv(plugin, containerName, name);
     
@@ -1238,9 +1244,12 @@ export const getDomains = async (containerName=null, name=null) => {
   debugLog(containerName, name);
   if (name) return getDomain(containerName, name);
   if (!containerName)             return {success: false, error: 'getDomains: scope=containerName is required'};
-  
+
+  const demo = demoResponse('domains');
+  if (demo) return demo;
+
   try {
-    
+
     const domains = dbAll(sql.domains.select.domainsWithCounts, {name:containerName});
     if (domains.success) {
       debugLog(`domains: domains (${typeof domains.message})`);
@@ -1445,6 +1454,9 @@ export const getRspamdStats = async (plugin = 'mailserver', containerName = null
   debugLog(`getRspamdStats containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdStats: containerName is required' };
 
+  const demo = demoResponse('rspamdStats');
+  if (demo) return demo;
+
   try {
     const targetDict = getTargetDict(plugin, containerName);
     const result = await execCommand('curl -sf http://localhost:11334/stat', targetDict, { timeout: 5 });
@@ -1466,6 +1478,9 @@ export const getRspamdStats = async (plugin = 'mailserver', containerName = null
 export const getRspamdConfig = async (plugin = 'mailserver', containerName = null) => {
   debugLog(`getRspamdConfig containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdConfig: containerName is required' };
+
+  const demo = demoResponse('rspamdConfig');
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
@@ -1534,6 +1549,9 @@ export const getRspamdBayesUsers = async (plugin = 'mailserver', containerName =
   debugLog(`getRspamdBayesUsers containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdBayesUsers: containerName is required' };
 
+  const demo = demoResponse('rspamdBayesUsers');
+  if (demo) return demo;
+
   try {
     const targetDict = getTargetDict(plugin, containerName);
 
@@ -1583,6 +1601,9 @@ export const getRspamdBayesUsers = async (plugin = 'mailserver', containerName =
 export const getRspamdCounters = async (plugin = 'mailserver', containerName = null) => {
   debugLog(`getRspamdCounters containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdCounters: containerName is required' };
+
+  const demo = demoResponse('rspamdCounters');
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
@@ -1652,6 +1673,9 @@ export const getRspamdUserHistory = async (plugin = 'mailserver', containerName 
   debugLog(`getRspamdUserHistory containerName=${containerName} addresses=${addresses.length}`);
   if (!containerName) return { success: false, error: 'getRspamdUserHistory: containerName is required' };
   if (!addresses.length) return { success: false, error: 'getRspamdUserHistory: addresses is required' };
+
+  const demo = demoResponse('rspamdUserHistory');
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
@@ -1723,6 +1747,9 @@ export const getRspamdHistory = async (plugin = 'mailserver', containerName = nu
   debugLog(`getRspamdHistory containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getRspamdHistory: containerName is required' };
 
+  const demo = demoResponse('rspamdHistory');
+  if (demo) return demo;
+
   try {
     const targetDict = getTargetDict(plugin, containerName);
     const result = await execCommand('curl -sf "http://localhost:11334/history?from=0&to=999"', targetDict, { timeout: 10 });
@@ -1777,6 +1804,9 @@ export const rspamdLearnMessage = async (plugin = 'mailserver', containerName = 
   if (!containerName) return { success: false, error: 'containerName is required' };
   if (!messageId) return { success: false, error: 'message_id is required' };
   if (!action || !['ham', 'spam'].includes(action)) return { success: false, error: 'action must be ham or spam' };
+
+  const demo = demoWriteResponse(`Learned as ${action}`);
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
@@ -1861,6 +1891,9 @@ export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
   debugLog(`dnsLookup domain=${domain} selector=${dkimSelector}`);
   if (!domain) return { success: false, error: 'dnsLookup: domain is required' };
 
+  const demo = demoResponse('dnsLookup', { domain });
+  if (demo) return demo;
+
   const result = { domain, a: [], mx: [], spf: null, dkim: null, dmarc: null, tlsa: [], srv: [] };
 
   try {
@@ -1930,6 +1963,8 @@ export const dnsLookup = async (domain, dkimSelector = 'dkim') => {
 
 // Read the DKIM selector from the rspamd signing config inside the DMS container.
 export const getDkimSelector = async (plugin = 'mailserver', containerName) => {
+  if (env.isDEMO) return { success: true, selector: demoData.dkimSelector };
+
   const targetDict = getTargetDict(plugin, containerName);
   for (const path of [
     '/etc/rspamd/override.d/dkim_signing.conf',
@@ -1953,6 +1988,9 @@ export const generateDkim = async (plugin = 'mailserver', containerName, domain,
   if (!['rsa', 'ed25519'].includes(keytype)) return { success: false, error: 'Invalid keytype' };
   if (!['1024', '2048', '4096'].includes(String(keysize))) return { success: false, error: 'Invalid keysize' };
   if (!/^[a-z0-9_-]+$/i.test(selector)) return { success: false, error: 'Invalid selector' };
+
+  const demo = demoResponse('generateDkim');
+  if (demo) return demo;
 
   const targetDict = getTargetDict(plugin, containerName);
 
@@ -2061,6 +2099,9 @@ export const dnsblCheck = async (containerName, domain) => {
   debugLog(`dnsblCheck domain=${domain}`);
   if (!domain) return { success: false, error: 'dnsblCheck: domain is required' };
 
+  const demo = demoResponse('dnsblCheck', { domain });
+  if (demo) return demo;
+
   // 1. Get server IP: try MX → A resolution first, but validate it's public
   let dnsIp = null;
   try {
@@ -2145,6 +2186,9 @@ export const dnsblCheck = async (containerName, domain) => {
 export const getDovecotSessions = async (plugin = 'mailserver', containerName = null) => {
   debugLog(`getDovecotSessions containerName=${containerName}`);
   if (!containerName) return { success: false, error: 'getDovecotSessions: containerName is required' };
+
+  const demo = demoResponse('dovecotSessions');
+  if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);

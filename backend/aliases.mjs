@@ -17,6 +17,7 @@ import {
 import {
   env
 } from './env.mjs';
+import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
 import {
   dbAll,
@@ -30,8 +31,13 @@ import { getConfigs } from './settings.mjs';
 
 export const getAliases = async (containerName=null, refresh=false, roles=[]) => {
   if (!containerName) return {success: false, error: 'containerName is null'};
-  refresh = env.isDEMO ? false : refresh;
-  
+
+  const demo = demoResponse('aliases');
+  if (demo) {
+    if (roles.length) demo.message = reduxArrayOfObjByValue(demo.message, 'destination', roles);
+    return demo;
+  }
+
   let aliases = [];
   let regexes = [];
   let result, config;
@@ -269,6 +275,9 @@ export const addAlias = async (containerName=null, source=null, destination=null
   if (!source) return {success: false, error: 'source is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
 
+  const demo = demoWriteResponse(`Alias created: ${source} -> ${destination}`);
+  if (demo) return demo;
+
   let results, result;
   try {
     const targetDict = getTargetDict('mailserver', containerName);
@@ -338,6 +347,9 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
   if (!destination) return {success: false, error: 'destination is null'};
   if (!source) return {success: false, error: 'source is null'};
   if (!containerName) return {success: false, error: 'containerName is null'};
+
+  const demo = demoWriteResponse(`Alias deleted: ${source}`);
+  if (demo) return demo;
 
   let results, result;
   try {

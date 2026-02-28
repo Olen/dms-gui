@@ -3,6 +3,7 @@ import { authenticateToken, requireActive, requireAdmin, isValidDomain, serverEr
 import { dnsLookup, dnsblCheck, generateDkim, getDkimSelector, getDomains } from '../settings.mjs';
 import { updateDB } from '../db.mjs';
 import { upsertDnsRecord } from '../dnsProviders.mjs';
+import { demoWriteResponse } from '../demoMode.mjs';
 
 const router = Router();
 router.param('containerName', validateContainerName);
@@ -14,6 +15,9 @@ router.post('/dnscontrol/test',
   requireAdmin,
 async (req, res) => {
   try {
+    const demo = demoWriteResponse('DNS provider test OK');
+    if (demo) return res.json(demo);
+
     const { type, ...creds } = req.body;
     if (!type) return res.status(400).json({ success: false, error: 'Provider type is required' });
 
@@ -76,6 +80,9 @@ async (req, res) => {
     if (!containerName) return res.status(400).json({ success: false, error: 'containerName is required' });
     if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
     if (!isValidDomain(domain)) return res.status(400).json({ success: false, error: 'Invalid domain format' });
+
+    const demo = demoWriteResponse('DNS record updated');
+    if (demo) return res.json(demo);
 
     const { name, type, data } = req.body;
     if (!name || !type || !data) return res.status(400).json({ success: false, error: 'name, type, and data are required' });
