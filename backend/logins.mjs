@@ -45,6 +45,7 @@ import {
   sql,
   verifyPassword,
 } from './db.mjs';
+import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
 
 // this returns an objects
@@ -100,6 +101,9 @@ export const getLogin = async (credential, guess=false) => {
 export const getLogins = async (credentials=null, guess=false) => {
   debugLog(credentials, guess);
   if (credentials && !Array.isArray(credentials)) return getLogin(credentials, guess);
+
+  const demo = demoResponse('logins');
+  if (demo) return demo;
 
   let result;
   let logins = [];
@@ -187,6 +191,9 @@ export const getRoles = async (credential=null) => {
 // mailserver used to be containerName, now we want configID
 export const addLogin = async (mailbox, username, password='', email='', isAdmin=0, isAccount=0, isActive=1, mailserver=null, roles=[]) => {
   debugLog(mailbox, username, '[REDACTED]', email, isAdmin, isActive, isAccount, mailserver, roles);
+
+  const demo = demoWriteResponse(`Login created: ${username}`);
+  if (demo) return demo;
 
   try {
     // even when password is undefined, we can get a hash value

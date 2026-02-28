@@ -3,6 +3,7 @@ import { authenticateToken, requireActive, requireAdmin, serverError } from '../
 import { addLogin, getLogins, getRoles } from '../logins.mjs';
 import { deleteEntry, updateDB } from '../db.mjs';
 import { debugLog, errorLog } from '../backend.mjs';
+import { demoWriteResponse } from '../demoMode.mjs';
 
 const router = Router();
 
@@ -219,6 +220,9 @@ async (req, res) => {
       return res.status(400).json({ error: 'id is required' });
     }
 
+    const demo = demoWriteResponse('Login updated');
+    if (demo) return res.json(demo);
+
     // Users can only act on their own mailboxes or those in their roles (unless admin)
     let result;
     if (req.user.isAdmin) {
@@ -269,6 +273,10 @@ async (req, res) => {
     if (!id) {
       return res.status(400).json({ error: 'id is required' });
     }
+
+    const demo = demoWriteResponse('Login deleted');
+    if (demo) return res.json(demo);
+
     const result = await deleteEntry('logins', id);
     res.json(result);
 

@@ -44,6 +44,11 @@ vi.mock('./db.mjs', () => ({
 
 vi.mock('../common.mjs', () => ({}));
 
+vi.mock('./demoMode.mjs', () => ({
+  demoResponse: vi.fn(() => null),
+  demoWriteResponse: vi.fn(() => null),
+}));
+
 import { addLogin, getLogin, getRoles } from './logins.mjs';
 import { dbGet } from './db.mjs';
 

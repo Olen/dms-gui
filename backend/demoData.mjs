@@ -57,7 +57,7 @@ const domains = [
 const serverStatus = {
   status: { status: 'running', error: null },
   resources: { cpuUsage: 3.2, memoryUsage: 28.7, diskUsage: 1842, error: null },
-  db: { logins: 4, accounts: 14, aliases: 21, error: null },
+  db: { logins: 7, accounts: 14, aliases: 21, error: null },
 };
 
 // --- Server envs (DMS environment) ---
@@ -490,6 +490,17 @@ const mailLogs = [
 ];
 
 
+// --- Logins (GUI users) ---
+const logins = [
+  { id: 1, username: 'admin',             email: 'admin@dms-gui.com',   isAdmin: 1, isActive: 1, isAccount: 0, mailserver: 'dms', roles: [],                       mailbox: 'admin@dms-gui.com',   language: null },
+  { id: 2, username: 'alice@example.com',  email: 'alice@example.com',   isAdmin: 0, isActive: 1, isAccount: 1, mailserver: 'dms', roles: ['alice@example.com'],     mailbox: 'alice@example.com',   language: 'en' },
+  { id: 3, username: 'bob@example.com',    email: 'bob@example.com',     isAdmin: 0, isActive: 1, isAccount: 1, mailserver: 'dms', roles: ['bob@example.com'],       mailbox: 'bob@example.com',     language: null },
+  { id: 4, username: 'carol',             email: 'carol@example.com',   isAdmin: 0, isActive: 1, isAccount: 0, mailserver: 'dms', roles: ['carol@example.com', 'carol@demo.org'], mailbox: 'carol@example.com', language: 'no' },
+  { id: 5, username: 'admin@demo.org',    email: 'admin@demo.org',      isAdmin: 1, isActive: 1, isAccount: 1, mailserver: 'dms', roles: ['admin@demo.org'],        mailbox: 'admin@demo.org',      language: null },
+  { id: 6, username: 'support@acme.io',   email: 'support@acme.io',     isAdmin: 0, isActive: 1, isAccount: 1, mailserver: 'dms', roles: ['support@acme.io'],       mailbox: 'support@acme.io',     language: null },
+  { id: 7, username: 'eve@example.com',   email: 'eve@example.com',     isAdmin: 0, isActive: 0, isAccount: 1, mailserver: 'dms', roles: ['eve@example.com'],       mailbox: 'eve@example.com',     language: null },
+];
+
 // --- User settings (public mail setup) ---
 const userSettings = {
   IMAP_HOST: 'mail.example.com',
@@ -523,6 +534,7 @@ const settings = [
 export const demoData = {
   configs,
   settings,
+  logins,
   userSettings,
   accounts,
   aliases,
