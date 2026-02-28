@@ -84,7 +84,8 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 | Email Accounts |
 |----------------|
-| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" /> -
+| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" /> |
+| Check quotas, change password, create and delete accounts |
 
 
 | Aliases |
@@ -94,7 +95,7 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 | User logins |
 |-------------|
 | <img width="1529" height="709" alt="image" src="https://github.com/user-attachments/assets/3a2869ff-6ba0-4138-8786-3a9ca4f825dc" /> |
-All accounts can also be allowed to log in as Users in DMS-GUI to be able to change password, see their own quotas, aliases etc
+| All accounts can also be allowed to log in as Users in DMS-GUI to be able to change password, see their own quotas, aliases etc |
 
 
 
@@ -117,7 +118,7 @@ All accounts can also be allowed to log in as Users in DMS-GUI to be able to cha
 | Logs |
 |------|
 | <img width="1555" height="821" alt="image" src="https://github.com/user-attachments/assets/bf72ae15-78d5-47e9-b8ec-975afbff274e" /> |
-Check the logs from the DMS-GUI container, the DMS Container and Rspamd 
+| Check the logs from the DMS-GUI container, the DMS Container and Rspamd |
 
 
 | Settings |
@@ -142,12 +143,12 @@ Check the logs from the DMS-GUI container, the DMS Container and Rspamd
 | Alias handling |
 |----------------|
 | <img width="1544" height="469" alt="image" src="https://github.com/user-attachments/assets/6fde0b95-5b7d-4ef6-bd93-6a5d104a52c0" /> |
-Admin can allow or deny users to manage their own aliases, or just see the current list of aliases
+| Admin can allow or deny users to manage their own aliases, or just see the current list of aliases |
 
 | Mail Setup |
 |------------|
 | <img width="1053" height="612" alt="image" src="https://github.com/user-attachments/assets/6a05c08d-9ee6-46f4-a551-da142305bfe7" /> |
-Easy access to configuration of different email clients
+| Easy access to configuration of different email clients |
 
 
 
