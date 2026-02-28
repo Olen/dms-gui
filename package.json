@@ -1,24 +1,46 @@
 {
   "name": "dms-gui",
   "version": "1.0.0",
+  "type": "module",
   "main": "index.js",
   "description": "[![Docker Pulls](https://img.shields.io/docker/pulls/audioscavenger/dms-gui)](https://hub.docker.com/r/audioscavenger/dms-gui)",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
+    "lint": "eslint backend/ frontend/src/ common.mjs frontend/frontend.mjs",
+    "lint:fix": "eslint --fix backend/ frontend/src/ common.mjs frontend/frontend.mjs",
     "prepare": "husky"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "devDependencies": {
+    "@eslint/js": "^9.39.3",
+    "eslint": "^9.39.3",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "globals": "^17.3.0",
     "husky": "^9.1.7",
     "lint-staged": "^15.5.0"
   },
   "lint-staged": {
-    "backend/**/*.{js,json}": [
-      "prettier --write"
+    "backend/**/*.{js,mjs}": [
+      "prettier --write",
+      "eslint --no-error-on-unmatched-pattern"
     ],
-    "frontend/src/**/*.{js,jsx,css,json}": [
+    "frontend/src/**/*.{js,jsx}": [
+      "prettier --write",
+      "eslint --no-error-on-unmatched-pattern"
+    ],
+    "frontend/frontend.mjs": [
+      "prettier --write",
+      "eslint --no-error-on-unmatched-pattern"
+    ],
+    "common.mjs": [
+      "prettier --write",
+      "eslint --no-error-on-unmatched-pattern"
+    ],
+    "**/*.{css,json}": [
       "prettier --write"
     ],
     "frontend/public/index.html": [

@@ -304,6 +304,12 @@ const authLimiter = rateLimit({
   message: { error: 'Too many authentication attempts, please try again later' },
 });
 
+// Log full error details server-side but return only a generic message to clients
+const serverError = (res, context, error) => {
+  errorLog(`${context}: ${error.message}`);
+  res.status(500).json({ error: 'Internal server error' });
+};
+
 app.use(express.json());
 app.use('/docs', swaggerUi.serve, swaggerUi.setup(oasDefinition));
 
@@ -459,8 +465,7 @@ async (req, res) => {
     res.json({ success: true, filename, url: `/uploads/${filename}` });
 
   } catch (error) {
-    errorLog(`POST /api/branding/logo: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'POST /api/branding/logo', error);
   }
 });
 
@@ -489,8 +494,7 @@ async (req, res) => {
     res.json({ success: true, message: 'Logo removed' });
 
   } catch (error) {
-    errorLog(`DELETE /api/branding/logo: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'DELETE /api/branding/logo', error);
   }
 });
 
@@ -590,9 +594,7 @@ async (req, res) => {
     res.json(status);
 
   } catch (error) {
-    errorLog(`index /api/status: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to connect to docker-mailserver' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/status', error);
   }
 });
 
@@ -616,9 +618,7 @@ async (req, res) => {
     const infos = await getNodeInfos();
     res.json(infos);
   } catch (error) {
-    errorLog(`index /api/infos: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to connect to docker-mailserver' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/infos', error);
   }
 });
 
@@ -679,9 +679,7 @@ async (req, res) => {
     res.json(envs);
 
   } catch (error) {
-    errorLog(`index /api/envs: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to connect to docker-mailserver' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/envs', error);
   }
 });
 
@@ -731,11 +729,9 @@ async (req, res) => {
       accounts = await getAccounts(containerName, false, req.user.roles);
     }
     res.json(accounts);
-    
+
   } catch (error) {
-    errorLog(`index /api/accounts: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve accounts' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/accounts', error);
   }
 });
 
@@ -798,11 +794,9 @@ async (req, res) => {
     }
     const result = await addAccount(schema, containerName, mailbox, password, createLogin);
     res.status(201).json(result);
-    
+
   } catch (error) {
-    errorLog(`index /api/accounts: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to create account' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/accounts', error);
   }
 });
 
@@ -867,9 +861,7 @@ async (req, res) => {
     res.json(result);
     
   } catch (error) {
-    errorLog(`PUT /api/doveadm: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to execute doveadm' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'PUT /api/doveadm', error);
   }
 });
 
@@ -922,11 +914,9 @@ async (req, res) => {
     }
     const result = await deleteAccount(schema, containerName, mailbox);
     res.json(result);
-    
+
   } catch (error) {
-    errorLog(`index /api/accounts: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to delete account' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/accounts', error);
   }
 });
 
@@ -985,8 +975,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index PUT /api/accounts/quota: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index PUT /api/accounts/quota', error);
   }
 });
 
@@ -1060,9 +1049,7 @@ async (req, res) => {
     res.json(result);
     
   } catch (error) {
-    errorLog(`index PATCH /api/accounts: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to update Account' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index PATCH /api/accounts', error);
   }
 });
 
@@ -1114,9 +1101,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index /api/aliases: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve aliases' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/aliases', error);
   }
 });
 
@@ -1191,9 +1176,7 @@ async (req, res) => {
     res.status(201).json(result);
     
   } catch (error) {
-    errorLog(`index /api/aliases: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to create alias' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/aliases', error);
   }
 });
 
@@ -1262,8 +1245,7 @@ async (req, res) => {
     res.json(result);
     
   } catch (error) {
-    errorLog(`DELETE /api/aliases: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'DELETE /api/aliases', error);
   }
 });
 
@@ -1320,9 +1302,7 @@ async (req, res) => {
     res.json(settings);
     
   } catch (error) {
-    errorLog(`GET /api/settings: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve settings' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/settings', error);
   }
 });
 
@@ -1373,8 +1353,7 @@ async (req, res) => {
     res.json({ success: true, message: settings });
 
   } catch (error) {
-    errorLog(`GET /api/user-settings: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/user-settings', error);
   }
 });
 
@@ -1413,8 +1392,7 @@ async (req, res) => {
     res.send(xml);
 
   } catch (error) {
-    errorLog(`GET /api/mail-profile/autoconfig: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/mail-profile/autoconfig', error);
   }
 });
 
@@ -1451,8 +1429,7 @@ async (req, res) => {
     res.send(xml);
 
   } catch (error) {
-    errorLog(`GET /api/mail-profile/mobileconfig: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/mail-profile/mobileconfig', error);
   }
 });
 
@@ -1469,8 +1446,7 @@ app.get('/api/generate-password',
     const passphrase = generatePassphrase(count);
     res.json({ success: true, message: passphrase });
   } catch (error) {
-    errorLog(`GET /api/generate-password: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/generate-password', error);
   }
 });
 
@@ -1510,8 +1486,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/rspamd/user-summary: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/rspamd/user-summary', error);
   }
 });
 
@@ -1564,8 +1539,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/logs: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/logs', error);
   }
 });
 
@@ -1622,8 +1596,7 @@ async (req, res) => {
     res.json(configs);
 
   } catch (error) {
-    errorLog(`GET /api/configs: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/configs', error);
   }
 });
 
@@ -1699,9 +1672,7 @@ async (req, res) => {
     res.status(201).json(result);
     
   } catch (error) {
-    errorLog(`index POST /api/settings: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to save settings' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index POST /api/settings', error);
   }
 });
 
@@ -1872,9 +1843,7 @@ async (req, res) => {
     res.json(logins);
     
   } catch (error) {
-    errorLog(`index POST /api/getLogins: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve logins' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index POST /api/getLogins', error);
   }
 });
 
@@ -1948,9 +1917,7 @@ async (req, res) => {
     res.status(201).json(result);
     
   } catch (error) {
-    errorLog(`index PUT /api/logins: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to save Login' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index PUT /api/logins', error);
   }
 });
 
@@ -2028,9 +1995,7 @@ async (req, res) => {
     res.json(result);
     
   } catch (error) {
-    errorLog(`index PATCH /api/logins: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to update login' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index PATCH /api/logins', error);
   }
 });
 
@@ -2071,9 +2036,7 @@ async (req, res) => {
     res.json(result);
     
   } catch (error) {
-    errorLog(`index /api/login: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to delete login' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/login', error);
   }
 });
 
@@ -2161,8 +2124,7 @@ app.post('/api/loginUser', authLimiter, async (req, res, next) => {
     }
 
   } catch (error) {
-    errorLog(`index POST /api/loginUser: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index POST /api/loginUser', error);
   }
 });
 
@@ -2291,8 +2253,7 @@ async (req, res) => {
     const result = await getDkimSelector('mailserver', containerName);
     res.json(result);
   } catch (error) {
-    errorLog(`index GET /api/domains/dkim-selector: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/domains/dkim-selector', error);
   }
 });
 
@@ -2338,9 +2299,7 @@ async (req, res) => {
     res.json(domains);
     
   } catch (error) {
-    errorLog(`index GET /api/domains/${domain}/${containerName}: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve domains' });
-    res.status(500).json({ error: error.message });
+    serverError(res, `index GET /api/domains/${domain}/${containerName}`, error);
   }
 });
 
@@ -2394,8 +2353,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index PATCH /api/domains: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index PATCH /api/domains', error);
   }
 });
 
@@ -2450,8 +2408,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index GET /api/dns: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/dns', error);
   }
 });
 
@@ -2518,8 +2475,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index POST /api/domains/dkim: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index POST /api/domains/dkim', error);
   }
 });
 
@@ -2566,8 +2522,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index GET /api/dnsbl: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/dnsbl', error);
   }
 });
 
@@ -2586,8 +2541,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/dovecot/sessions: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/dovecot/sessions', error);
   }
 });
 
@@ -2625,8 +2579,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index GET /api/rspamd/stat: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/rspamd/stat', error);
   }
 });
 
@@ -2664,8 +2617,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`index GET /api/rspamd/counters: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/rspamd/counters', error);
   }
 });
 
@@ -2684,8 +2636,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/rspamd/bayes-users: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/rspamd/bayes-users', error);
   }
 });
 
@@ -2704,8 +2655,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/rspamd/config: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/rspamd/config', error);
   }
 });
 
@@ -2724,8 +2674,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`GET /api/rspamd/history: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'GET /api/rspamd/history', error);
   }
 });
 
@@ -2748,8 +2697,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`POST /api/rspamd/learn: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'POST /api/rspamd/learn', error);
   }
 });
 
@@ -2801,9 +2749,7 @@ async (req, res) => {
     res.json(count);
     
   } catch (error) {
-    errorLog(`index GET /api/getCount: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to count table' });
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index GET /api/getCount', error);
   }
 });
 
@@ -2864,10 +2810,9 @@ async (req, res) => {
     
     const dms_api_key_response = await initAPI(plugin, schema, containerName, dms_api_key_param);
     res.json(dms_api_key_response);
-    
+
   } catch (error) {
-    errorLog(`index /api/accounts: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/accounts', error);
   }
 });
 
@@ -2918,8 +2863,7 @@ async (req, res) => {
     res.json({success:true, message: result?.message});
     
   } catch (error) {
-    errorLog(`index /api/killContainer: ${error.message}`);
-    res.status(500).json({ error: error.message });
+    serverError(res, 'index /api/killContainer', error);
   }
 });
 
@@ -2997,6 +2941,7 @@ app.listen(env.PORT_NODEJS, async () => {
     * AES_SECRET=${crypto.randomBytes(32).toString('hex')} *
     *******************************************************************************
     `);
+    process.exit(1);
   }
 
 });

@@ -37,6 +37,7 @@ vi.mock('./db.mjs', () => ({
 }));
 
 vi.mock('./aliases.mjs', () => ({
+  addAlias: vi.fn(async () => ({ success: true })),
   getAliases: (...args) => mockGetAliases(...args),
   deleteAlias: (...args) => mockDeleteAlias(...args),
 }));

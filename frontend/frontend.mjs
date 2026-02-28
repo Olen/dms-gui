@@ -1,34 +1,4 @@
-// export const debug = false;
-export const debug = true;
-
-// import {
-//   regexColors,
-//   regexPrintOnly,
-//   regexFindEmailRegex,
-//   regexFindEmailStrict,
-//   regexFindEmailLax,
-//   regexEmailRegex,
-//   regexEmailStrict,
-//   regexEmailLax,
-//   regexMatchPostfix,
-//   regexUsername,
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
-// } from '../common.mjs'
-
-
+export const debug = false;
 
 export const ICON = {
   success: '✔️',
@@ -55,22 +25,3 @@ export const warnLog = async (message, data = '') => { logger('warn', message, d
 export const infoLog = async (message, data = '') => { logger('info', message, data) };
 export const debugLog = async (message, data = '') => { if (debug) logger('debug', message, data) };
 // TODO: add colors: console.log('%c Sample Text', 'color:green;')
-
-
-// export {
-//   arrayOfStringToDict,
-//   byteSize2HumanSize,
-//   fixStringType,
-//   funcName,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   humanSize2ByteSize,
-//   mergeArrayOfObj,
-//   moveKeyToLast,
-//   obj2ArrayOfObj,
-//   pluck,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj
-// };
-

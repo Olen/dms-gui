@@ -8,7 +8,7 @@
 # Stage 1: Build frontend https://hub.docker.com/_/node
 # https://dev.to/ptuladhar3/avoid-using-bloated-nodejs-docker-image-in-production-3doc
 # FROM node:slim AS frontend-builder
-FROM node:24-alpine AS frontend-builder
+FROM node:24.14.0-alpine AS frontend-builder
 
 WORKDIR /app/frontend
 
@@ -24,7 +24,7 @@ RUN npm run build
 
 # -----------------------------------------------------
 # Stage 2: Build backend
-FROM node:24-alpine AS backend-builder
+FROM node:24.14.0-alpine AS backend-builder
 
 WORKDIR /app/backend
 
@@ -39,7 +39,7 @@ COPY backend/ ./
 
 # -----------------------------------------------------
 # Stage 3: Final image with Nginx and Node.js
-FROM node:24-alpine
+FROM node:24.14.0-alpine
 
 ARG DMSGUI_VERSION=1.5.23
 ARG DMSGUI_DESCRIPTION="A graphical user interface for managing all aspects of DMS including: email accounts, aliases, xapian indexes, and DNS entries."

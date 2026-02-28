@@ -97,12 +97,6 @@ const Accounts = () => {
   });
   const [passwordFormErrors, setPasswordFormErrors] = useState({});
 
-  // State for DNS change modal ------------------------------------
-  const dnsFormRef = useRef(null);
-  const [showDNSModal, setShowDNSModal] = useState(false);
-  const [dnsFormData, setDNSFormData] = useState({});
-  const [dnsFormErrors, setDNSFormErrors] = useState({});
-
   // State for quota modal -----------------------------------------
   const [showQuotaModal, setShowQuotaModal] = useState(false);
   const [quotaFormData, setQuotaFormData] = useState({
@@ -400,72 +394,6 @@ const Accounts = () => {
   
   
   
-  // Open DNS change modal for an account
-  const handleChangeDNS = (account) => {
-    setSelectedAccount(account);
-    setPasswordFormData({
-      newPassword: '',
-      confirmPassword: '',
-    });
-    setDNSFormErrors({});
-    setShowDNSModal(true);
-  };
-
-  // Close password change modal
-  const handleCloseDNSModal = () => {
-    setShowDNSModal(false);
-    setSelectedAccount(null);
-  };
-
-  // Handle input changes for password change form
-  const handleDNSInputChange = (e) => {
-    const { name, value, type } = e.target;
-    setDNSFormData({
-      ...dnsFormData,
-      [name]: type === 'number' ? Number(value) : value,
-    });
-
-    // Clear the error for this field while typing
-    if (dnsFormErrors[name]) {
-      setDNSFormErrors({
-        ...dnsFormErrors,
-        [name]: null,
-      });
-    }
-  };
-
-  // Validate DNS change form
-  const validateDNSForm = () => {
-    const errors = {};
-
-    setDNSFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Submit password change
-  const handleSubmitDNSChange = async (e) => {
-    e.preventDefault();
-    setErrorMessage(null);
-    setSuccessMessage(null);
-
-    if (!validateDNSForm()) {
-      return;
-    }
-
-    try {
-      await updateDNS(
-        selectedAccount.domain,
-        passwordFormData.newPassword
-      );
-      setSuccessMessage('accounts.dnsUpdated');
-      handleCloseDNSModal(); // Close the modal
-    } catch (error) {
-      errorLog(t('api.errors.updateDNS'), error);
-      setErrorMessage('api.errors.updateDNS');
-    }
-  };
-
-
   // Open quota modal for an account
   const handleSetQuota = (account) => {
     setSelectedAccount(account);
@@ -528,19 +456,7 @@ const Accounts = () => {
       key: 'domain',
       label: 'accounts.domain',
       render: (account) => (
-        <>
-          <span>{account.domain}</span>
-          {user.isAdmin == 1 && (
-            <Button
-              variant="info"
-              size="sm"
-              icon="globe"
-              title={t('accounts.manageDNS')}
-              onClick={() => handleChangeDNS(account)}
-              className="me-2 float-end"
-            />
-          )}
-        </>
+        <span>{account.domain}</span>
       ),
     },
     {
@@ -859,36 +775,6 @@ const Accounts = () => {
         </Modal.Footer>
       </Modal>
 
-      {/* DNS Modal using react-bootstrap */}
-      <Modal show={showDNSModal} onHide={handleCloseDNSModal}>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {Translate('accounts.manageDNS')} - {selectedAccount?.domain}{' '}
-            {/* Use optional chaining */}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {selectedAccount && ( // Ensure selectedAccount exists before rendering form
-            <form onSubmit={handleSubmitDNSChange} ref={dnsFormRef}>
-              TBD
-            </form>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          {/* Use refactored Button component */}
-          <Button
-            variant="secondary"
-            onClick={handleCloseDNSModal}
-            text="common.cancel"
-          />
-          <Button
-            variant="primary"
-            onClick={handleSubmitDNSChange}
-            text="accounts.updateDNS"
-          />
-        </Modal.Footer>
-      </Modal>
-      
     </div>
   );
 };
