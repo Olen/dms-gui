@@ -603,6 +603,7 @@
   "language": {
     "select": "Select Language",
     "en": "English",
+    "no": "Norsk",
     "pl": "Polish"
   }
 }
