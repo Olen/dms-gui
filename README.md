@@ -13,7 +13,6 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 - [🔧 Admin](#-admin)
 - [👤 Users](#-users)
 - [🌍 Shared Features](#-shared-features)
-- [📋 Compatibility](#-compatibility)
 - [🚀 Quick Start](#-quick-start)
 - [⚙️ Configuration](#️-configuration)
 - [🔒 Security](#-security)
@@ -137,14 +136,6 @@ Forgot your password? The login page has a self-service reset link that sends a 
 - **Multilingual** — English, Norwegian (Bokmål), Polish; language preference saved per user
 - **Responsive** — Bootstrap-based UI works on desktop and mobile
 - **SQLite database** — better-sqlite3 with automatic migration patches
-
----
-
-## 📋 Compatibility
-
-| DMS     | dms-gui | x86_64 | aarch64 |
-|---------|---------|--------|---------|
-| v15.x   | v1.5    | ✅     | ✅      |
 
 ---
 
