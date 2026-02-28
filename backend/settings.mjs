@@ -1130,7 +1130,13 @@ export const getServerEnvs = async (plugin='mailserver', containerName=null, ref
   if (!plugin)             return {success: false, error: 'getServerEnvs: plugin is required'};
 
   const demo = demoResponse('serverEnvs');
-  if (demo) return demo;
+  if (demo) {
+    if (name) {
+      const found = demo.message.find(e => e.name === name);
+      return { success: true, message: found?.value };
+    }
+    return demo;
+  }
 
   if (!refresh) {
     if (name) return getServerEnv(plugin, containerName, name);
