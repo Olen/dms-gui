@@ -78,21 +78,49 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 ### 🔧 Admin Views
 
-| Login | Dashboard |
-|-------|-----------|
-| ![Login](assets/login.webp) | ![Dashboard admin](assets/dashboard.webp) |
+| Dashboard |
+|-----------|
+| <img width="1555" height="522" alt="image" src="https://github.com/user-attachments/assets/475b240c-ca19-4558-b9a2-4370a18a01b1" /> |
 
-| Accounts | Aliases |
-|----------|---------|
-| ![Accounts](assets/accounts.webp) | ![Aliases](assets/aliases.webp) |
+| Accounts |
+|----------|
+| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" /> -
 
-| Domains & DNS | Rspamd |
-|---------------|--------|
-| ![Domains](assets/domains.webp) | ![Rspamd](assets/rspamd.webp) |
+
+| Aliases |
+|---------|
+| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/7688ec93-0577-40ec-a1e2-e619a5e52310" /> |
+
+| User logins |
+|-------------|
+| <img width="1554" height="430" alt="image" src="https://github.com/user-attachments/assets/a6fe9e1a-5f46-4cc3-9756-57f8822e80fe" /> |
+All accounts can also be allowed to log in as Users in DMS-GUI to be able to change password, see their own quotas, aliases etc
+
+
+
+
+| Domains & DNS |
+|---------------|
+| |
+
+| Rspamd |
+|--------|
+|  |
+
+| Logs |
+|------|
+| <img width="1555" height="821" alt="image" src="https://github.com/user-attachments/assets/bf72ae15-78d5-47e9-b8ec-975afbff274e" /> |
+Check the logs from the DMS-GUI container, the DMS Container and Rspamd 
+
 
 | Settings |
 |----------|
-| ![Settings](assets/settings.webp) |
+| <img width="1555" height="841" alt="image" src="https://github.com/user-attachments/assets/d01bdab0-ebee-4889-8c58-ed1bd02a2fcb" /> |
+| Control user related data.  Turn on and off user control of their own aliases |
+| <img width="1555" height="841" alt="image" src="https://github.com/user-attachments/assets/fddb17e4-b700-48fd-9268-563f75910f46" />
+| Siimple branding - Set the site name, add a logo, set primary and sidebar color |
+| |
+| Set up DNS-providers to push SPF, DKIM and DMARC-settings directly to your DNS provider |
 
 ### 👤 User Views
 
