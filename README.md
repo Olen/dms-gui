@@ -1,4 +1,4 @@
-# Docker Mailserver GUI
+# 📬 Docker Mailserver GUI
 
 [![Docker Pulls](https://img.shields.io/docker/pulls/audioscavenger/dms-gui)](https://hub.docker.com/r/audioscavenger/dms-gui)
 
@@ -8,72 +8,101 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 ![Dashboard](assets/dashboard.webp)
 
-## Features
+---
 
-### Core
-- **Dashboard** — Server status, resource usage, account/alias/login counts (admin); personal quota, spam summary, webmail link (users)
-- **Accounts** — Create, delete, and manage email accounts with storage quota display, active IMAP session indicators, and sortable columns
-- **Aliases** — Single and multi-destination aliases, regex aliases, catch-all (`@domain.com`)
-- **Logins** — Three user types: admins, users (manage multiple mailboxes), and linked mailbox users (DMS Dovecot auth)
-- **Profile** — Password change for both GUI and DMS Dovecot accounts
+## 📖 Table of Contents
 
-### DNS & Domains
-- **Live DNS checks** — A, MX, SPF, DKIM, DMARC, TLSA, SRV with color-coded status badges
-- **DKIM generation** — Configurable selector, key type (RSA/Ed25519), key size; runs `setup config dkim` inside DMS
-- **SPF/DMARC editor** — Click-to-edit with guided setup and grading
-- **DNS push** — One-click record push to Domeneshop or Cloudflare (more providers available but untested)
-- **DNSBL checks** — Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others
+- [✨ Features](#-features)
+  - [🔧 Admin Features](#-admin-features)
+  - [👤 User Features](#-user-features)
+- [📋 Compatibility](#-compatibility)
+- [📸 Screenshots](#-screenshots)
+- [🚀 Quick Start](#-quick-start)
+- [⚙️ Configuration](#️-configuration)
+- [🔒 Security](#-security)
+- [🏗️ Architecture](#️-architecture)
+- [🛠️ Development](#️-development)
+- [❓ FAQ](#-faq)
+- [📄 License](#-license)
 
-### Spam Filtering (rspamd)
-- Server statistics: version, uptime, scan counts, processing time
-- Message action breakdown with progress bars (clean/add header/greylist/reject)
-- Per-user Bayes learning stats and manual training (mark as ham/spam)
-- Top symbols by score impact
-- Message history browser
+---
 
-### Other
-- **Mail Setup** — Downloadable Thunderbird autoconfig and Apple .mobileconfig profiles
-- **Password Reset** — Self-service email-based reset with rate limiting and token expiry
-- **Branding** — Custom name, logo, icon, and colors per container
-- **Multi-DMS** — Connect and switch between multiple DMS instances
-- **Multilingual** — English, Norwegian (Bokmal), Polish; language preference saved per user
-- **better-sqlite3** database with automatic migration patches
+## ✨ Features
 
-## Compatibility
+### 🔧 Admin Features
+
+| Feature | Description |
+|---------|-------------|
+| 📊 **Dashboard** | Server status, CPU/memory/disk usage, account/alias/login counts |
+| 👥 **Accounts** | Create, delete, and manage email accounts with storage quota, active IMAP session indicators |
+| 📨 **Aliases** | Single and multi-destination aliases, regex aliases, catch-all (`@domain.com`) |
+| 🌐 **Domains & DNS** | Live A, MX, SPF, DKIM, DMARC, TLSA, SRV checks with color-coded status badges |
+| 🔑 **DKIM Generation** | Configurable selector, key type (RSA/Ed25519), key size; runs `setup config dkim` inside DMS |
+| ✏️ **SPF/DMARC Editor** | Click-to-edit with guided setup and grading |
+| 🚀 **DNS Push** | One-click record push to Domeneshop or Cloudflare (more providers available) |
+| 🛡️ **DNSBL Checks** | Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others |
+| 🧹 **Rspamd** | Server stats, message action breakdown, per-user Bayes learning, top symbols, message history |
+| 👤 **Logins** | Three user types: admins, users (manage multiple mailboxes), and linked mailbox users (Dovecot auth) |
+| ⚙️ **Settings** | DMS connection config, REST API key generation, branding (name, logo, icon, colors) |
+| 🔗 **Multi-DMS** | Connect and switch between multiple DMS instances |
+
+### 👤 User Features
+
+| Feature | Description |
+|---------|-------------|
+| 📊 **Dashboard** | Personal mailbox quota with usage bar, spam summary, webmail link, alias count |
+| 📨 **Aliases** | View aliases that deliver to your mailbox (configurable by admin) |
+| ✉️ **Mail Setup** | Downloadable Thunderbird autoconfig and Apple .mobileconfig profiles |
+| 🔐 **Profile** | Change password for both GUI and DMS Dovecot account |
+| 🔑 **Password Reset** | Self-service email-based reset with rate limiting and token expiry |
+
+### 🌍 Shared
+
+- **Multilingual** — English, Norwegian (Bokmål), Polish; language preference saved per user
+- **Responsive** — Bootstrap-based UI works on desktop and mobile
+- **SQLite database** — better-sqlite3 with automatic migration patches
+
+---
+
+## 📋 Compatibility
 
 | DMS     | dms-gui | x86_64 | aarch64 |
 |---------|---------|--------|---------|
-| v15.x   | v1.5    | yes    | yes     |
+| v15.x   | v1.5    | ✅     | ✅      |
 
-## Screenshots
+---
 
-> Screenshots use anonymized demo data. Sensitive information (addresses, domains, subjects) has been redacted.
+## 📸 Screenshots
 
-### Login
-![Login](assets/login.webp)
+> Screenshots use anonymized demo data. Sensitive information has been redacted.
 
-### Dashboard (admin)
-![Dashboard admin](assets/dashboard.webp)
+### 🔧 Admin Views
 
-### Dashboard (user)
-![Dashboard user](assets/dashboard-user.webp)
+| Login | Dashboard |
+|-------|-----------|
+| ![Login](assets/login.webp) | ![Dashboard admin](assets/dashboard.webp) |
 
-### Accounts
-![Accounts](assets/accounts.webp)
+| Accounts | Aliases |
+|----------|---------|
+| ![Accounts](assets/accounts.webp) | ![Aliases](assets/aliases.webp) |
 
-### Aliases
-![Aliases](assets/aliases.webp)
+| Domains & DNS | Rspamd |
+|---------------|--------|
+| ![Domains](assets/domains.webp) | ![Rspamd](assets/rspamd.webp) |
 
-### Domains & DNS
-![Domains](assets/domains.webp)
+| Settings |
+|----------|
+| ![Settings](assets/settings.webp) |
 
-### Rspamd
-![Rspamd](assets/rspamd.webp)
+### 👤 User Views
 
-### Settings
-![Settings](assets/settings.webp)
+| Dashboard |
+|-----------|
+| ![Dashboard user](assets/dashboard-user.webp) |
 
-## Quick Start
+---
+
+## 🚀 Quick Start
 
 ### 1. Docker Compose
 
@@ -140,7 +169,9 @@ docker compose up -d
 4. Generate the REST API key — this creates `rest-api.conf` and `rest-api.py`
 5. Restart DMS to activate the REST API
 
-## Configuration
+---
+
+## ⚙️ Configuration
 
 ### Environment Variables (.dms-gui.env)
 
@@ -156,7 +187,7 @@ docker compose up -d
 | `IV_LEN` | `16` | Initialization vector length |
 | `HASH_LEN` | `64` | Password hash key length |
 | `LOG_COLORS` | `true` | Colored backend logs |
-| `isDEMO` | `false` | Demo mode |
+| `isDEMO` | `false` | Demo mode — shows anonymized fake data, all write operations are no-ops |
 
 ### DMS REST API Environment (in your DMS compose)
 
@@ -167,51 +198,21 @@ docker compose up -d
 | `DMS_API_KEY` | — | API authentication key (must match dms-gui Settings) |
 | `DMS_API_SIZE` | `1024` | Maximum request payload size |
 
-## Reverse Proxy
+---
 
-dms-gui serves on port 80 (nginx). Place it behind your reverse proxy of choice.
+## 🔒 Security
 
-**Traefik example** (labels on the dms-gui container):
-
-```yaml
-labels:
-  - "traefik.enable=true"
-  - "traefik.http.routers.dms-gui.rule=Host(`mail-admin.example.com`)"
-  - "traefik.http.routers.dms-gui.entrypoints=websecure"
-  - "traefik.http.routers.dms-gui.tls.certresolver=letsencrypt"
-  - "traefik.http.services.dms-gui.loadbalancer.server.port=80"
-```
-
-**Nginx example:**
-
-```nginx
-server {
-    listen 443 ssl;
-    server_name mail-admin.example.com;
-
-    location / {
-        proxy_pass http://dms-gui:80;
-        proxy_set_header Host $host;
-        proxy_set_header X-Real-IP $remote_addr;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto $scheme;
-    }
-}
-```
-
-## Security
-
-### Authentication
+### 🔐 Authentication
 - Crypto-secure hashed passwords (scrypt) with per-user salt
 - HTTP-Only cookies with JWT access and refresh tokens
 - JWT secrets regenerated daily via scheduled container restart
 - Per-IP rate limiting on login and password reset endpoints
 - `crypto.timingSafeEqual()` for password comparison (timing-attack safe)
 
-### Authorization
+### 🛡️ Authorization
 
-| Access | Admin | User | Linked mailbox user |
-|--------|-------|------|---------------------|
+| Access | 🔧 Admin | 👤 User | 📧 Linked Mailbox |
+|--------|----------|---------|-------------------|
 | Auth method | GUI password | GUI password | DMS Dovecot |
 | Dashboard | full | personal | personal |
 | Accounts | full | partial | password only |
@@ -223,40 +224,44 @@ server {
 | Mail Setup | full | full | full |
 | Profile | full | full | full |
 
-### Data Protection
+### 🔏 Data Protection
 - AES-256-CBC encryption for stored DNS provider credentials
 - Command injection prevention via `escapeShellArg()` on all shell commands
 - REST API uses `subprocess.Popen` (not `shell=True`)
 - CORS restricted to configured origins
 - SQL parameterized via named bindings (no string interpolation)
 
-## Architecture
+---
+
+## 🏗️ Architecture
 
 ```
 Browser
-  |
-  v
+  │
+  ▼
 [Reverse Proxy] (Traefik / Nginx / ...)
-  |
-  v
+  │
+  ▼
 [dms-gui container]
   ├── nginx (:80) ── serves React SPA
   │                   proxies /api/* to backend
   └── node (:3001) ── Express API server
-       |                ├── SQLite database
-       |                └── JWT auth
-       v
+       │                ├── SQLite database
+       │                └── JWT auth
+       ▼
   [DMS container]
   └── rest-api.py (:8888) ── executes setup/doveadm commands
 ```
 
-### REST API
+### 🐍 REST API
 
 The Python REST API runs inside DMS as a supervisor service. It accepts authenticated POST requests, executes system commands (`setup`, `doveadm`, etc.), and returns JSON results. The API key is verified on every request, and the port is only exposed on the Docker network.
 
 Both `rest-api.py` and `rest-api.conf` are generated by dms-gui when you create the API key in Settings. The source template is embedded in `backend/env.mjs`.
 
-## Development
+---
+
+## 🛠️ Development
 
 ### Prerequisites
 
@@ -275,7 +280,7 @@ cd backend && npx vitest run
 docker build -t dms-gui:latest .
 ```
 
-### Project structure
+### 📁 Project structure
 
 ```
 ├── backend/            Express API server
@@ -297,7 +302,9 @@ docker build -t dms-gui:latest .
 └── config/             Example configuration files
 ```
 
-## FAQ
+---
+
+## ❓ FAQ
 
 **How does dms-gui communicate with DMS?**
 Via a Python REST API that runs inside the DMS container as a supervisor service. It executes `setup` and `doveadm` commands and returns results as JSON.
@@ -314,6 +321,8 @@ No. The backend strips `isAdmin`, `isActive`, and `roles` from non-admin PATCH r
 **Can users reset forgotten passwords?**
 Yes. The login page has a "Forgot password?" link that sends a time-limited reset token (1 hour) to the user's email. Rate-limited to 3 requests per 15 minutes.
 
-## License
+---
+
+## 📄 License
 
 AGPL-3.0-only
