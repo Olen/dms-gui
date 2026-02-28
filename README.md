@@ -6,17 +6,14 @@ A web-based management interface for [Docker-Mailserver](https://github.com/dock
 
 Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy. Communicates with DMS via a lightweight Python REST API running inside the DMS container.
 
-![Dashboard](assets/dashboard.webp)
-
 ---
 
 ## 📖 Table of Contents
 
-- [✨ Features](#-features)
-  - [🔧 Admin Features](#-admin-features)
-  - [👤 User Features](#-user-features)
+- [🔧 Admin](#-admin)
+- [👤 Users](#-users)
+- [🌍 Shared Features](#-shared-features)
 - [📋 Compatibility](#-compatibility)
-- [📸 Screenshots](#-screenshots)
 - [🚀 Quick Start](#-quick-start)
 - [⚙️ Configuration](#️-configuration)
 - [🔒 Security](#-security)
@@ -27,36 +24,115 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 ---
 
-## ✨ Features
+## 🔧 Admin
 
-### 🔧 Admin Features
+> Screenshots use anonymized demo data.
 
-| Feature | Description |
-|---------|-------------|
-| 📊 **Dashboard** | Server status, CPU/memory/disk usage, account/alias/login counts |
-| 👥 **Accounts** | Create, delete, and manage email accounts with storage quota, active IMAP session indicators |
-| 📨 **Aliases** | Single and multi-destination aliases, regex aliases, catch-all (`@domain.com`) |
-| 🌐 **Domains & DNS** | Live A, MX, SPF, DKIM, DMARC, TLSA, SRV checks with color-coded status badges |
-| 🔑 **DKIM Generation** | Configurable selector, key type (RSA/Ed25519), key size; runs `setup config dkim` inside DMS |
-| ✏️ **SPF/DMARC Editor** | Click-to-edit with guided setup and grading |
-| 🚀 **DNS Push** | One-click record push to Domeneshop or Cloudflare (more providers available) |
-| 🛡️ **DNSBL Checks** | Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others |
-| 🧹 **Rspamd** | Server stats, message action breakdown, per-user Bayes learning, top symbols, message history |
-| 👤 **Logins** | Three user types: admins, users (manage multiple mailboxes), and linked mailbox users (Dovecot auth) |
-| ⚙️ **Settings** | DMS connection config, REST API key generation, branding (name, logo, icon, colors) |
-| 🔗 **Multi-DMS** | Connect and switch between multiple DMS instances |
+### 📊 Dashboard
 
-### 👤 User Features
+At-a-glance server health: container status, CPU/memory/disk usage, and counts of accounts, aliases, and logins. The dashboard auto-refreshes every 30 seconds.
 
-| Feature | Description |
-|---------|-------------|
-| 📊 **Dashboard** | Personal mailbox quota with usage bar, spam summary, webmail link, alias count |
-| 📨 **Aliases** | View aliases that deliver to your mailbox (configurable by admin) |
-| ✉️ **Mail Setup** | Downloadable Thunderbird autoconfig and Apple .mobileconfig profiles |
-| 🔐 **Profile** | Change password for both GUI and DMS Dovecot account |
-| 🔑 **Password Reset** | Self-service email-based reset with rate limiting and token expiry |
+<img width="1555" alt="Admin Dashboard" src="https://github.com/user-attachments/assets/475b240c-ca19-4558-b9a2-4370a18a01b1" />
 
-### 🌍 Shared
+### 👥 Email Accounts
+
+Create, delete, and manage email accounts. Each account shows its storage quota with a usage bar, and active IMAP sessions are highlighted so you can see who's currently connected.
+
+<img width="1555" alt="Email Accounts" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" />
+
+### 📨 Aliases
+
+Manage single and multi-destination aliases, regex aliases, and catch-all addresses (`@domain.com`). All columns are sortable and filterable.
+
+<img width="1555" alt="Aliases" src="https://github.com/user-attachments/assets/7688ec93-0577-40ec-a1e2-e619a5e52310" />
+
+### 👤 User Logins
+
+Three login types: **admins** (full access), **users** (manage multiple mailboxes), and **linked mailbox users** (authenticate via DMS Dovecot). Any email account can be granted GUI access so users can change their own password, view quotas, and manage aliases.
+
+<img width="1529" alt="User Logins" src="https://github.com/user-attachments/assets/3a2869ff-6ba0-4138-8786-3a9ca4f825dc" />
+
+### 🌐 Domains & DNS
+
+Live DNS checks for every domain: A, MX, SPF, DKIM, DMARC, TLSA, and SRV records with color-coded status badges. Assign a DNS provider per domain for one-click record pushing.
+
+<img width="1533" alt="Domains & DNS" src="https://github.com/user-attachments/assets/581ac687-38be-454f-a1aa-e8b210b75896" />
+
+Click a domain to open the DNS Details modal where you can inspect each record, edit SPF and DMARC with guided setup, generate DKIM keys (RSA or Ed25519), and push records to Domeneshop or Cloudflare. The Blacklist tab checks your mail server IP against Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others.
+
+| DNS Details | Blacklist Check |
+|-------------|-----------------|
+| <img width="813" alt="DNS Details" src="https://github.com/user-attachments/assets/88f9d756-5d2a-4694-9f48-c21a17717254" /> | <img width="814" alt="Blacklist Check" src="https://github.com/user-attachments/assets/9f734c96-075a-423e-81d0-9c42206d9c8b" /> |
+
+### 🧹 Rspamd
+
+Full rspamd integration: server statistics with version and uptime, message action breakdown (clean / add header / greylist / reject) with progress bars, per-user Bayes learning stats, top symbols ranked by score impact, and a message history browser with manual ham/spam training.
+
+<img width="1539" alt="Rspamd" src="https://github.com/user-attachments/assets/d3f6f087-3d8a-42c7-a444-bf3934852cf9" />
+
+Browse message history and re-learn individual messages as ham or spam with one click.
+
+<img width="1539" alt="Rspamd Learning" src="https://github.com/user-attachments/assets/78fb259e-b8f1-4b26-9f28-c0f55262fba1" />
+
+### 📋 Logs
+
+Browse logs from the DMS-GUI backend, the DMS container, and rspamd — all in one place. Logs are color-coded and auto-scroll, with configurable line count.
+
+<img width="1555" alt="Logs" src="https://github.com/user-attachments/assets/bf72ae15-78d5-47e9-b8ec-975afbff274e" />
+
+### ⚙️ Settings
+
+**User Settings** — Configure IMAP/SMTP/POP3 hostnames and ports, webmail URL, rspamd URL, and toggle whether users can manage their own aliases.
+
+<img width="1555" alt="User Settings" src="https://github.com/user-attachments/assets/d01bdab0-ebee-4889-8c58-ed1bd02a2fcb" />
+
+**Branding** — Customize the site name, upload a logo, and set primary and sidebar colors. Branding is shown on the login page and throughout the UI.
+
+<img width="1555" alt="Branding" src="https://github.com/user-attachments/assets/fddb17e4-b700-48fd-9268-563f75910f46" />
+
+**DNS Providers** — Set up provider profiles with encrypted API credentials (Domeneshop, Cloudflare, Route53, Oracle, Azure) to push SPF, DKIM, and DMARC records directly from the Domains page.
+
+**Multi-DMS** — Connect and switch between multiple DMS instances from the sidebar. Each container has its own settings, accounts, and domains.
+
+---
+
+## 👤 Users
+
+Admins can grant any email account access to the GUI. Users see a personalized view with only their own data — no server-level settings or other users' accounts.
+
+### 📊 Dashboard
+
+Personal mailbox quota with usage bar, spam summary with recent spam subjects, alias count, and a quick link to webmail.
+
+<img width="1538" alt="User Dashboard" src="https://github.com/user-attachments/assets/22f1d569-a583-4ecb-8801-7b7a4187174a" />
+
+### 🔐 Profile & Password
+
+Change the GUI password and the DMS Dovecot password from the same page.
+
+| Profile | Change Password |
+|---------|-----------------|
+| <img width="654" alt="Profile" src="https://github.com/user-attachments/assets/4fd60d02-fd09-4164-9373-c9aaa2088efc" /> | <img width="522" alt="Change Password" src="https://github.com/user-attachments/assets/8a966914-f807-4172-a878-fb8fc3be5ed8" /> |
+
+### 📨 Aliases
+
+Users can view (and optionally manage) the aliases that deliver to their mailbox. The admin controls whether users can add/delete their own aliases or only see the current list.
+
+<img width="1544" alt="User Aliases" src="https://github.com/user-attachments/assets/6fde0b95-5b7d-4ef6-bd93-6a5d104a52c0" />
+
+### ✉️ Mail Setup
+
+One-click download of Thunderbird autoconfig (XML) and Apple .mobileconfig profiles, pre-filled with the correct server hostnames and ports.
+
+<img width="1053" alt="Mail Setup" src="https://github.com/user-attachments/assets/6a05c08d-9ee6-46f4-a551-da142305bfe7" />
+
+### 🔑 Password Reset
+
+Forgot your password? The login page has a self-service reset link that sends a time-limited token (1 hour) to your email. Rate-limited to 3 requests per 15 minutes.
+
+---
+
+## 🌍 Shared Features
 
 - **Multilingual** — English, Norwegian (Bokmål), Polish; language preference saved per user
 - **Responsive** — Bootstrap-based UI works on desktop and mobile
@@ -69,95 +145,6 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 | DMS     | dms-gui | x86_64 | aarch64 |
 |---------|---------|--------|---------|
 | v15.x   | v1.5    | ✅     | ✅      |
-
----
-
-## 📸 Screenshots
-
-> Screenshots use anonymized demo data. Sensitive information has been redacted.
-
-### 🔧 Admin Views
-
-| Dashboard |
-|-----------|
-| <img width="1555" height="522" alt="image" src="https://github.com/user-attachments/assets/475b240c-ca19-4558-b9a2-4370a18a01b1" /> |
-
-| Email Accounts |
-|----------------|
-| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/39889d0f-bfd5-4306-8a26-9244303514b8" /> |
-| Check quotas, change password, create and delete accounts |
-
-
-| Aliases |
-|---------|
-| <img width="1555" height="859" alt="image" src="https://github.com/user-attachments/assets/7688ec93-0577-40ec-a1e2-e619a5e52310" /> |
-
-| User logins |
-|-------------|
-| <img width="1529" height="709" alt="image" src="https://github.com/user-attachments/assets/3a2869ff-6ba0-4138-8786-3a9ca4f825dc" /> |
-| All accounts can also be allowed to log in as Users in DMS-GUI to be able to change password, see their own quotas, aliases etc |
-
-
-
-
-| Domains & DNS |
-|---------------|
-| <img width="1533" height="455" alt="image" src="https://github.com/user-attachments/assets/581ac687-38be-454f-a1aa-e8b210b75896" /> |
-
-| DNS Details per domain | Blacklist Details per domain |
-|------------------------|------------------------------|
-| <img width="813" height="913" alt="image" src="https://github.com/user-attachments/assets/88f9d756-5d2a-4694-9f48-c21a17717254" /> | <img width="814" height="576" alt="image" src="https://github.com/user-attachments/assets/9f734c96-075a-423e-81d0-9c42206d9c8b" /> |
-| You can update important parameters of SPF and DMARC, as well as generating and deploying new DKIM-keys | |
-
-
-
-| Rspamd |
-|--------|
-| <img width="1539" height="853" alt="image" src="https://github.com/user-attachments/assets/d3f6f087-3d8a-42c7-a444-bf3934852cf9" /> |
-| Overvirew over Rspamd status |
-
-| Rspamd learning |
-|-----------------|
-| <img width="1539" height="853" alt="image" src="https://github.com/user-attachments/assets/78fb259e-b8f1-4b26-9f28-c0f55262fba1" /> |
-| List message history and "one click" to re-learn a message as Ham or Spam | 
-
-
-| Logs |
-|------|
-| <img width="1555" height="821" alt="image" src="https://github.com/user-attachments/assets/bf72ae15-78d5-47e9-b8ec-975afbff274e" /> |
-| Check the logs from the DMS-GUI container, the DMS Container and Rspamd |
-
-
-| Settings |
-|----------|
-| <img width="1555" height="841" alt="image" src="https://github.com/user-attachments/assets/d01bdab0-ebee-4889-8c58-ed1bd02a2fcb" /> |
-| Control user related data.  Turn on and off user control of their own aliases |
-| <img width="1555" height="841" alt="image" src="https://github.com/user-attachments/assets/fddb17e4-b700-48fd-9268-563f75910f46" />
-| Siimple branding - Set the site name, add a logo, set primary and sidebar color |
-| |
-| Set up DNS-providers to push SPF, DKIM and DMARC-settings directly to your DNS provider |
-
-### 👤 User Views
-
-| Dashboard |
-|-----------|
-| <img width="1538" height="861" alt="image" src="https://github.com/user-attachments/assets/22f1d569-a583-4ecb-8801-7b7a4187174a" /> |
-
-| Profile | Change Password |
-|---------|-----------------|
-| <img width="654" height="372" alt="image" src="https://github.com/user-attachments/assets/4fd60d02-fd09-4164-9373-c9aaa2088efc" /> | <img width="522" height="400" alt="image" src="https://github.com/user-attachments/assets/8a966914-f807-4172-a878-fb8fc3be5ed8" /> |
-
-| Alias handling |
-|----------------|
-| <img width="1544" height="469" alt="image" src="https://github.com/user-attachments/assets/6fde0b95-5b7d-4ef6-bd93-6a5d104a52c0" /> |
-| Admin can allow or deny users to manage their own aliases, or just see the current list of aliases |
-
-| Mail Setup |
-|------------|
-| <img width="1053" height="612" alt="image" src="https://github.com/user-attachments/assets/6a05c08d-9ee6-46f4-a551-da142305bfe7" /> |
-| Easy access to configuration of different email clients |
-
-
 
 ---
 
