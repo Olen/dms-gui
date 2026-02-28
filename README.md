@@ -98,7 +98,23 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 | Dashboard |
 |-----------|
-| ![Dashboard user](assets/dashboard-user.webp) |
+| <img width="1538" height="861" alt="image" src="https://github.com/user-attachments/assets/22f1d569-a583-4ecb-8801-7b7a4187174a" /> |
+
+| Profile | Change Password |
+|---------|-----------------|
+| <img width="654" height="372" alt="image" src="https://github.com/user-attachments/assets/4fd60d02-fd09-4164-9373-c9aaa2088efc" /> | <img width="522" height="400" alt="image" src="https://github.com/user-attachments/assets/8a966914-f807-4172-a878-fb8fc3be5ed8" /> |
+
+| Alias handling |
+|----------------|
+| <img width="1544" height="469" alt="image" src="https://github.com/user-attachments/assets/6fde0b95-5b7d-4ef6-bd93-6a5d104a52c0" /> |
+Admin can allow or deny users to manage their own aliases, or just see the current list of aliases
+
+| Mail Setup |
+|------------|
+| <img width="1053" height="612" alt="image" src="https://github.com/user-attachments/assets/6a05c08d-9ee6-46f4-a551-da142305bfe7" /> |
+Easy access to configuration of different email clients
+
+
 
 ---
 
