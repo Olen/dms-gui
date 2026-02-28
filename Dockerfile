@@ -58,17 +58,22 @@ COPY --from=backend-builder /app/backend /app/backend
 # Copy frontend build from frontend-builder
 COPY --from=frontend-builder /app/frontend/dist /app/frontend
 
-RUN mkdir -p /run/nginx
+RUN mkdir -p /run/nginx /var/lib/nginx/tmp && \
+    chown -R node:node /run/nginx /var/lib/nginx /var/log/nginx && \
+    sed -i 's/^user nginx;/# user nginx;/' /etc/nginx/nginx.conf
 
 # Nginx configuration
 COPY docker/nginx.conf /etc/nginx/http.d/default.conf
 
 # Copy startup script
 COPY docker/start.sh /app/start.sh
-RUN chmod +x /app/start.sh
+RUN chmod +x /app/start.sh && \
+    chown -R node:node /app
+
+USER node
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-  CMD curl -f http://localhost:8080/ || exit 1
+  CMD curl -f http://localhost:8080/ && curl -f http://localhost:3001/api/branding || exit 1
 
 # Start Nginx and Node.js
 CMD ["/app/start.sh"]

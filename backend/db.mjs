@@ -1295,8 +1295,13 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
             }
             
           } else {
-            // errorLog(`sql[${table}].update is missing [${key}]`);
-            // return { success: false, error: `sql[${table}].update is missing [${key}]`};
+            // Fallback: key is in sql[table].keys (validated above via reduxPropertiesOfObj) but has no pre-defined update query.
+            // Verify key contains only safe identifier characters as defense-in-depth.
+            if (!/^[a-zA-Z_]\w*$/.test(key)) {
+              errorLog(`updateDB: unsafe key name rejected: ${key}`);
+              messages.push(`Invalid key name: ${key}`);
+              continue;
+            }
 
             if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
             result = dbRun(`UPDATE ${table} set ${key} = @${key} WHERE 1=1 AND ${sql[table].id} = ?`, scopedValues, id);

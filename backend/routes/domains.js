@@ -2,7 +2,6 @@ import { Router } from 'express';
 import { authenticateToken, requireActive, requireAdmin, isValidDomain, serverError, validateContainerName } from '../middleware.js';
 import { dnsLookup, dnsblCheck, generateDkim, getDkimSelector, getDomains } from '../settings.mjs';
 import { updateDB } from '../db.mjs';
-import { errorLog } from '../backend.mjs';
 import { upsertDnsRecord } from '../dnsProviders.mjs';
 
 const router = Router();
@@ -61,8 +60,7 @@ async (req, res) => {
     res.json(testResult);
 
   } catch (error) {
-    errorLog(`POST /api/dnscontrol/test: ${error.message}`);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, 'POST /api/dnscontrol/test', error);
   }
 });
 
@@ -86,8 +84,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    errorLog(`POST /api/dnscontrol/records: ${error.message}`);
-    res.status(500).json({ success: false, error: error.message });
+    serverError(res, 'POST /api/dnscontrol/records', error);
   }
 });
 

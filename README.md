@@ -82,7 +82,7 @@ It relies on a generic REST API written in python, that you have to mount in DMS
 * [x] Can users reset their forgotten password?
 > Yes. A "Forgot password?" link on the login page sends a time-limited reset token (1 hour) to the user's mailbox. Rate-limited to 3 requests per 15 minutes per mailbox. Works for both DMS accounts and GUI-only logins.
 
-* [x] Is this project affected by React2Shell Critical Vulnerability (CVE-2025-55182)[https://www.cmu.edu/iso/news/2025/react2shell-critical-vulnerability.html]?
+* [x] Is this project affected by React2Shell Critical Vulnerability [CVE-2025-55182](https://www.cmu.edu/iso/news/2025/react2shell-critical-vulnerability.html)?
 > No. This project has none of the React or 3rd party affected components like react-server-dom-turbopack, and is not even of the React versions affected. As I understand it, turbopack is another memory unsafe web bundler written in Rust, yet again.
 
 ### Login page

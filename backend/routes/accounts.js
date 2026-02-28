@@ -224,14 +224,12 @@ router.delete('/accounts/:containerName/:mailbox',
   requireAdmin,
 async (req, res) => {
   try {
-    const { schema, containerName } = req.params;
+    const { containerName, mailbox } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-
-    const { mailbox } = req.params;
     if (!mailbox) {
       return res.status(400).json({ error: 'Mailbox is required' });
     }
-    const result = await deleteAccount(schema, containerName, mailbox);
+    const result = await deleteAccount('dms', containerName, mailbox);
     res.json(result);
 
   } catch (error) {

@@ -244,7 +244,7 @@ const Aliases = () => {
       
     } catch (error) {
       errorLog(t('api.errors.addAlias'), error.message);
-      setErrorMessage('api.errors.addAlias', error.message);
+      setErrorMessage('api.errors.addAlias');
     }
   };
 
@@ -264,7 +264,7 @@ const Aliases = () => {
         
       } catch (error) {
         errorLog(t('api.errors.deleteAlias'), error.message);
-        setErrorMessage('api.errors.deleteAlias', error.message);
+        setErrorMessage('api.errors.deleteAlias');
       }
     }
   };

@@ -129,6 +129,9 @@ async (req, res) => {
       // check source for obvious hack attempt. extract domains and see that they match. Only admins can create aliases for different domain then destination
       let domainSource = source.match(/.*@([\_\-\.\w]+)/);
       let domainDest = destination.match(/.*@([\_\-\.\w]+)/);
+      if (!domainSource || !domainDest) {
+        return res.status(400).json({ success: false, error: 'Source and destination must contain a valid @domain' });
+      }
       let domainsMatch = (domainSource.length === 2 && domainDest.length === 2 && domainSource[1].toLowerCase() === domainDest[1].toLowerCase()) ? true : false;
       result = (req.user.roles.includes(destination) && domainsMatch) ? await addAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
     }
@@ -178,7 +181,7 @@ router.delete('/aliases/:containerName',
   requireActive,
 async (req, res) => {
   try {
-    const { schema, containerName } = req.params;
+    const { containerName } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
 
     const { source, destination } = req.body;

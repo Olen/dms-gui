@@ -284,7 +284,7 @@ function FormContainerAdd() {
 
       } catch (error) {
         errorLog(t('api.errors.ping'), error.message);
-        setErrorMessage('api.errors.ping', error.message);
+        setErrorMessage('api.errors.ping');
       }
     }
   };
@@ -482,7 +482,7 @@ function FormContainerAdd() {
       
     } catch (error) {
       errorLog(error.message);
-      setErrorMessage('api.errors.updateLogin', error.message);
+      setErrorMessage('api.errors.updateLogin');
     }
   };
 

@@ -77,6 +77,7 @@ router.get('/branding{/:containerName}', async (req, res) => {
 // Upload brand logo (admin only)
 router.post('/branding/logo{/:scope}',
   authenticateToken,
+  requireActive,
   requireAdmin,
   logoUpload.single('logo'),
 async (req, res) => {
@@ -110,6 +111,7 @@ async (req, res) => {
 // Delete brand logo (admin only)
 router.delete('/branding/logo{/:scope}',
   authenticateToken,
+  requireActive,
   requireAdmin,
 async (req, res) => {
   try {
@@ -185,7 +187,7 @@ async (req, res) => {
     const name = ('name' in req.query) ? req.query.name : null;
     const encrypted = ('encrypted' in req.query) ? req.query.encrypted : false;
 
-    const settings = (req.user.isAdmin || req.user.id === scope) ? getSettings(plugin, containerName, name, encrypted) : {success:false, message:'Permission denied'};    // fails silently
+    const settings = (req.user.isAdmin || String(req.user.id) === scope) ? getSettings(plugin, containerName, name, encrypted) : {success:false, message:'Permission denied'};    // fails silently
     res.json(settings);
 
   } catch (error) {
@@ -279,8 +281,8 @@ async (req, res) => {
   try {
     const { plugin, name } = req.params;
     // for non-admins:  for mailserver plugin we send scope=roles, for anything else we send scope=userID
-    debugLog(            `getConfigs(${plugin}, ${(req.user.isAdmin) ? [] : (plugin == 'mailserver') ? req.user.roles : [req.user.id]}, ${name})`)
-    const configs = await getConfigs(plugin,      (req.user.isAdmin) ? [] : (plugin == 'mailserver') ? req.user.roles : [req.user.id],    name);
+    debugLog(            `getConfigs(${plugin}, ${(req.user.isAdmin) ? [] : (plugin === 'mailserver') ? req.user.roles : [req.user.id]}, ${name})`)
+    const configs = await getConfigs(plugin,      (req.user.isAdmin) ? [] : (plugin === 'mailserver') ? req.user.roles : [req.user.id],    name);
 
     // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
     // always serve the static templates — DB rows are container configs, not templates

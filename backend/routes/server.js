@@ -246,6 +246,9 @@ async (req, res) => {
     const { table, containerName, schema } = req.params;
     if (!table) return res.status(400).json({ error: 'table is required' });
 
+    const ALLOWED_TABLES = ['logins', 'accounts', 'aliases', 'domains'];
+    if (!ALLOWED_TABLES.includes(table)) return res.status(400).json({ error: 'invalid table name' });
+
     const count = dbCount(table, containerName, schema);
     res.json(count);
 

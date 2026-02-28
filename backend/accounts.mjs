@@ -87,7 +87,7 @@ export const getAccounts = async (containerName=null, refresh=false, roles=[]) =
       if (result.success) {
         config = result.message[0];
 
-        if (config?.schema == 'dms') {
+        if (config?.schema === 'dms') {
           result = await pullAccountsFromDMS(containerName);
         } else {
           errorLog(`unknown schema: ${config?.schema}`, result);
@@ -285,7 +285,7 @@ export const addAccount = async (schema='dms', containerName=null, mailbox=null,
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`Adding new mailbox account for ${containerName}: ${mailbox}`);
-    if (schema == 'dms') results = await execSetup(`email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`, targetDict);
+    if (schema === 'dms') results = await execSetup(`email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`, targetDict);
 
     if (!results.returncode) {
       
@@ -334,7 +334,7 @@ export const deleteAccount = async (schema='dms', containerName=null, mailbox=nu
 
     // dms setup could take who know how long when mailbox is large
     targetDict.timeout = 60;
-    if (schema == 'dms') results = await execSetup(`email del -y ${escapeShellArg(mailbox)}`, targetDict);
+    if (schema === 'dms') results = await execSetup(`email del -y ${escapeShellArg(mailbox)}`, targetDict);
     debugLog('ddebug execSetup', results)
 
     if (!results.returncode) {

@@ -78,7 +78,7 @@ const Dashboard = () => {
 
   const fetchAll = useCallback(async () => {
     fetchDashboard();
-    if (user?.isAdmin != 1) {
+    if (user?.isAdmin !== 1) {
       fetchUserSettings();
       fetchSpamSummary();
       fetchUserQuota();
@@ -186,7 +186,7 @@ const Dashboard = () => {
   }
 
   // Admin dashboard view
-  if (user?.isAdmin == 1) {
+  if (user?.isAdmin === 1) {
     return (
       <div>
         <div className="float-end position-sticky z-1">

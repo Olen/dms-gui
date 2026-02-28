@@ -197,7 +197,7 @@ const Profile = () => {
       
     } catch (error) {
       errorLog(error.message);
-      setErrorMessage('api.errors.updateLogin', error.message);
+      setErrorMessage('api.errors.updateLogin');
     }
   };
 

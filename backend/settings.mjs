@@ -129,7 +129,7 @@ export const getConfigs = async (plugin='mailserver', roles=[], name=null) => {
 
   let result;
   try {
-    if (plugin == 'mailserver') {
+    if (plugin === 'mailserver') {
 
       // non admins: roles are mailboxes
       // configs:  `SELECT DISTINCT name as value, 'mailserver' as plugin, schema, 'dms-gui' as scope FROM accounts a LEFT JOIN config c ON c.id = a.configID WHERE 1=1 AND mailbox IN (?)`,

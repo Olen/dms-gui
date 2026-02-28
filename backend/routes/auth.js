@@ -13,6 +13,7 @@ const router = Router();
 const forgotPasswordLimits = new Map();
 const FORGOT_IP_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
 const FORGOT_IP_MAX = 10; // max 10 requests per IP per window
+const FORGOT_IP_MAP_MAX = 10000; // max tracked IPs to prevent memory exhaustion
 
 // Cleanup stale IP rate limit entries every hour
 setInterval(() => {
@@ -36,6 +37,7 @@ router.post('/forgot-password', async (req, res) => {
       }
       ipEntry.count++;
     } else {
+      if (forgotPasswordLimits.size >= FORGOT_IP_MAP_MAX) forgotPasswordLimits.clear();
       forgotPasswordLimits.set(ip, { count: 1, start: now });
     }
 
@@ -224,7 +226,7 @@ router.post('/refresh', authLimiter, async (req, res) => {
         code: 'REFRESH_TOKEN_EXPIRED'
       });
     }
-    console.error('Refresh error:', error);
+    errorLog(`POST /api/refresh: ${error.message}`);
     res.status(403).json({
       error: 'Failed to refresh token',
       code: 'REFRESH_ERROR'
@@ -264,7 +266,7 @@ router.post('/logout', authenticateToken, async (req, res) => {
     });
 
   } catch (error) {
-    console.error('Logout error:', error);
+    errorLog(`POST /api/logout: ${error.message}`);
     res.status(500).json({
       error: 'Logout failed',
       code: 'LOGOUT_ERROR'

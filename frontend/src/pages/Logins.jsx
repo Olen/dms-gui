@@ -357,7 +357,7 @@ const Logins = () => {
       
     } catch (error) {
       errorLog(t('api.errors.addLogin'), error.message);
-      setErrorMessage('api.errors.addLogin', error.message);
+      setErrorMessage('api.errors.addLogin');
     }
   };
 
@@ -407,7 +407,7 @@ const Logins = () => {
         
       } catch (error) {
         errorLog(t('api.errors.deleteLogin'), error.message);
-        setErrorMessage('api.errors.deleteLogin', error.message);
+        setErrorMessage('api.errors.deleteLogin');
       }
     }
   };
@@ -448,7 +448,7 @@ const Logins = () => {
       
     } catch (error) {
       errorLog(t('api.errors.updateLogin'), error.message);
-      setErrorMessage('api.errors.updateLogin', error.message);
+      setErrorMessage('api.errors.updateLogin');
     }
   };
 
@@ -494,7 +494,7 @@ const Logins = () => {
       
     } catch (error) {
         errorLog(t('api.errors.updateLogin'), error.message);
-        setErrorMessage('api.errors.updateLogin', error.message);
+        setErrorMessage('api.errors.updateLogin');
     }
   };
 

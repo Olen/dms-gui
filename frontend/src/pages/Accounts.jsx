@@ -163,7 +163,7 @@ const Accounts = () => {
 
     } catch (error) {
       errorLog(t('api.errors.fetchAccounts'), error);
-      setErrorMessage(t('api.errors.fetchAccounts'), ": ", error);
+      setErrorMessage('api.errors.fetchAccounts');
       
     } finally {
       setLoading(false);
@@ -267,7 +267,7 @@ const Accounts = () => {
       
     } catch (error) {
       errorLog(t('api.errors.addAccount'), error.message);
-      setErrorMessage('api.errors.addAccount', error.message);
+      setErrorMessage('api.errors.addAccount');
     }
   };
 
@@ -284,7 +284,7 @@ const Accounts = () => {
         
       } catch (error) {
         errorLog(t('api.errors.deleteAccount'), error.message);
-        setErrorMessage('api.errors.deleteAccount', error.message);
+        setErrorMessage('api.errors.deleteAccount');
       }
     }
   };
@@ -303,7 +303,7 @@ const Accounts = () => {
       
     } catch (error) {
       errorLog(t('api.errors.doveadm'), error.message);
-      setErrorMessage('api.errors.doveadm', error.message);
+      setErrorMessage('api.errors.doveadm');
     }
   };
 

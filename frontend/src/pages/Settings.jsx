@@ -23,11 +23,11 @@ const Settings = () => {
 
   // https://icons.getbootstrap.com/
   const settingTabs = [
-    { id: 1, title: "settings.titleContainerAdd", icon: "house-add",  content: FormContainerAdd(),  },
-    { id: 2, title: "settings.titleServerInfos",  icon: "house-fill", content: ServerInfos(),       titleExtra:t('common.for', {what:containerName}) },
-    { id: 3, title: "settings.titleUserConfig",   icon: "people-fill",content: UserConfig(),        titleExtra:t('common.for', {what:containerName}) },
-    { id: 4, title: "settings.titleBranding",    icon: "palette",    content: FormBranding(),         },
-    { id: 5, title: "settings.titleDnscontrol",  icon: "globe2",     content: DnsProviderConfig(),  titleExtra:t('common.for', {what:containerName}) },
+    { id: 1, title: "settings.titleContainerAdd", icon: "house-add",  content: <FormContainerAdd />,  },
+    { id: 2, title: "settings.titleServerInfos",  icon: "house-fill", content: <ServerInfos />,       titleExtra:t('common.for', {what:containerName}) },
+    { id: 3, title: "settings.titleUserConfig",   icon: "people-fill",content: <UserConfig />,        titleExtra:t('common.for', {what:containerName}) },
+    { id: 4, title: "settings.titleBranding",    icon: "palette",    content: <FormBranding />,         },
+    { id: 5, title: "settings.titleDnscontrol",  icon: "globe2",     content: <DnsProviderConfig />,  titleExtra:t('common.for', {what:containerName}) },
     { id: 6, title: "settings.aboutTitle",       icon: "info-circle", content: (
       <>
         <p>{Translate('settings.aboutDescription')}</p>

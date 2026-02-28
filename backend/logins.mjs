@@ -55,7 +55,7 @@ export const getLogin = async (credential, guess=false) => {
     
     // we expect either an object like {id:id}|{mailbox:mailbox}|{username:username}
     // or a string: mailbox == what's in the id keay of that table
-    if (typeof credential == "string") {
+    if (typeof credential === "string") {
       
       // loginGuess should only be used for login purposes, and takes a string
       if (guess) {
@@ -65,7 +65,7 @@ export const getLogin = async (credential, guess=false) => {
         login = dbGet(sql.logins.select.login, {[sql.logins.id]: credential});
       }
 
-    } else if (typeof credential == "object" && Object.keys(credential).length == 1) {
+    } else if (typeof credential === "object" && Object.keys(credential).length === 1) {
       const key = Object.keys(credential)[0];
       if (!['id', 'mailbox', 'username'].includes(key)) {
         return {success: false, message: 'invalid credential key'};
@@ -157,9 +157,9 @@ export const getRoles = async (credential=null) => {
     
     // we expect either an object {id:id} or {id:id}|{mailbox:mailbox}|{username:username}
     // or a string: mailbox == what's in the id keay of that table
-    if (typeof credential == "string") {
+    if (typeof credential === "string") {
       roles = dbGet(sql.logins.select.roles, {[sql.logins.id]: credential});
-    } else if (typeof credential == "object" && Object.keys(credential).length == 1) {
+    } else if (typeof credential === "object" && Object.keys(credential).length === 1) {
       const key = Object.keys(credential)[0];
       if (!['id', 'mailbox', 'username'].includes(key)) {
         return {success: false, message: 'invalid credential key'};
