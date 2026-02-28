@@ -113,7 +113,14 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 | Rspamd |
 |--------|
-|  |
+| <img width="1539" height="853" alt="image" src="https://github.com/user-attachments/assets/d3f6f087-3d8a-42c7-a444-bf3934852cf9" /> |
+| Overvirew over Rspamd status |
+
+| Rspamd learning |
+|-----------------|
+| <img width="1539" height="853" alt="image" src="https://github.com/user-attachments/assets/78fb259e-b8f1-4b26-9f28-c0f55262fba1" /> |
+| List message history and "one click" to re-learn a message as Ham or Spam | 
+
 
 | Logs |
 |------|
