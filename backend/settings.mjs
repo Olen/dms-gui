@@ -81,8 +81,18 @@ export const getSettings = (plugin='mailserver', containerName=null, name=null, 
   debugLog(plugin, containerName, name, encrypted);
   if (!containerName)             return {success: false, error: 'getSettings: scope=containerName is required'};
   if (!plugin)             return {success: false, error: 'getSettings: plugin is required'};
+
+  const demo = demoResponse('settings');
+  if (demo) {
+    if (name) {
+      const found = demo.message.find(s => s.name === name);
+      return { success: true, message: found?.value };
+    }
+    return demo;
+  }
+
   if (name) return getSetting(plugin, containerName, name, encrypted);
-  
+
   let result, settings;
   try {
     
@@ -128,6 +138,9 @@ export const getSettings = (plugin='mailserver', containerName=null, name=null, 
 // this returns all configs, and roles are mailboxes or logins id
 export const getConfigs = async (plugin='mailserver', roles=[], name=null) => {
   debugLog(plugin, roles, name);
+
+  const demo = demoResponse('configs');
+  if (demo) return demo;
 
   let result;
   try {

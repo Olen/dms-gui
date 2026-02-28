@@ -17,7 +17,8 @@ export const demoResponse = (key, opts = {}) => {
     data = data[opts.domain] || data._fallback;
   }
 
-  return { success: true, message: data };
+  // Deep copy to prevent mutations (e.g. route handlers deleting fields) from affecting shared data
+  return { success: true, message: structuredClone(data) };
 };
 
 /**

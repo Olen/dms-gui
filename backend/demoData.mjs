@@ -26,8 +26,9 @@ const aliases = [
   { source: 'abuse@example.com',       destination: 'admin@example.com',                  regex: 0, username: 'admin@example.com' },
   { source: 'webmaster@example.com',   destination: 'admin@example.com',                  regex: 0, username: 'admin@example.com' },
   { source: 'noreply@example.com',     destination: 'admin@example.com',                  regex: 0, username: 'admin@example.com' },
-  { source: 'info@example.com',        destination: 'alice@example.com,bob@example.com',  regex: 0, username: 'alice@example.com' },
-  { source: 'sales@example.com',       destination: 'bob@example.com,carol@example.com',  regex: 0, username: 'bob@example.com' },
+  { source: 'info@example.com',        destination: 'alice@example.com',                  regex: 0, username: 'alice@example.com' },
+  { source: 'sales@example.com',       destination: 'alice@example.com',                  regex: 0, username: 'alice@example.com' },
+  { source: 'newsletter@example.com',  destination: 'alice@example.com',                  regex: 0, username: 'alice@example.com' },
   { source: 'hr@example.com',          destination: 'eve@example.com',                    regex: 0, username: 'eve@example.com' },
   { source: 'support@example.com',     destination: 'frank@example.com',                  regex: 0, username: 'frank@example.com' },
   { source: 'postmaster@demo.org',     destination: 'admin@demo.org',                     regex: 0, username: 'admin@demo.org' },
@@ -46,7 +47,7 @@ const aliases = [
 
 // --- Domains (4) ---
 const domains = [
-  { domain: 'example.com',   dkim: 'default', keytype: 'rsa', keysize: '2048', dnsProvider: 'cloudflare-main', accountCount: 8, aliasCount: 10 },
+  { domain: 'example.com',   dkim: 'default', keytype: 'rsa', keysize: '2048', dnsProvider: 'cloudflare-main', accountCount: 8, aliasCount: 11 },
   { domain: 'demo.org',      dkim: 'default', keytype: 'rsa', keysize: '2048', dnsProvider: 'domeneshop-prod', accountCount: 4, aliasCount: 4 },
   { domain: 'acme.io',       dkim: 'default', keytype: 'ed25519', keysize: '256', dnsProvider: null, accountCount: 2, aliasCount: 3 },
   { domain: 'test-corp.net', dkim: null,       keytype: null,  keysize: null,   dnsProvider: null, accountCount: 0, aliasCount: 3 },
@@ -56,7 +57,7 @@ const domains = [
 const serverStatus = {
   status: { status: 'running', error: null },
   resources: { cpuUsage: 3.2, memoryUsage: 28.7, diskUsage: 1842, error: null },
-  db: { logins: 4, accounts: 14, aliases: 20, error: null },
+  db: { logins: 4, accounts: 14, aliases: 21, error: null },
 };
 
 // --- Server envs (DMS environment) ---
@@ -489,8 +490,40 @@ const mailLogs = [
 ];
 
 
+// --- User settings (public mail setup) ---
+const userSettings = {
+  IMAP_HOST: 'mail.example.com',
+  IMAP_PORT: '993',
+  SMTP_HOST: 'mail.example.com',
+  SMTP_PORT: '587',
+  POP3_HOST: 'mail.example.com',
+  POP3_PORT: '995',
+  WEBMAIL_URL: 'https://webmail.example.com',
+  ALLOW_USER_ALIASES: 'true',
+  RSPAMD_URL: 'https://rspamd.example.com',
+};
+
+// --- Configs (available containers) ---
+const configs = [
+  { value: 'dms', plugin: 'mailserver', schema: 'dms', scope: 'dms-gui' },
+];
+
+// --- Settings (DMS connection config) ---
+const settings = [
+  { name: 'containerName', value: 'dms' },
+  { name: 'protocol', value: 'http' },
+  { name: 'DMS_API_PORT', value: '8888' },
+  { name: 'DMS_API_KEY', value: 'demo-key' },
+  { name: 'setupPath', value: '/usr/local/bin/setup' },
+  { name: 'timeout', value: '4' },
+  { name: 'schema', value: 'dms' },
+];
+
 // --- Export ---
 export const demoData = {
+  configs,
+  settings,
+  userSettings,
   accounts,
   aliases,
   domains,

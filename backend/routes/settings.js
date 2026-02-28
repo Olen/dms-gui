@@ -7,6 +7,7 @@ import { getConfigs, getSettings, saveSettings } from '../settings.mjs';
 import { dbAll, dbGet } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
 import { env, plugins } from '../env.mjs';
+import { demoResponse } from '../demoMode.mjs';
 import { getValueFromArrayOfObj } from '../../common.mjs';
 
 const router = Router();
@@ -204,6 +205,9 @@ async (req, res) => {
   try {
     const { containerName } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const demo = demoResponse('userSettings');
+    if (demo) return res.json(demo);
 
     const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES', 'RSPAMD_URL'];
     const settings = {};

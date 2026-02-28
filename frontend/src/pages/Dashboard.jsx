@@ -355,7 +355,7 @@ const Dashboard = () => {
       {/* Mailbox quota */}
       {userQuota && (
         <Row>
-          <Col md={6} className="mb-3">
+          <Col md={12} className="mb-3">
             <Card title="dashboard.quota" icon="hdd">
               <div className="mb-1">
                 <span className="fw-bold">{userQuota.used}</span>
