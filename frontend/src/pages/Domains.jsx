@@ -133,7 +133,7 @@ const Domains = () => {
   const handleProviderChange = async (domain, provider) => {
     setProviderSaving(prev => ({ ...prev, [domain]: true }));
     try {
-      const result = await updateDomain(containerName, domain, { dnsProvider: provider || null });
+      const result = await updateDomain(containerName, domain, { dnsProvider: provider });
       if (result.success) {
         setDomains(prev => prev.map(d => d.domain === domain ? { ...d, dnsProvider: provider || null } : d));
       }
@@ -523,7 +523,7 @@ const Domains = () => {
         }
 
         return (
-          <div className="d-flex align-items-center gap-1">
+          <div className="d-flex align-items-center gap-1" style={{ cursor: 'pointer' }} onClick={() => showDetails(item.domain)}>
             <DnsBadge label="A" value={dns.a?.length} />
             <DnsBadge label="MX" value={dns.mx?.length} />
             <DnsBadge label="SPF" value={dns.spf} grade={spfGrade(dns.spf)} />
@@ -531,13 +531,6 @@ const Domains = () => {
             <DnsBadge label="DMARC" value={dns.dmarc} grade={dmarcGrade(dns.dmarc)} />
             <OptionalBadge label="TLSA" value={dns.tlsa?.length} />
             <OptionalBadge label="SRV" value={dns.srv?.length} />
-            <Button
-              variant="outline-secondary"
-              size="sm"
-              icon="eye"
-              onClick={() => showDetails(item.domain)}
-              className="ms-1"
-            />
           </div>
         );
       },
@@ -569,7 +562,6 @@ const Domains = () => {
               variant="outline-secondary"
               size="sm"
               icon="shield-check"
-              text="domains.blacklistCheck"
               onClick={() => checkDnsbl(item.domain)}
             />
           );
@@ -851,7 +843,7 @@ const Domains = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" text="common.cancel" onClick={() => setShowModal(false)} />
+          <Button variant="secondary" text="common.done" onClick={() => setShowModal(false)} />
         </Modal.Footer>
       </Modal>
 
@@ -1029,7 +1021,7 @@ const Domains = () => {
           )}
         </Modal.Body>
         <Modal.Footer>
-          <Button variant="secondary" text="common.cancel" onClick={() => setShowDnsblModal(false)} />
+          <Button variant="secondary" text="common.done" onClick={() => setShowDnsblModal(false)} />
         </Modal.Footer>
       </Modal>
     </>

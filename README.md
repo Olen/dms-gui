@@ -143,8 +143,82 @@ Admin-only page showing all domains served by the mail server with:
 - SPF and DMARC grading with actionable improvement hints
 - DNSBL (blacklist) checks against Spamhaus, Abusix, and others
 - DKIM key generation with configurable selector, key type (RSA/Ed25519), and key size
-- Copy-to-clipboard DNS records for easy configuration
+- One-click DNS record push to Domeneshop or Cloudflare
+- Click-to-edit SPF and DMARC records with guided setup
 - External domain indicators for domains not directly managed by this server
+
+#### Setting up DNS — step by step
+
+To push DNS records (SPF, DKIM, DMARC) directly from dms-gui, you need a **DNS Provider profile** configured first. Without one, you can still view DNS status and copy records manually.
+
+##### 1. Create a DNS Provider profile
+
+Go to **Settings > DNS Providers** and click **Add Profile**.
+
+| Provider | Credentials needed | Test supported |
+|----------|--------------------|----------------|
+| **Domeneshop** | API token + secret ([generate at domeneshop.no/admin](https://www.domeneshop.no/admin?view=api)) | Yes |
+| **Cloudflare** | API token with DNS edit permission | Yes |
+| AWS Route53 | Access key + secret key (+ optional STS token) | No |
+| Oracle Cloud | Compartment, fingerprint, private key, region, tenancy, user OCID | No |
+| Azure Private DNS | Subscription ID, resource group, tenant/client ID + secret | No |
+
+After entering credentials, click **Test** to verify they work, then **Save**. Credentials are stored encrypted (AES-256-CBC) in the local database.
+
+##### 2. Assign a DNS Provider to each domain
+
+On the **Domains & DNS** page, each domain row has a DNS Provider dropdown. Select the provider profile you created. This assignment is saved immediately — no extra "save" button needed.
+
+Only domains with an assigned provider can push records to DNS. Domains without a provider still show DNS status badges and allow DKIM generation (you'll just need to copy-paste the records manually).
+
+##### 3. Generate DKIM keys
+
+Click the DNS status badges on any domain row to open the **DNS Details** modal, then click the key icon next to DKIM:
+
+1. Select **key type** (RSA recommended) and **key size** (2048 recommended)
+2. Enter a **selector** (defaults to the global selector from your rspamd config, typically `mail` or `default`)
+3. Click **Generate** — dms-gui runs `setup config dkim` inside the DMS container
+4. The generated DNS record is displayed. If the domain has a DNS provider, click **Push DKIM to DNS** to add it automatically. Otherwise, copy the record and add it to your DNS manually.
+
+> **Note:** DKIM generation runs inside the DMS container via the REST API. The key files are placed in rspamd's `keys/{domain}/{selector}.private` path and ownership is set to `_rspamd:_rspamd`.
+
+##### 4. Configure SPF
+
+In the DNS Details modal, click the pencil icon next to the SPF record:
+
+1. Choose **soft-fail** (`~all`, recommended during initial setup) or **hard-fail** (`-all`, recommended for production)
+2. A preview of the SPF record is shown (auto-includes `mx`, `a`, and your MX hostname)
+3. Click **Push to DNS** to create or update the TXT record at your DNS provider
+
+##### 5. Configure DMARC
+
+In the DNS Details modal, click the pencil icon next to the DMARC record:
+
+1. Choose a **policy**: `none` (monitoring), `quarantine`, or `reject` (recommended after verifying SPF/DKIM work)
+2. Optionally add **RUA** (aggregate report) and **RUF** (forensic report) email addresses
+3. Click **Push to DNS** to create or update the `_dmarc.{domain}` TXT record
+
+##### 6. Check blacklists (optional)
+
+Click the shield icon on any domain row to run DNSBL checks against multiple blacklist providers:
+
+- **Open RBLs** (no API key): Barracuda, SpamCop, UCEProtect, PSBL, Mailspike
+- **Spamhaus ZEN + DBL** (requires `SPAMHAUS_DQS_KEY` in Settings > User Config)
+- **Abusix Combined + DBL** (requires `ABUSIX_KEY` in Settings > User Config)
+
+Results show listed/clean status for each RBL with return codes.
+
+#### DNS status badges
+
+Each domain row shows color-coded badges for A, MX, SPF, DKIM, DMARC (and optionally TLSA, SRV). Click the badges to open the DNS Details modal with full record information.
+
+| Badge | Green | Orange | Red |
+|-------|-------|--------|-----|
+| **A** | Records found | — | Missing |
+| **MX** | Records found | — | Missing |
+| **SPF** | `-all` (hard-fail) | `~all` (soft-fail) | Missing or weak |
+| **DKIM** | Record found | — | Missing |
+| **DMARC** | `p=quarantine` or `p=reject` | `p=none` | Missing |
 
 ### Rspamd
 

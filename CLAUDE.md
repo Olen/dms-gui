@@ -1,7 +1,7 @@
 # dms-gui — Claude Code Context
 
 ## Project overview
-Web GUI for docker-mailserver (DMS). React frontend (Vite) + Node.js/Express backend + nginx reverse proxy, all in one Docker image. Communicates with DMS via a REST API (`rest-api.py`) running inside the DMS container.
+Web GUI for docker-mailserver (DMS). React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy, all in one Docker image. Communicates with DMS via a REST API (`rest-api.py`) running inside the DMS container.
 
 ## Repository structure
 - `frontend/` — React SPA (Vite, Bootstrap)
@@ -69,7 +69,7 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 - Uses `shlex.split()` for command execution (not `shell=True`) to prevent injection
 - Supports shell pipes by splitting on `|` and chaining via `subprocess.Popen`
 - Supports `>` / `>>` redirect on the last pipe stage only
-- Does NOT support `&&` or `;` command chaining — use separate API calls instead
+- Supports `&&` command chaining (splits on `&&`, runs sequentially, stops on non-zero exit)
 - Supervisor config: `/home/mailserver/config/dms-gui/rest-api.conf`
 - Deployed by `user-patches.sh` in the DMS container
 
@@ -80,14 +80,27 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 - Container exposes port 80 (nginx serves SPA + proxies /api/ to backend on 3001)
 - Shares `docker_traefik_net` with mailserver container
 
-## Key files
-- `backend/index.js` — Main Express server, all API routes
+## Backend architecture (refactored Feb 28)
+Backend was split from a 2,980-line monolith into modular route files:
+
+- `backend/index.js` — App setup, global middleware, route mounting, startup (~185 lines)
+- `backend/middleware.js` — Shared auth/validation/error middleware (authenticateToken, requireAdmin, requireActive, validateContainerName, authLimiter, serverError, generateAccessToken/RefreshToken, DOMAIN_RE, isValidDomain)
+- `backend/routes/auth.js` — Login, logout, refresh, forgot/reset password
+- `backend/routes/logins.js` — Login CRUD, roles (admin user management)
+- `backend/routes/accounts.js` — Email account CRUD, doveadm, quota
+- `backend/routes/aliases.js` — Alias CRUD
+- `backend/routes/settings.js` — Settings CRUD, configs, branding, logo upload
+- `backend/routes/domains.js` — Domains, DNS lookup, DKIM, DNSBL, DNS control
+- `backend/routes/server.js` — Status, infos, envs, logs, count, initAPI, killContainer
+- `backend/routes/mail.js` — Autoconfig, mobileconfig, password gen, rspamd, dovecot
 - `backend/env.mjs` — Environment config, embedded rest-api.py template
-- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup (calls rest-api.py)
+- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (uses `escapeShellArg`)
 - `backend/aliases.mjs` — Alias management
-- `backend/db.mjs` — SQLite database layer (better-sqlite3)
+- `backend/db.mjs` — SQLite database layer (better-sqlite3), encrypt/decrypt, AES key migration
+
+## Key frontend files
 - `frontend/src/pages/Domains.jsx` — Domain list, DNS Details modal, click-to-edit SPF/DMARC, DKIM generation + push
 - `frontend/src/pages/DnsProviderConfig.jsx` — DNS provider profile CRUD (encrypted credentials)
 - `frontend/src/pages/Settings.jsx` — Settings accordion tabs
@@ -99,9 +112,21 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 - Auth endpoints are rate-limited (express-rate-limit)
 - Non-admin users cannot set isAdmin/isActive/roles on themselves
 - `jsonFixTrailingCommas` uses `JSON.parse()` (not `eval()`)
+- AES-256 encryption: key derived as raw 32 bytes from SHA-512 digest of AES_SECRET
+- Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks
 
 ## Testing
-No test suite exists. Verify changes manually:
+Tests use vitest + supertest:
+```bash
+cd /home/olen/prog/dms-gui/backend && npx vitest run
+```
+- `backend/middleware.test.mjs` — 31 tests for shared middleware
+- `backend/routes/auth.test.js` — 14 tests for auth routes
+- `backend/routes/accounts.test.js` — 15 tests for account routes
+- `backend/test/routeHelper.mjs` — Shared test utilities (createTestApp, JWT tokens)
+- Existing tests in `backend/` — 115 tests
+
+Also verify manually:
 1. Build image and recreate container
 2. Check backend logs: `sudo docker logs dms-gui --tail 20`
 3. Test login at https://epost.nytt.no

@@ -927,6 +927,62 @@ export const dbInit = async (reset=false) => {
 };
 
 
+// One-time migration: re-encrypt data with proper 256-bit AES key
+// Old key used hex substring (32 ASCII chars), new key uses raw digest bytes (32 bytes)
+// Idempotent: tries old-key decrypt on each row; skips if it fails (already migrated or plaintext)
+export const migrateEncryptionKey = () => {
+  const oldKey = Buffer.from(
+    crypto.createHash(env.AES_HASH).update(env.AES_SECRET).digest('hex').substring(0, 32)
+  );
+  const newKey = env.AES_KEY;
+
+  if (oldKey.equals(newKey)) return;
+
+  dbOpen();
+
+  // Clean up stale flag from earlier broken migration attempt
+  try {
+    DB.prepare(`DELETE FROM settings WHERE name = 'aes_key_migrated'`).run();
+  } catch { /* ignore */ }
+
+  const rows = DB.prepare(
+    `SELECT s.id, s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin IN ('dnscontrol', 'userconfig')`
+  ).all();
+
+  let migrated = 0;
+  for (const row of rows) {
+    // Skip plaintext values (encrypted data is hex-encoded, at least 32 chars for IV)
+    if (!/^[0-9a-f]{32,}$/i.test(row.value)) continue;
+
+    try {
+      // Decrypt with old key
+      const ivLength = env.IV_LEN * 2;
+      const iv = Buffer.from(row.value.slice(0, ivLength), 'hex');
+      const ciphertext = row.value.slice(ivLength);
+      const decipher = crypto.createDecipheriv(env.AES_ALGO, oldKey, iv);
+      let plaintext = decipher.update(ciphertext, 'hex', 'utf-8');
+      plaintext += decipher.final('utf-8');
+
+      // Re-encrypt with new key
+      const newIv = crypto.randomBytes(env.IV_LEN);
+      const cipher = crypto.createCipheriv(env.AES_ALGO, newKey, newIv);
+      let encrypted = cipher.update(plaintext, 'utf-8', 'hex');
+      encrypted += cipher.final('hex');
+      const newValue = newIv.toString('hex') + encrypted;
+
+      DB.prepare('UPDATE settings SET value = ? WHERE id = ?').run(newValue, row.id);
+      migrated++;
+    } catch {
+      // Already migrated, not actually encrypted, or different format — skip
+    }
+  }
+
+  if (migrated > 0) {
+    successLog(`AES key migration: re-encrypted ${migrated} settings with 256-bit key`);
+  }
+};
+
+
 export const dbUpgrade = () => {
   debugLog(`start`);
 
@@ -1027,72 +1083,6 @@ export const dbUpgrade = () => {
   debugLog(`end`);
 };
 
-// One-time migration: re-encrypt data with proper 256-bit AES key
-// Old key was hex substring (32 ASCII chars = 128-bit entropy), new key is raw bytes (32 bytes = 256-bit)
-export const migrateEncryptionKey = () => {
-  const oldKey = Buffer.from(
-    crypto.createHash(env.AES_HASH).update(env.AES_SECRET).digest('hex').substring(0, 32)
-  );
-  const newKey = env.AES_KEY;
-
-  // Skip if keys are identical (shouldn't happen, but be safe)
-  if (oldKey.equals(newKey)) return;
-
-  // Check if migration already done
-  dbOpen();
-  const flag = dbGet(
-    `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = 'dms-gui' AND s.name = 'aes_key_migrated'`
-  );
-  if (flag.success && flag.message?.value === 'true') return;
-
-  // Find all encrypted settings (dnscontrol = DNS provider creds, userconfig = RBL API keys)
-  const rows = DB.prepare(
-    `SELECT s.rowid, s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin IN ('dnscontrol', 'userconfig')`
-  ).all();
-
-  let migrated = 0;
-  for (const row of rows) {
-    try {
-      // Decrypt with old key
-      const ivLength = env.IV_LEN * 2;
-      const iv = Buffer.from(row.value.slice(0, ivLength), 'hex');
-      const ciphertext = row.value.slice(ivLength);
-      const decipher = crypto.createDecipheriv(env.AES_ALGO, oldKey, iv);
-      let plaintext = decipher.update(ciphertext, 'hex', 'utf-8');
-      plaintext += decipher.final('utf-8');
-
-      // Re-encrypt with new key
-      const newIv = crypto.randomBytes(env.IV_LEN);
-      const cipher = crypto.createCipheriv(env.AES_ALGO, newKey, newIv);
-      let encrypted = cipher.update(plaintext, 'utf-8', 'hex');
-      encrypted += cipher.final('hex');
-      const newValue = newIv.toString('hex') + encrypted;
-
-      DB.prepare('UPDATE settings SET value = ? WHERE rowid = ?').run(newValue, row.rowid);
-      migrated++;
-    } catch {
-      // Not encrypted or already migrated — skip
-    }
-  }
-
-  // Mark migration as done
-  try {
-    const configId = DB.prepare(
-      `SELECT id FROM configs WHERE plugin = 'dms-gui' AND schema = 'DB_VERSION'`
-    ).get();
-    if (configId) {
-      DB.prepare(
-        `INSERT OR REPLACE INTO settings (name, value, configID, isMutable) VALUES ('aes_key_migrated', 'true', ?, 0)`
-      ).run(configId.id);
-    }
-  } catch {
-    // Config may not exist yet on fresh install — that's fine, no data to migrate
-  }
-
-  if (migrated > 0) {
-    successLog(`AES key migration: re-encrypted ${migrated} settings with 256-bit key`);
-  }
-};
 
 // ("ALTER TABLE logins ADD salt xxx".match(/ALTER[\s]+TABLE[\s]+[\"]?(\w+)[\"]?[\s]+ADD[\s]+(\w+)/i)[2] == 'column "salt" already exists'.match(/column[\s]+[\"]?(\w+)[\"]?[\s]+already[\s]+exists/i)[1])
 
