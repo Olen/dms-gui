@@ -1,6 +1,6 @@
 # 📬 Docker Mailserver GUI
 
-[![Docker Pulls](https://img.shields.io/docker/pulls/audioscavenger/dms-gui)](https://hub.docker.com/r/audioscavenger/dms-gui)
+[![GHCR](https://img.shields.io/badge/ghcr.io-olen%2Fdms--gui-blue?logo=github)](https://github.com/Olen/dms-gui/pkgs/container/dms-gui)
 
 A web-based management interface for [Docker-Mailserver](https://github.com/docker-mailserver/docker-mailserver) (DMS). Manage email accounts, aliases, domains, DNS records, spam filtering, and more — all from a single dashboard.
 
@@ -161,7 +161,7 @@ services:
       - mail
 
   dms-gui:
-    image: audioscavenger/dms-gui:latest
+    image: ghcr.io/olen/dms-gui:latest
     container_name: dms-gui
     restart: unless-stopped
     depends_on:
