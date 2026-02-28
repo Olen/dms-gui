@@ -99,7 +99,6 @@ import rateLimit from 'express-rate-limit';
 import fs from 'node:fs';
 import path from 'node:path';
 import jwt from 'jsonwebtoken';
-// import jwt from 'express-jwt';
 import multer from 'multer';
 import cron from 'node-cron';
 import qs from 'qs';
@@ -1186,7 +1185,7 @@ async (req, res) => {
       // check source for obvious hack attempt. extract domains and see that they match. Only admins can create aliases for different domain then destination
       let domainSource = source.match(/.*@([\_\-\.\w]+)/);
       let domainDest = destination.match(/.*@([\_\-\.\w]+)/);
-      let domainsMatch = (domainSource.length == 2 && domainDest.length == 2 && domainSource[1].toLowerCase() == domainDest[1].toLowerCase()) ? true : false;
+      let domainsMatch = (domainSource.length === 2 && domainDest.length === 2 && domainSource[1].toLowerCase() === domainDest[1].toLowerCase()) ? true : false;
       result = (req.user.roles.includes(destination) && domainsMatch) ? await addAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
     }
     res.status(201).json(result);
@@ -1317,7 +1316,7 @@ async (req, res) => {
     const name = ('name' in req.query) ? req.query.name : null;
     const encrypted = ('encrypted' in req.query) ? req.query.encrypted : false;
 
-    const settings = (req.user.isAdmin || req.user.id == scope) ? getSettings(plugin, containerName, name, encrypted) : {success:false, message:'Permission denied'};    // fails silently
+    const settings = (req.user.isAdmin || req.user.id === scope) ? getSettings(plugin, containerName, name, encrypted) : {success:false, message:'Permission denied'};    // fails silently
     res.json(settings);
     
   } catch (error) {
@@ -1827,14 +1826,13 @@ async (req, res) => {
 
     } else {
       // const roles = await getRoles(req.user.mailbox);
-      result = (credential == req.user.mailbox) ? await getRoles(credential) : {success:false, message: 'Permission denied'};
+      result = (credential === req.user.mailbox) ? await getRoles(credential) : {success:false, message: 'Permission denied'};
     }
-    res.json(roles);
+    res.json(result);
     
   } catch (error) {
     errorLog(`index GET /api/roles: ${error.message}`);
-    // res.status(500).json({ error: 'Unable to retrieve roles' });
-    res.status(500).json({ error: error.message });
+    res.status(500).json({ error: 'Unable to retrieve roles' });
   }
 });
 
@@ -2990,7 +2988,7 @@ app.listen(env.PORT_NODEJS, async () => {
   cleanupExpiredTokens();
   cron.schedule('0 3 * * *', () => cleanupExpiredTokens());
 
-  if (env.AES_SECRET == 'changeme') {
+  if (env.AES_SECRET === 'changeme') {
     errorLog(`
 
     AES_SECRET has not been set. Example to create it: "openssl rand -hex 32"

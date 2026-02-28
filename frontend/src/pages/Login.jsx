@@ -10,32 +10,6 @@ import Col from 'react-bootstrap/Col'; // Import Col
 import {
   debugLog,
 } from '../../frontend.mjs';
-// import {
-//   regexColors,
-//   regexPrintOnly,
-//   regexFindEmailRegex,
-//   regexFindEmailStrict,
-//   regexFindEmailLax,
-//   regexEmailRegex,
-//   regexEmailStrict,
-//   regexEmailLax,
-//   regexMatchPostfix,
-//   regexUsername,
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
-// } from '../../../common.mjs';
 
 import {
   getConfigs,

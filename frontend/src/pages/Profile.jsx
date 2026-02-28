@@ -5,12 +5,6 @@ import Modal from 'react-bootstrap/Modal'; // Import Modal
 import { useAuth } from '../hooks/useAuth';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-// https://mui.com/material-ui/react-autocomplete/#multiple-values
-// import Chip from '@mui/material/Chip';
-// import Autocomplete from '@mui/material/Autocomplete';
-// import TextField from '@mui/material/TextField';
-// import Stack from '@mui/material/Stack';
-
 import {
   debugLog,
   errorLog,

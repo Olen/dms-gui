@@ -83,11 +83,14 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 ## Key files
 - `backend/index.js` — Main Express server, all API routes
 - `backend/env.mjs` — Environment config, embedded rest-api.py template
-- `backend/settings.mjs` — DMS status/dashboard data (calls rest-api.py)
+- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup (calls rest-api.py)
+- `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (uses `escapeShellArg`)
 - `backend/aliases.mjs` — Alias management
 - `backend/db.mjs` — SQLite database layer (better-sqlite3)
-- `frontend/src/pages/` — React page components (Accounts, Aliases, Settings, etc.)
+- `frontend/src/pages/Domains.jsx` — Domain list, DNS Details modal, click-to-edit SPF/DMARC, DKIM generation + push
+- `frontend/src/pages/DnsProviderConfig.jsx` — DNS provider profile CRUD (encrypted credentials)
+- `frontend/src/pages/Settings.jsx` — Settings accordion tabs
 - `frontend/src/components/DataTable.jsx` — Reusable table component
 
 ## Security notes
