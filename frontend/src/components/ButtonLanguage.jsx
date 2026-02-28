@@ -1,9 +1,12 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Dropdown from 'react-bootstrap/Dropdown'; // Import react-bootstrap Dropdown
+import { useAuth } from '../hooks/useAuth';
+import { updateLogin } from '../services/api.mjs';
 
 const ButtonLanguage = () => {
   const { t, i18n } = useTranslation();
+  const { user } = useAuth();
   const [currentLang, setCurrentLang] = useState(i18n.language);
 
   useEffect(() => {
@@ -13,6 +16,7 @@ const ButtonLanguage = () => {
   const changeLanguage = (lng) => {
     i18n.changeLanguage(lng).then(() => {
       setCurrentLang(lng);
+      if (user?.id) updateLogin(user.id, { language: lng });
     });
   };
 

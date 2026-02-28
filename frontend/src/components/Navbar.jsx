@@ -136,6 +136,7 @@ const Navbar = ({
             />
             }
             
+            {user?.isAdmin === 1 && (
             <Nav.Link
               href="https://docker-mailserver.github.io/docker-mailserver/latest/"
               target="_blank"
@@ -143,6 +144,7 @@ const Navbar = ({
             >
               {Translate('navbar.documentation')}
             </Nav.Link>
+            )}
             
             <div className="nav-item mx-2">
               <ButtonLanguage />

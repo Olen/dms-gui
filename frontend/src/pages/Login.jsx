@@ -29,7 +29,7 @@ import { useBranding } from '../hooks/useBranding';
 
 // function Login() {
 export const Login = () => {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
 
   const [credential, setCredential] = useState("");
   const [password, setPassword] = useState("");
@@ -119,6 +119,9 @@ export const Login = () => {
       // with    JWT: { accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx" }
       
       if (result.success) {
+        // apply saved language preference
+        if (result.message.language) i18n.changeLanguage(result.message.language);
+
         // now we can pull and setState for available mailservers; await a little so the Settings page don't pull it twice
         await fetchMailservers();
 
