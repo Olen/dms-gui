@@ -41,7 +41,7 @@ COPY backend/ ./
 # Stage 3: Final image with Nginx and Node.js
 FROM node:24.14.0-alpine
 
-ARG DMSGUI_VERSION=1.5.23
+ARG DMSGUI_VERSION=1.5.24
 ARG DMSGUI_DESCRIPTION="A graphical user interface for managing all aspects of DMS including: email accounts, aliases, xapian indexes, and DNS entries."
 
 # alpine Install Nginx and curl (for healthcheck)
