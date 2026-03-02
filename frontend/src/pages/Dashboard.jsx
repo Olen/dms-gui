@@ -9,6 +9,7 @@ import {
 } from '../../../common.mjs';
 import {
   getAccounts,
+  getCount,
   getServerStatus,
   getUserSettings,
   getRspamdUserSummary,
@@ -28,6 +29,14 @@ import { useAuth } from '../hooks/useAuth';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 import ProgressBar from 'react-bootstrap/ProgressBar';
+
+const formatMB = (mb) => {
+  const n = Number(mb);
+  if (!n) return '0 MB';
+  if (n >= 1024 * 1024) return (n / (1024 * 1024)).toFixed(1) + ' TB';
+  if (n >= 1024) return (n / 1024).toFixed(1) + ' GB';
+  return n + ' MB';
+};
 
 const actionStyles = {
   'no action':       { bg: 'success',   label: 'clean',   tip: 'Message delivered normally' },
@@ -61,7 +70,14 @@ const Dashboard = () => {
     resources: {
       cpuUsage: 0,
       memoryUsage: 0,
+      memoryTotal: 0,
+      memoryUsed: 0,
       diskUsage: 0,
+      diskUsed: 0,
+      diskTotal: 0,
+      diskPercent: 0,
+      uptime: '',
+      loadAverage: [],
     },
     db: {
       logins: 0,
@@ -71,13 +87,17 @@ const Dashboard = () => {
   });
 
   const [isStatusLoading, setStatusLoading] = useState(true);
+  const [isDiskLoading, setDiskLoading] = useState(true);
+  const [isCountsLoading, setCountsLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
   const [userSettings, setUserSettings] = useState(null);
   const [spamSummary, setSpamSummary] = useState(null);
   const [userQuota, setUserQuota] = useState(null);
 
   const fetchAll = useCallback(async () => {
-    fetchDashboard();
+    fetchStatus();
+    fetchDisk();
+    fetchCounts();
     if (user?.isAdmin !== 1) {
       fetchUserSettings();
       fetchSpamSummary();
@@ -128,18 +148,25 @@ const Dashboard = () => {
     }
   };
 
-  const fetchDashboard = async () => {
+  const fetchStatus = async () => {
     if (!mailservers || !mailservers.length) return;
     if (!containerName) return;
 
     try {
-      setStatusLoading(true);
-
-      const statusData = await getServerStatus('mailserver', containerName);
+      const statusData = await getServerStatus('mailserver', containerName, 'status');
       if (statusData.success) {
 
         setErrorMessage(null);
-        setServerStatus(statusData.message);
+        const r = statusData.message.resources;
+        setServerStatus(prev => ({ ...prev, status: statusData.message.status, resources: {
+          ...prev.resources,
+          cpuUsage: r.cpuUsage,
+          memoryUsage: r.memoryUsage,
+          memoryTotal: r.memoryTotal,
+          memoryUsed: r.memoryUsed,
+          uptime: r.uptime,
+          loadAverage: r.loadAverage,
+        }}));
         if (['api_gen', 'api_miss', 'api_match', 'api_unset', 'api_error', 'port_closed', 'port_timeout', 'port_unknown', 'unknown'].includes(statusData.message.status.status)) setErrorMessage(`dashboard.errors.${statusData.message.status.status}`);
 
       } else setErrorMessage(statusData?.error);
@@ -150,6 +177,61 @@ const Dashboard = () => {
 
     } finally {
       setStatusLoading(false);
+    }
+  };
+
+  const fetchDisk = async () => {
+    if (!mailservers || !mailservers.length) return;
+    if (!containerName) return;
+
+    try {
+      const diskData = await getServerStatus('mailserver', containerName, 'disk');
+      if (diskData.success) {
+        setServerStatus(prev => ({
+          ...prev,
+          resources: {
+            ...prev.resources,
+            diskUsage: diskData.message.resources.diskUsage,
+            diskUsed: diskData.message.resources.diskUsed,
+            diskTotal: diskData.message.resources.diskTotal,
+            diskPercent: diskData.message.resources.diskPercent,
+          },
+        }));
+      }
+
+    } catch (error) {
+      errorLog(t('api.errors.fetchServerStatus'), error);
+
+    } finally {
+      setDiskLoading(false);
+    }
+  };
+
+  const fetchCounts = async () => {
+    if (!mailservers || !mailservers.length) return;
+    if (!containerName) return;
+
+    try {
+      const [loginsRes, accountsRes, aliasesRes] = await Promise.all([
+        getCount('logins', containerName),
+        getCount('accounts', containerName),
+        getCount('aliases', containerName),
+      ]);
+
+      setServerStatus(prev => ({
+        ...prev,
+        db: {
+          logins: loginsRes.success ? loginsRes.message : prev.db.logins,
+          accounts: accountsRes.success ? accountsRes.message : prev.db.accounts,
+          aliases: aliasesRes.success ? aliasesRes.message : prev.db.aliases,
+        },
+      }));
+
+    } catch (error) {
+      errorLog(t('api.errors.fetchServerStatus'), error);
+
+    } finally {
+      setCountsLoading(false);
     }
   };
 
@@ -209,8 +291,7 @@ const Dashboard = () => {
               title="dashboard.serverStatus"
               icon="hdd-rack-fill"
               iconColor={getStatusColor()}
-              badgeColor={getStatusColor()}
-              badgeText={getStatusText()}
+              value={Translate(getStatusText())}
               isLoading={isStatusLoading}
             >
               <Button
@@ -221,6 +302,13 @@ const Dashboard = () => {
                 className="position-absolute top-right shadow"
                 onClick={() => rebootMe()}
               />
+              <div className="mt-auto">
+                {!isStatusLoading && (
+                  <ProgressBar now={100} variant={getStatusColor()} className="mt-2" style={{height:'20px'}} label={
+                    status.resources.uptime ? <small>{t('dashboard.uptime')}: {status.resources.uptime} &mdash; load: {(status.resources.loadAverage || []).join(', ')}</small> : '\u00A0'
+                  } />
+                )}
+              </div>
             </DashboardCard>
           </Col>
           <Col md={3} className="mb-3">
@@ -228,27 +316,49 @@ const Dashboard = () => {
               title="dashboard.cpuUsage"
               icon="cpu"
               iconColor={isStatusLoading ? "secondary" : "primary"}
+              value={Number(status.resources.cpuUsage).toFixed(1)+'%'}
               isLoading={isStatusLoading}
-              value={Number(status.resources.cpuUsage).toFixed(2)+'%'}
-            />
+            >
+              <div className="mt-auto">
+                {!isStatusLoading && (
+                  <ProgressBar now={Number(status.resources.cpuUsage)} variant={Number(status.resources.cpuUsage) > 90 ? 'danger' : Number(status.resources.cpuUsage) > 60 ? 'warning' : 'primary'} className="mt-2" style={{height:'20px'}} />
+                )}
+              </div>
+            </DashboardCard>
           </Col>
           <Col md={3} className="mb-3">
             <DashboardCard
               title="dashboard.memoryUsage"
               icon="memory"
               iconColor={isStatusLoading ? "secondary" : "info"}
+              value={Number(status.resources.memoryUsage).toFixed(1)+'%'}
               isLoading={isStatusLoading}
-              value={Number(status.resources.memoryUsage).toFixed(2)+'%'}
-            />
+            >
+              <div className="mt-auto">
+                {!isStatusLoading && (
+                  <ProgressBar now={Number(status.resources.memoryUsage)} variant={Number(status.resources.memoryUsage) > 90 ? 'danger' : Number(status.resources.memoryUsage) > 75 ? 'warning' : 'info'} className="mt-2" style={{height:'20px'}} label={
+                    <small>{formatMB(status.resources.memoryUsed)} / {formatMB(status.resources.memoryTotal)}</small>
+                  } />
+                )}
+              </div>
+            </DashboardCard>
           </Col>
           <Col md={3} className="mb-3">
             <DashboardCard
               title="dashboard.diskUsage"
               icon="hdd"
-              iconColor={isStatusLoading ? "secondary" : "warning"}
-              isLoading={isStatusLoading}
-              value={status.resources.diskUsage+'MB'}
-            />
+              iconColor={isDiskLoading ? "secondary" : "warning"}
+              value={formatMB(status.resources.diskUsage)}
+              isLoading={isDiskLoading}
+            >
+              <div className="mt-auto">
+                {!isDiskLoading && status.resources.diskTotal > 0 && (
+                  <ProgressBar now={status.resources.diskPercent} variant={status.resources.diskPercent > 90 ? 'danger' : status.resources.diskPercent > 75 ? 'warning' : 'success'} className="mt-2" style={{height:'20px'}} label={
+                    <small>{formatMB(status.resources.diskUsed)} / {formatMB(status.resources.diskTotal)}</small>
+                  } />
+                )}
+              </div>
+            </DashboardCard>
           </Col>
         </Row>
 
@@ -258,8 +368,8 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.logins"
               icon="person-lock"
-              iconColor={isStatusLoading ? "secondary" : "success"}
-              isLoading={isStatusLoading}
+              iconColor={isCountsLoading ? "secondary" : "success"}
+              isLoading={isCountsLoading}
               value={status.db.logins}
               href="/logins"
             />
@@ -268,8 +378,8 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.mailboxAccounts"
               icon="inboxes-fill"
-              iconColor={isStatusLoading ? "secondary" : "success"}
-              isLoading={isStatusLoading}
+              iconColor={isCountsLoading ? "secondary" : "success"}
+              isLoading={isCountsLoading}
               value={status.db.accounts}
               href="/accounts"
             />
@@ -278,8 +388,8 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.aliases"
               icon="arrow-left-right"
-              iconColor={isStatusLoading ? "secondary" : "success"}
-              isLoading={isStatusLoading}
+              iconColor={isCountsLoading ? "secondary" : "success"}
+              isLoading={isCountsLoading}
               value={status.db.aliases}
               href="/aliases"
             />

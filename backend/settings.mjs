@@ -322,8 +322,8 @@ export const getServerStatus = async (plugin='mailserver', containerName=null, t
   // const memory_Used  = "free -m | awk '/Mem/ {print $3}'"
   // const memory_Usage = "free -m | awk '/Mem/ {print 100*$3/$2}'"
 
-  const disk_cmd     = "du -sm /var/mail | cut -f1"
-  const top_cmd      = "top -bn1 | head -12"
+  const disk_cmd     = "df -BM /var/mail | awk 'NR==2{print $3+0, $2+0, $5+0}'"
+  const top_cmd      = "top -bn2 -d1 | grep -A4 '^top' | tail -5"
   // top_parser will parse all of the below
   // top - 02:02:32 up 35 days, 22:39,  0 user,  load average: 0.00, 0.01, 0.00
   // Tasks:  35 total,   1 running,  34 sleeping,   0 stopped,   0 zombie
@@ -377,71 +377,54 @@ export const getServerStatus = async (plugin='mailserver', containerName=null, t
           return {success: !results.returncode, message: status};
         }
 
-        const [result_top, result_disk] = await Promise.all([
-          execCommand(top_cmd, targetDict),
-          execCommand(disk_cmd, targetDict, {timeout: 5}),
+        const uptime_cmd = "ps -o etimes= -p 1";
+        const runTop = test !== 'disk';
+        const runDisk = test !== 'status';
+
+        const [result_top, result_disk, result_uptime] = await Promise.all([
+          runTop  ? execCommand(top_cmd, targetDict) : null,
+          runDisk ? execCommand(disk_cmd, targetDict) : null,
+          runTop  ? execCommand(uptime_cmd, targetDict) : null,
         ]);
-        
-        // debugLog('processTopData', processTopData(result_top.stdout))
-        if (!result_top.returncode) {
-          const topJson = processTopData(result_top.stdout);
-          
-          // BUG: uptime is that of the host... to get container uptime in hours: $(( ( $(cut -d' ' -f22 /proc/self/stat) - $(cut -d' ' -f22 /proc/1/stat) ) / 100 / 3600 ))
-          // debugLog('processTopData', processTopData(result_top.stdout));
-          // {
-            // top: {
-              // time: '04:16:04',
-              // up_days: '36',
-              // load_average: [ '0.08', '0.07', '0.02' ]
-            // },
-            // tasks: {
-              // total: '31',
-              // running: '1',
-              // sleeping: '30',
-              // stopped: '0',
-              // zombie: '0'
-            // },
-            // cpu: {
-              // us: '0.0',
-              // sy: '100.0',
-              // ni: '0.0',
-              // id: '0.0',
-              // wa: '0.0',
-              // hi: '0.0',
-              // si: '0.0',
-              // st: '0.0'
-            // },
-            // mem: {
-              // total: '4413.7',
-              // used: '1305.2',
-              // free: '272.5',
-              // buff_cache: '3134.2'
-            // },
-          // }
-          
-          // status.resources.cpuUsage = result_cpu.stdout;
-          // status.resources.memoryUsage = result_mem.stdout;
-          
-          status.resources.cpuUsage = Number(topJson.cpu.us) + Number(topJson.cpu.sy);
-          status.resources.memoryUsage = 100 * Number(topJson.mem.used) / Number(topJson.mem.total);
-          
-        } else {
-          errorLog(result_top.stderr);
-          status.resources.error = result_top.stderr;     // transmit actual error to frontend
-          if (result_top.stderr.match(/api_miss/)) status.status.status = "api_miss";   // API key was not sent somehow
-          if (result_top.stderr.match(/api_match/)) status.status.status = "api_match";   // API key is different on either side
-          if (result_top.stderr.match(/api_unset/)) status.status.status = "api_unset";   // API key is not defined in DMS compose
+
+        if (result_top) {
+          if (!result_top.returncode) {
+            const topJson = processTopData(result_top.stdout);
+            status.resources.cpuUsage = Number(topJson.cpu.us) + Number(topJson.cpu.sy);
+            status.resources.memoryUsage = 100 * Number(topJson.mem.used) / Number(topJson.mem.total);
+            status.resources.memoryTotal = Number(topJson.mem.total);
+            status.resources.memoryUsed = Number(topJson.mem.used);
+            status.resources.loadAverage = topJson.top.load_average;
+            if (result_uptime && !result_uptime.returncode) {
+              const secs = Number(result_uptime.stdout.trim());
+              const days = Math.floor(secs / 86400);
+              const hours = Math.floor((secs % 86400) / 3600);
+              const mins = Math.floor((secs % 3600) / 60);
+              status.resources.uptime = days > 0 ? `${days}d ${hours}h` : `${hours}h ${mins}m`;
+            }
+          } else {
+            errorLog(result_top.stderr);
+            status.resources.error = result_top.stderr;
+            if (result_top.stderr.match(/api_miss/)) status.status.status = "api_miss";
+            if (result_top.stderr.match(/api_match/)) status.status.status = "api_match";
+            if (result_top.stderr.match(/api_unset/)) status.status.status = "api_unset";
+          }
         }
 
-        if (!result_disk.returncode) {
-          status.resources.diskUsage = Number(result_disk.stdout);
-        } else {
-          errorLog(result_disk.stderr);
-          status.resources.error = result_disk.stderr;    // transmit actual error to frontend
-          if (result_top.stderr.match(/api_miss/)) status.status.status = "api_miss";   // API key was not sent somehow
-          if (result_top.stderr.match(/api_match/)) status.status.status = "api_match";   // API key is different on either side
-          if (result_top.stderr.match(/api_miss/)) status.status.status = "api_unset";   // API key is not defined in DMS compose
+        if (result_disk) {
+          if (!result_disk.returncode) {
+            const parts = result_disk.stdout.trim().split(/\s+/);
+            status.resources.diskUsed = Number(parts[0]);
+            status.resources.diskTotal = Number(parts[1]);
+            status.resources.diskPercent = Number(parts[2]);
+            status.resources.diskUsage = Number(parts[0]);  // backward compat
+          } else {
+            errorLog(result_disk.stderr);
+            status.resources.error = result_disk.stderr;
+          }
         }
+
+        if (test == 'status' || test == 'disk') return {success: true, message: status};
 
       } else if (!targetDict || Object.keys(targetDict).length) {
         status.status.status = "unknown";   // targetDict likely missing something

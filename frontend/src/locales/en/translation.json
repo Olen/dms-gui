@@ -15,6 +15,7 @@
     "cpuUsage": "CPU Usage",
     "memoryUsage": "Memory Usage",
     "diskUsage": "Disk Usage",
+    "uptime": "Uptime",
     "mailboxAccounts": "Mailbox Accounts",
     "aliases": "Aliases",
     "logins": "Login accounts",

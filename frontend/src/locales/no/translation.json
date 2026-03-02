@@ -15,6 +15,7 @@
     "cpuUsage": "CPU-bruk",
     "memoryUsage": "Minnebruk",
     "diskUsage": "Diskbruk",
+    "uptime": "Oppetid",
     "mailboxAccounts": "E-postkontoer",
     "aliases": "Alias",
     "logins": "Innloggingskontoer",

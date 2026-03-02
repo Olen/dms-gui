@@ -131,6 +131,11 @@ tr .MuiChip-root  {
 .dashboard-card {
   text-align: center;
   padding: 20px;
+  height: 100%;
+}
+.dashboard-card .card-body {
+  display: flex;
+  flex-direction: column;
 }
 
 .dashboard-icon {
