@@ -593,6 +593,8 @@
     "title": "E-postoppsett",
     "serverSettings": "Serverinnstillinger",
     "username": "Brukernavn",
+    "server": "Server",
+    "port": "Port",
     "downloadThunderbird": "Thunderbird / PC",
     "downloadApple": "iPhone / Mac",
     "howTo": "Last ned en konfigurasjonsfil nedenfor for å automatisk sette opp e-postkontoen din. For Thunderbird eller andre PC-klienter, importer autoconfig-filen via kontoinnstillinger. For iPhone, iPad eller Mac, åpne .mobileconfig-filen og følg instruksjonene for å installere profilen.",

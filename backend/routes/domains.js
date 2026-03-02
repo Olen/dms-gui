@@ -21,11 +21,10 @@ async (req, res) => {
     const { type, ...creds } = req.body;
     if (!type) return res.status(400).json({ success: false, error: 'Provider type is required' });
 
-    const providerType = type.toUpperCase();
+    const key = type.toLowerCase();
     let testResult;
 
-    if (providerType === 'DOMAINNAMESHOP') {
-      // Domeneshop: GET /v0/domains with HTTP Basic (token:secret)
+    if (key === 'domeneshop') {
       const response = await fetch('https://api.domeneshop.no/v0/domains', {
         headers: { 'Authorization': 'Basic ' + Buffer.from(`${creds.token}:${creds.secret}`).toString('base64') },
       });
@@ -36,8 +35,7 @@ async (req, res) => {
         testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
       }
 
-    } else if (providerType === 'CLOUDFLAREAPI') {
-      // Cloudflare: GET /client/v4/user/tokens/verify with Bearer token
+    } else if (key === 'cloudflare') {
       const response = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
         headers: { 'Authorization': `Bearer ${creds.apitoken}` },
       });
@@ -48,17 +46,30 @@ async (req, res) => {
         testResult = { success: false, error: data.errors?.[0]?.message || `HTTP ${response.status}` };
       }
 
-    } else if (providerType === 'ROUTE53') {
-      testResult = { success: false, error: 'Test not supported for Route53 — verify credentials by assigning a domain' };
+    } else if (key === 'digitalocean') {
+      const response = await fetch('https://api.digitalocean.com/v2/account', {
+        headers: { 'Authorization': `Bearer ${creds.apitoken}` },
+      });
+      if (response.ok) {
+        testResult = { success: true, message: 'OK — authentication successful' };
+      } else {
+        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+      }
 
-    } else if (providerType === 'ORACLE') {
-      testResult = { success: false, error: 'Test not supported for Oracle — verify credentials by assigning a domain' };
-
-    } else if (providerType === 'AZURE_PRIVATE_DNS') {
-      testResult = { success: false, error: 'Test not supported for Azure Private DNS — verify credentials by assigning a domain' };
+    } else if (key === 'hetzner') {
+      const response = await fetch('https://dns.hetzner.com/api/v1/zones', {
+        headers: { 'Auth-API-Token': creds.apitoken },
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const count = data.zones?.length || 0;
+        testResult = { success: true, message: `OK — ${count} zone(s) found` };
+      } else {
+        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+      }
 
     } else {
-      testResult = { success: false, error: `Test not supported for provider type: ${type}` };
+      testResult = { success: false, error: `Test not implemented for provider: ${type}` };
     }
 
     res.json(testResult);

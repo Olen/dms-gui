@@ -593,6 +593,8 @@
     "title": "Mail Setup",
     "serverSettings": "Server Settings",
     "username": "Username",
+    "server": "Server",
+    "port": "Port",
     "downloadThunderbird": "Thunderbird / Desktop",
     "downloadApple": "iPhone / Mac",
     "howTo": "Download a configuration file below to automatically set up your email account. For Thunderbird or other desktop clients, import the autoconfig file via account settings. For iPhone, iPad, or Mac, open the .mobileconfig file and follow the prompts to install the profile.",

@@ -429,44 +429,26 @@ export const plugins =
   },
 
   dnscontrol: {
-    "azure_private_dns_main": {
-      "desc": "https://docs.dnscontrol.org/provider/azure_private_dns",
-      "TYPE": "AZURE_PRIVATE_DNS",
-      "SubscriptionID": "AZURE_PRIVATE_SUBSCRIPTION_ID",
-      "ResourceGroup": "AZURE_PRIVATE_RESOURCE_GROUP",
-      "TenantID": "AZURE_PRIVATE_TENANT_ID",
-      "ClientID": "AZURE_PRIVATE_CLIENT_ID",
-      "ClientSecret": "AZURE_PRIVATE_CLIENT_SECRET"
+    cloudflare: {
+      desc: "https://developers.cloudflare.com/api/",
+      TYPE: "CLOUDFLAREAPI",
+      apitoken: "your-cloudflare-api-token",
     },
-    "cloudflare": {
-      "desc": "https://docs.dnscontrol.org/provider/cloudflareapi",
-      "TYPE": "CLOUDFLAREAPI",
-      "accountid": "your-cloudflare-account-id",
-      "apitoken": "your-cloudflare-api-token"
+    domeneshop: {
+      desc: "https://api.domeneshop.no/docs/",
+      TYPE: "DOMAINNAMESHOP",
+      token: "your-api-token",
+      secret: "your-api-secret",
     },
-    "oracle": {
-      "desc": "https://docs.dnscontrol.org/provider/cloudflareapi",
-      "TYPE": "ORACLE",
-      "compartment": "$ORACLE_COMPARTMENT",
-      "fingerprint": "$ORACLE_FINGERPRINT",
-      "private_key": "$ORACLE_PRIVATE_KEY",
-      "region": "$ORACLE_REGION",
-      "tenancy_ocid": "$ORACLE_TENANCY_OCID",
-      "user_ocid": "$ORACLE_USER_OCID"
+    digitalocean: {
+      desc: "https://docs.digitalocean.com/reference/api/",
+      TYPE: "DIGITALOCEAN",
+      apitoken: "your-digitalocean-api-token",
     },
-    "r53_main": {
-      "desc": "https://docs.dnscontrol.org/provider/route53",
-      "TYPE": "ROUTE53",
-      "DelegationSet": "optional-delegation-set-id",
-      "KeyId": "your-aws-key",
-      "SecretKey": "your-aws-secret-key",
-      "Token": "optional-sts-token"
-    },
-    "domeneshop": {
-      "desc": "https://docs.dnscontrol.org/provider/domainnameshop",
-      "TYPE": "DOMAINNAMESHOP",
-      "token": "your-domeneshop-api-token",
-      "secret": "your-domeneshop-api-secret"
+    hetzner: {
+      desc: "https://dns.hetzner.com/api-docs",
+      TYPE: "HETZNER",
+      apitoken: "your-hetzner-dns-api-token",
     },
   }
 }

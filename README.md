@@ -6,7 +6,7 @@ A web-based management interface for [Docker-Mailserver](https://github.com/dock
 
 Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy. Communicates with DMS via a lightweight Python REST API running inside the DMS container.
 
-> **Fork notice** — This is a fork of [audioscavenger/dms-gui](https://github.com/audioscavenger/docker-mailserver-GUI) with significant additions: rspamd integration, DNS record pushing (Domeneshop + Cloudflare), DKIM generation, DNSBL checks, demo mode, and more.
+> **Fork notice** — This is a fork of [audioscavenger/dms-gui](https://github.com/audioscavenger/docker-mailserver-GUI) with significant additions: rspamd integration, DNS record pushing (Cloudflare, Domeneshop, DigitalOcean, Hetzner), DKIM generation, DNSBL checks, demo mode, and more.
 
 ---
 
@@ -20,6 +20,7 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 - [🔒 Security](#-security)
 - [🏗️ Architecture](#️-architecture)
 - [🛠️ Development](#️-development)
+- [🔌 Contributing a DNS Provider](#-contributing-a-dns-provider)
 - [🎭 Demo Mode](#-demo-mode)
 - [❓ FAQ](#-faq)
 - [📄 License](#-license)
@@ -60,7 +61,7 @@ Live DNS checks for every domain: A, MX, SPF, DKIM, DMARC, TLSA, and SRV records
 
 <img width="1533" alt="Domains & DNS" src="https://github.com/user-attachments/assets/581ac687-38be-454f-a1aa-e8b210b75896" />
 
-Click a domain to open the DNS Details modal where you can inspect each record, edit SPF and DMARC with guided setup, generate DKIM keys (RSA or Ed25519), and push records to Domeneshop or Cloudflare. The Blacklist tab checks your mail server IP against Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others.
+Click a domain to open the DNS Details modal where you can inspect each record, edit SPF and DMARC with guided setup, generate DKIM keys (RSA or Ed25519), and push records to your DNS provider. The Blacklist tab checks your mail server IP against Spamhaus, Abusix, Barracuda, SpamCop, UCEProtect, and others.
 
 | DNS Details | Blacklist Check |
 |-------------|-----------------|
@@ -92,7 +93,7 @@ Browse logs from the DMS-GUI backend, the DMS container, and rspamd — all in o
 
 <img width="1555" alt="Branding" src="https://github.com/user-attachments/assets/fddb17e4-b700-48fd-9268-563f75910f46" />
 
-**DNS Providers** — Set up provider profiles with encrypted API credentials (Domeneshop, Cloudflare, Route53, Oracle, Azure) to push SPF, DKIM, and DMARC records directly from the Domains page.
+**DNS Providers** — Set up provider profiles with encrypted API credentials to push SPF, DKIM, and DMARC records directly from the Domains page. Currently supported: **Cloudflare**, **Domeneshop**, **DigitalOcean**, and **Hetzner**. Adding more providers requires implementing the provider API in `backend/dnsProviders.mjs` (see [Contributing a DNS provider](#-contributing-a-dns-provider) below).
 
 **Multi-DMS** — Connect and switch between multiple DMS instances from the sidebar. Each container has its own settings, accounts, and domains.
 
@@ -341,6 +342,23 @@ docker build -t dms-gui:latest .
 ├── Dockerfile          Multi-stage build
 └── config/             Example configuration files
 ```
+
+---
+
+## 🔌 Contributing a DNS Provider
+
+DNS record pushing currently supports **Cloudflare**, **Domeneshop**, **DigitalOcean**, and **Hetzner**. To add a new provider:
+
+1. **`backend/env.mjs`** — Add a credential template in `plugins.dnscontrol` with the required fields (this is the single source of truth for available providers)
+2. **`backend/dnsProviders.mjs`** — Add a provider object implementing these methods, and register it in the `implementations` map:
+   - `authHeader(creds)` — returns the auth header value
+   - `resolveDomain(domain, creds)` — resolves a domain to a zone ID
+   - `findTxtRecord(zoneId, host, creds, contentPrefix)` — finds an existing TXT record
+   - `upsertTxtRecord(zoneId, host, data, creds, contentPrefix)` — creates or updates a TXT record
+   - `usesRelativeHost` — set to `true` if the API uses relative host names (`_dmarc`), `false` for FQDNs (`_dmarc.example.com`)
+3. **`backend/routes/domains.js`** — Add a test case in the `/api/dnscontrol/test` endpoint
+
+The credential template in `env.mjs` determines which fields appear in the Settings > DNS Providers form. See the existing implementations as reference.
 
 ---
 

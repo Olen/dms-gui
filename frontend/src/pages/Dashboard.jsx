@@ -382,23 +382,45 @@ const Dashboard = () => {
               <table className="table table-sm mb-0">
                 <tbody>
                   <tr>
-                    <td className="text-muted fw-bold" style={{width:'120px'}}>IMAP</td>
-                    <td><code>{userSettings.IMAP_HOST}:{userSettings.IMAP_PORT || '993'}</code> (SSL/TLS)</td>
-                  </tr>
-                  <tr>
-                    <td className="text-muted fw-bold">SMTP</td>
-                    <td><code>{userSettings.SMTP_HOST}:{userSettings.SMTP_PORT || '587'}</code> (STARTTLS)</td>
-                  </tr>
-                  {userSettings.POP3_HOST && (
-                    <tr>
-                      <td className="text-muted fw-bold">POP3</td>
-                      <td><code>{userSettings.POP3_HOST}:{userSettings.POP3_PORT || '995'}</code> (SSL/TLS)</td>
-                    </tr>
-                  )}
-                  <tr>
-                    <td className="text-muted fw-bold">{t('dashboard.user.username')}</td>
+                    <td className="text-muted fw-bold" style={{width:'120px'}}>{t('mailSetup.username')}</td>
                     <td><code>{user.mailbox || t('dashboard.user.yourEmail')}</code></td>
                   </tr>
+                  <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
+                  <tr>
+                    <td className="text-muted fw-bold">IMAP {t('mailSetup.server')}</td>
+                    <td><code>{userSettings.IMAP_HOST}</code></td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
+                    <td><code>{userSettings.IMAP_PORT || '993'}</code> (SSL/TLS)</td>
+                  </tr>
+                  <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
+                  <tr>
+                    <td className="text-muted fw-bold">SMTP {t('mailSetup.server')}</td>
+                    <td><code>{userSettings.SMTP_HOST}</code></td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
+                    <td><code>{userSettings.SMTP_PORT || '587'}</code> (STARTTLS)</td>
+                  </tr>
+                  {userSettings.POP3_HOST && (<>
+                    <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
+                    <tr>
+                      <td className="text-muted fw-bold">POP3 {t('mailSetup.server')}</td>
+                      <td><code>{userSettings.POP3_HOST}</code></td>
+                    </tr>
+                    <tr>
+                      <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
+                      <td><code>{userSettings.POP3_PORT || '995'}</code> (SSL/TLS)</td>
+                    </tr>
+                  </>)}
+                  {userSettings.WEBMAIL_URL && (<>
+                    <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
+                    <tr>
+                      <td className="text-muted fw-bold">Webmail</td>
+                      <td><a href={userSettings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer"><code>{userSettings.WEBMAIL_URL}</code></a></td>
+                    </tr>
+                  </>)}
                 </tbody>
               </table>
             </Card>

@@ -425,6 +425,8 @@
     "title": "Konfiguracja poczty",
     "serverSettings": "Ustawienia serwera",
     "username": "Nazwa użytkownika",
+    "server": "Serwer",
+    "port": "Port",
     "downloadThunderbird": "Thunderbird / Desktop",
     "downloadApple": "iPhone / Mac",
     "howTo": "Pobierz plik konfiguracyjny poniżej, aby automatycznie skonfigurować konto e-mail. Dla Thunderbirda lub innych klientów desktopowych zaimportuj plik autoconfig w ustawieniach konta. Dla iPhone, iPad lub Mac otwórz plik .mobileconfig i postępuj zgodnie z instrukcjami instalacji profilu.",

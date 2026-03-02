@@ -7,12 +7,16 @@ import {
   getSetting,
   getDomains,
 } from './settings.mjs';
+import { plugins } from './env.mjs';
 
 
 // --- Provider implementations ---
+// Each must implement: authHeader, resolveDomain, findTxtRecord, upsertTxtRecord
+// The key in `implementations` must match the template key in plugins.dnscontrol.
 
 const domeneshop = {
   baseUrl: 'https://api.domeneshop.no/v0',
+  usesRelativeHost: true,
 
   authHeader(creds) {
     return 'Basic ' + Buffer.from(`${creds.token}:${creds.secret}`).toString('base64');
@@ -99,6 +103,7 @@ const domeneshop = {
 
 const cloudflare = {
   baseUrl: 'https://api.cloudflare.com/client/v4',
+  usesRelativeHost: false,
 
   authHeader(creds) {
     return `Bearer ${creds.apitoken}`;
@@ -177,14 +182,198 @@ const cloudflare = {
 };
 
 
-// --- Provider registry ---
+const digitalocean = {
+  baseUrl: 'https://api.digitalocean.com/v2',
+  usesRelativeHost: true,
 
-const providers = {
-  'DOMAINNAMESHOP': domeneshop,
-  'DOMENESHOP': domeneshop,
-  'CLOUDFLAREAPI': cloudflare,
-  'CLOUDFLARE': cloudflare,
+  authHeader(creds) {
+    return `Bearer ${creds.apitoken}`;
+  },
+
+  async resolveDomain(domain, creds) {
+    const response = await fetch(`${this.baseUrl}/domains`, {
+      headers: { 'Authorization': this.authHeader(creds) },
+    });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('DNS provider authentication failed. Check your credentials in Settings > DNS Providers.');
+      }
+      throw new Error(`DigitalOcean API error: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const domains = data.domains || [];
+
+    // Try exact match first, then strip labels to find parent zone
+    let search = domain;
+    while (search.includes('.')) {
+      const found = domains.find(d => d.name === search);
+      if (found) {
+        // DigitalOcean uses the domain name as the zone identifier
+        return { zoneId: found.name, zoneName: found.name };
+      }
+      search = search.substring(search.indexOf('.') + 1);
+    }
+    throw new Error(`Domain "${domain}" not found at DigitalOcean. Verify it is managed by this provider.`);
+  },
+
+  async findTxtRecord(zoneId, host, creds, contentPrefix) {
+    const response = await fetch(`${this.baseUrl}/domains/${zoneId}/records?type=TXT`, {
+      headers: { 'Authorization': this.authHeader(creds) },
+    });
+    if (!response.ok) throw new Error(`DigitalOcean list records: HTTP ${response.status}`);
+    const data = await response.json();
+    const records = data.domain_records || [];
+
+    const normalizeHost = (h) => (!h || h === '@') ? '@' : h;
+    return records.find(r =>
+      normalizeHost(r.name) === normalizeHost(host) &&
+      (!contentPrefix || r.data?.startsWith(contentPrefix))
+    ) || null;
+  },
+
+  async upsertTxtRecord(zoneId, host, data, creds, contentPrefix) {
+    const existing = await this.findTxtRecord(zoneId, host, creds, contentPrefix);
+    const recordHost = (!host || host === '') ? '@' : host;
+
+    if (existing) {
+      const response = await fetch(`${this.baseUrl}/domains/${zoneId}/records/${existing.id}`, {
+        method: 'PUT',
+        headers: {
+          'Authorization': this.authHeader(creds),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: recordHost, type: 'TXT', data }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`DigitalOcean update record: HTTP ${response.status} — ${text}`);
+      }
+      return { success: true, message: `Updated TXT record for ${recordHost}` };
+    }
+
+    const response = await fetch(`${this.baseUrl}/domains/${zoneId}/records`, {
+      method: 'POST',
+      headers: {
+        'Authorization': this.authHeader(creds),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: recordHost, type: 'TXT', data }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`DigitalOcean create record: HTTP ${response.status} — ${text}`);
+    }
+    return { success: true, message: `Created TXT record for ${recordHost}` };
+  },
 };
+
+
+const hetzner = {
+  baseUrl: 'https://dns.hetzner.com/api/v1',
+  usesRelativeHost: true,
+
+  authHeader(creds) {
+    return creds.apitoken;
+  },
+
+  async resolveDomain(domain, creds) {
+    const response = await fetch(`${this.baseUrl}/zones`, {
+      headers: { 'Auth-API-Token': this.authHeader(creds) },
+    });
+    if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('DNS provider authentication failed. Check your credentials in Settings > DNS Providers.');
+      }
+      throw new Error(`Hetzner DNS API error: HTTP ${response.status}`);
+    }
+    const data = await response.json();
+    const zones = data.zones || [];
+
+    // Try exact match first, then strip labels to find parent zone
+    let search = domain;
+    while (search.includes('.')) {
+      const found = zones.find(z => z.name === search);
+      if (found) {
+        return { zoneId: found.id, zoneName: found.name };
+      }
+      search = search.substring(search.indexOf('.') + 1);
+    }
+    throw new Error(`Domain "${domain}" not found at Hetzner DNS. Verify it is managed by this provider.`);
+  },
+
+  async findTxtRecord(zoneId, host, creds, contentPrefix) {
+    const response = await fetch(`${this.baseUrl}/records?zone_id=${zoneId}`, {
+      headers: { 'Auth-API-Token': this.authHeader(creds) },
+    });
+    if (!response.ok) throw new Error(`Hetzner list records: HTTP ${response.status}`);
+    const data = await response.json();
+    const records = data.records || [];
+
+    const normalizeHost = (h) => (!h || h === '@') ? '@' : h;
+    return records.find(r =>
+      r.type === 'TXT' &&
+      normalizeHost(r.name) === normalizeHost(host) &&
+      (!contentPrefix || r.value?.startsWith(contentPrefix))
+    ) || null;
+  },
+
+  async upsertTxtRecord(zoneId, host, data, creds, contentPrefix) {
+    const existing = await this.findTxtRecord(zoneId, host, creds, contentPrefix);
+    const recordHost = (!host || host === '') ? '@' : host;
+
+    if (existing) {
+      const response = await fetch(`${this.baseUrl}/records/${existing.id}`, {
+        method: 'PUT',
+        headers: {
+          'Auth-API-Token': this.authHeader(creds),
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ name: recordHost, type: 'TXT', value: data, zone_id: zoneId }),
+      });
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Hetzner update record: HTTP ${response.status} — ${text}`);
+      }
+      return { success: true, message: `Updated TXT record for ${recordHost}` };
+    }
+
+    const response = await fetch(`${this.baseUrl}/records`, {
+      method: 'POST',
+      headers: {
+        'Auth-API-Token': this.authHeader(creds),
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({ name: recordHost, type: 'TXT', value: data, zone_id: zoneId }),
+    });
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Hetzner create record: HTTP ${response.status} — ${text}`);
+    }
+    return { success: true, message: `Created TXT record for ${recordHost}` };
+  },
+};
+
+
+// --- Provider lookup ---
+// implementations maps template keys (from plugins.dnscontrol in env.mjs) to provider objects
+
+const implementations = { cloudflare, domeneshop, digitalocean, hetzner };
+
+
+function getProvider(type) {
+  const key = type.toLowerCase();
+  // Validate against the actual template registry
+  if (!plugins.dnscontrol[key]) {
+    const supported = Object.keys(plugins.dnscontrol).join(', ');
+    throw new Error(`DNS provider "${type}" is not supported. Supported: ${supported}.`);
+  }
+  // Look up implementation
+  const impl = implementations[key];
+  if (!impl) {
+    throw new Error(`DNS provider "${type}" has a template but no implementation yet. PRs welcome!`);
+  }
+  return impl;
+}
 
 
 // --- Credential retrieval ---
@@ -199,16 +388,6 @@ async function getProviderCredentials(containerName, profileName) {
     throw new Error(`DNS provider profile "${profileName}" has no type.`);
   }
   return creds;
-}
-
-
-function getProvider(type) {
-  const providerType = type.toUpperCase();
-  const provider = providers[providerType];
-  if (!provider) {
-    throw new Error(`DNS record management is not yet supported for provider type "${type}". Supported: Domeneshop, Cloudflare.`);
-  }
-  return provider;
 }
 
 
@@ -241,9 +420,7 @@ export async function upsertDnsRecord(containerName, domain, { name, type, data 
   const { zoneId, zoneName } = await provider.resolveDomain(domain, creds);
   infoLog(`upsertDnsRecord: resolved ${domain} → zone ${zoneName} (${zoneId})`);
 
-  // 4. Compute host (relative for Domeneshop, FQDN for Cloudflare)
-  //    The provider implementations handle this difference internally.
-  //    Domeneshop uses relative host, Cloudflare uses FQDN.
+  // 4. Compute host format
   const fqdn = name;
   const relativeHost = fqdn === zoneName ? '' : fqdn.replace(`.${zoneName}`, '');
 
@@ -254,10 +431,7 @@ export async function upsertDnsRecord(containerName, domain, { name, type, data 
     : data.startsWith('v=DKIM1') ? 'v=DKIM1'
     : null;
 
-  // 6. Upsert — use the right host format per provider
-  if (provider === domeneshop) {
-    return provider.upsertTxtRecord(zoneId, relativeHost, data, creds, contentPrefix);
-  } else {
-    return provider.upsertTxtRecord(zoneId, fqdn, data, creds, contentPrefix);
-  }
+  // 6. Upsert — providers with usesRelativeHost get relative names, others get FQDN
+  const host = provider.usesRelativeHost ? relativeHost : fqdn;
+  return provider.upsertTxtRecord(zoneId, host, data, creds, contentPrefix);
 }
