@@ -41,8 +41,8 @@ COPY backend/ ./
 # Stage 3: Final image with Nginx and Node.js
 FROM node:24.14.0-alpine
 
-ARG DMSGUI_VERSION=1.5.24
-ARG DMSGUI_DESCRIPTION="A graphical user interface for managing all aspects of DMS including: email accounts, aliases, xapian indexes, and DNS entries."
+ARG DMSGUI_VERSION=2.0.0
+ARG DMSGUI_DESCRIPTION="A graphical user interface for managing all aspects of docker-mailserver including: email accounts, aliases, domains, DNS records, DKIM, and server monitoring."
 
 # alpine Install Nginx and curl (for healthcheck)
 RUN apk add --no-cache nginx curl
@@ -80,13 +80,14 @@ CMD ["/app/start.sh"]
 
 # Add metadata to image:
 LABEL org.opencontainers.image.title="dms-gui"
-LABEL org.opencontainers.image.vendor="audioscavenger"
-LABEL org.opencontainers.image.authors="audioscavenger on GitHub"
+LABEL org.opencontainers.image.vendor="Olen"
+LABEL org.opencontainers.image.authors="Olen <https://github.com/Olen>"
 LABEL org.opencontainers.image.licenses="AGPL-3.0-only"
 LABEL org.opencontainers.image.description=${DMSGUI_DESCRIPTION}
-LABEL org.opencontainers.image.url="https://github.com/audioscavenger/dms-gui"
-LABEL org.opencontainers.image.documentation="https://github.com/audioscavenger/dms-gui/blob/master/README.md"
-LABEL org.opencontainers.image.source="https://github.com/docker-mailserver/docker-mailserver"
+LABEL org.opencontainers.image.url="https://github.com/Olen/dms-gui"
+LABEL org.opencontainers.image.documentation="https://github.com/Olen/dms-gui/blob/deploy/README.md"
+LABEL org.opencontainers.image.source="https://github.com/Olen/dms-gui"
+LABEL org.opencontainers.image.base.name="docker.io/library/node:24.14.0-alpine"
 # ARG invalidates cache when it is used by a layer (implicitly affects RUN)
 # Thus to maximize cache, keep these lines last:
 LABEL org.opencontainers.image.revision=${DMSGUI_VERSION}
