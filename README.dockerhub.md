@@ -9,7 +9,7 @@ It relies on a generic REST API written in python, that you have to mount in DMS
 
 - 🌐 Multi-arch: x86_64 (amd64) + aarch64 (arm64)
 - 🔐 Login page, crypto-secure hashed passwords, HTTP-Only cookies
-- 📊 Dashboard with server status information
+- 📊 Dashboard with server status and outgoing mail delivery issues
 - 👥 User management with roles for their mailboxes
   - 👤 Profile page
   - 📬 Mailbox account management

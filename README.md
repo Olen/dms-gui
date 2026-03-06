@@ -33,7 +33,7 @@ Built as a single Docker container: React frontend (Vite, Bootstrap) + Node.js/E
 
 ### 📊 Dashboard
 
-At-a-glance server health: container status, CPU/memory/disk usage, and counts of accounts, aliases, and logins. The dashboard auto-refreshes every 30 seconds.
+At-a-glance server health: container status, CPU/memory/disk usage, and counts of accounts, aliases, and logins. Admins also see an outgoing mail delivery issues table showing bounced and deferred messages parsed from mail.log. The dashboard auto-refreshes every 30 seconds.
 
 <img width="1555" alt="Admin Dashboard" src="https://github.com/user-attachments/assets/475b240c-ca19-4558-b9a2-4370a18a01b1" />
 

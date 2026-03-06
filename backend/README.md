@@ -120,6 +120,7 @@ Subject to heavily change over time, please use https://dms.domain.com/docs for 
 - `DELETE /api/aliases` - Delete an alias
 - `GET /api/domains` - Get domain(s)
 
+- `GET /api/bounces` - Get bounced/deferred outgoing mail (admin)
 - `GET /api/getCount` - Get row count from a table
 - `POST /api/initAPI` - Create DMS API files and key
 
