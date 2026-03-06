@@ -414,6 +414,17 @@ export const getMailLogs = async (containerName=null, source='mail', lines=100) 
   }
 };
 
+export const getMailBounces = async (containerName=null, hours=48) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  try {
+    const response = await api.get(`/bounces/${containerName}`, { params: { hours } });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getRspamdUserSummary = async (containerName=null) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 

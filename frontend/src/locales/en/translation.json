@@ -70,6 +70,17 @@
       "subject": "Subject",
       "score": "Score",
       "action": "Action"
+    },
+    "bounces": {
+      "title": "Outgoing Mail Delivery Issues",
+      "time": "Time",
+      "recipient": "Recipient",
+      "status": "Status",
+      "reason": "Reason",
+      "bounced": "bounced",
+      "deferred": "deferred",
+      "summary": "{{bounced}} bounced, {{deferred}} deferred in last {{hours}} hours",
+      "noIssues": "No delivery issues"
     }
   },
   "logins": {

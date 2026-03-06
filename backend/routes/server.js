@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
-import { getNodeInfos, getServerEnvs, getServerStatus, getMailLogs, initAPI, killContainer } from '../settings.mjs';
+import { getNodeInfos, getServerEnvs, getServerStatus, getMailLogs, getMailBounces, initAPI, killContainer } from '../settings.mjs';
 import { dbCount } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
 
@@ -200,6 +200,51 @@ async (req, res) => {
 
   } catch (error) {
     serverError(res, 'GET /api/logs', error);
+  }
+});
+
+
+/**
+ * @swagger
+ * /api/bounces/{containerName}:
+ *   get:
+ *     summary: Get bounced/deferred outgoing mail
+ *     description: Grep mail.log for bounced and deferred messages (admin only)
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: query
+ *         name: hours
+ *         schema:
+ *           type: integer
+ *           default: 48
+ *     responses:
+ *       200:
+ *         description: Bounce data returned successfully
+ *       400:
+ *         description: Missing parameters
+ *       500:
+ *         description: Unable to read logs
+ */
+router.get('/bounces/:containerName',
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const hours = req.query.hours || 48;
+
+    const result = await getMailBounces(containerName, hours);
+    res.json(result);
+
+  } catch (error) {
+    serverError(res, 'GET /api/bounces', error);
   }
 });
 

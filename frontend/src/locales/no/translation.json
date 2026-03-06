@@ -70,6 +70,17 @@
       "subject": "Emne",
       "score": "Poeng",
       "action": "Handling"
+    },
+    "bounces": {
+      "title": "Leveringsproblemer for utgående e-post",
+      "time": "Tid",
+      "recipient": "Mottaker",
+      "status": "Status",
+      "reason": "Årsak",
+      "bounced": "avvist",
+      "deferred": "utsatt",
+      "summary": "{{bounced}} avvist, {{deferred}} utsatt siste {{hours}} timer",
+      "noIssues": "Ingen leveringsproblemer"
     }
   },
   "logins": {

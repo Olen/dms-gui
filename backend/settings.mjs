@@ -289,6 +289,77 @@ export const getMailLogs = async (containerName=null, source='mail', lines=100) 
 };
 
 
+// Function to get bounced/deferred outgoing mail from DMS container
+export const getMailBounces = async (containerName=null, hours=48) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+
+  const maxHours = Math.min(Math.max(parseInt(hours) || 48, 1), 168);
+
+  const demo = demoResponse('mailBounces');
+  if (demo) return demo;
+
+  try {
+    const targetDict = getTargetDict('mailserver', containerName);
+    targetDict.timeout = 10;
+    const cmd = `grep 'postfix/smtp.*status=\\(bounced\\|deferred\\)' /var/log/mail/mail.log | tail -500`;
+    const results = await execCommand(cmd, targetDict);
+
+    if (results.returncode && !results.stdout) {
+      // grep returns 1 when no matches — that's normal
+      return { success: true, message: { bounces: [], summary: { bounced: 0, deferred: 0 } } };
+    }
+    if (results.returncode && results.stderr) {
+      return { success: false, error: results.stderr };
+    }
+
+    const lines = (results.stdout || '').split('\n').filter(l => l.length > 0);
+    const cutoff = new Date(Date.now() - maxHours * 3600 * 1000);
+    const currentYear = new Date().getFullYear();
+
+    // Parse postfix smtp bounce/defer lines
+    // Format: "Mar  6 09:24:34 mail postfix/smtp[1234]: QUEUEID: to=<user@example.com>, ..., status=bounced (reason)"
+    const lineRe = /^(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
+
+    const byQueueId = new Map();
+    for (const line of lines) {
+      const m = line.match(lineRe);
+      if (!m) continue;
+
+      const [, tsStr, queueId, to, origTo, status, reason] = m;
+      // Parse timestamp — postfix logs don't include year, assume current year
+      const ts = new Date(`${tsStr} ${currentYear}`);
+      // Handle year boundary: if parsed date is in the future, it's from last year
+      if (ts > new Date()) ts.setFullYear(currentYear - 1);
+
+      if (ts < cutoff) continue;
+
+      const dsn = reason.match(/(\d+\.\d+\.\d+)/)?.[1] || '';
+
+      byQueueId.set(queueId, {
+        time: ts.toISOString(),
+        to,
+        origTo: origTo || null,
+        dsn,
+        status,
+        reason,
+      });
+    }
+
+    const bounces = [...byQueueId.values()].sort((a, b) => b.time.localeCompare(a.time));
+    const summary = {
+      bounced: bounces.filter(b => b.status === 'bounced').length,
+      deferred: bounces.filter(b => b.status === 'deferred').length,
+    };
+
+    return { success: true, message: { bounces, summary } };
+
+  } catch (error) {
+    errorLog(error.message);
+    return { success: false, error: error.message };
+  }
+};
+
+
 // Function to get server status from DMS, you can add some extra test like ping or execSetup
 export const getServerStatus = async (plugin='mailserver', containerName=null, test=undefined, settings=[]) => {
   debugLog(plugin, containerName, test, settings);

@@ -10,6 +10,7 @@ import {
 import {
   getAccounts,
   getCount,
+  getMailBounces,
   getServerStatus,
   getUserSettings,
   getRspamdUserSummary,
@@ -93,12 +94,16 @@ const Dashboard = () => {
   const [userSettings, setUserSettings] = useState(null);
   const [spamSummary, setSpamSummary] = useState(null);
   const [userQuota, setUserQuota] = useState(null);
+  const [bounces, setBounces] = useState(null);
+  const [isBouncesLoading, setBouncesLoading] = useState(true);
 
   const fetchAll = useCallback(async () => {
     fetchStatus();
     fetchDisk();
     fetchCounts();
-    if (user?.isAdmin !== 1) {
+    if (user?.isAdmin === 1) {
+      fetchBounces();
+    } else {
       fetchUserSettings();
       fetchSpamSummary();
       fetchUserQuota();
@@ -145,6 +150,18 @@ const Dashboard = () => {
       }
     } catch (error) {
       // Non-critical - quota may not be available
+    }
+  };
+
+  const fetchBounces = async () => {
+    if (!containerName) return;
+    try {
+      const result = await getMailBounces(containerName);
+      if (result.success) setBounces(result.message);
+    } catch (error) {
+      // Non-critical
+    } finally {
+      setBouncesLoading(false);
     }
   };
 
@@ -396,6 +413,51 @@ const Dashboard = () => {
           </Col>
         </Row>
         }
+
+        {!isBouncesLoading && bounces && (
+        <Row>
+          <Col md={12} className="mb-3">
+            <Card title="dashboard.bounces.title" icon="exclamation-triangle">
+              {bounces.bounces.length > 0 ? (
+                <>
+                  <p className="mb-2 text-muted">
+                    {t('dashboard.bounces.summary', { bounced: bounces.summary.bounced, deferred: bounces.summary.deferred, hours: 48 })}
+                  </p>
+                  <table className="table table-sm mb-0">
+                    <thead>
+                      <tr>
+                        <th>{t('dashboard.bounces.time')}</th>
+                        <th>{t('dashboard.bounces.recipient')}</th>
+                        <th>{t('dashboard.bounces.status')}</th>
+                        <th>{t('dashboard.bounces.reason')}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {bounces.bounces.map((b, i) => (
+                        <tr key={i}>
+                          <td className="text-muted text-nowrap">{new Date(b.time).toLocaleString()}</td>
+                          <td>
+                            {b.to}
+                            {b.origTo && <span className="text-muted ms-1" title={`orig_to: ${b.origTo}`}>({b.origTo})</span>}
+                          </td>
+                          <td>
+                            <span className={`badge text-bg-${b.status === 'bounced' ? 'danger' : 'warning'}`}>
+                              {t(`dashboard.bounces.${b.status}`)}
+                            </span>
+                          </td>
+                          <td className="text-truncate" style={{maxWidth:'400px'}} title={b.reason}>{b.reason}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </>
+              ) : (
+                <p className="mb-0 text-muted">{t('dashboard.bounces.noIssues')}</p>
+              )}
+            </Card>
+          </Col>
+        </Row>
+        )}
       </div>
     );
   }
