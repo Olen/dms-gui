@@ -314,11 +314,11 @@ export const getMailBounces = async (containerName=null, hours=48) => {
 
     const lines = (results.stdout || '').split('\n').filter(l => l.length > 0);
     const cutoff = new Date(Date.now() - maxHours * 3600 * 1000);
-    const currentYear = new Date().getFullYear();
 
-    // Parse postfix smtp bounce/defer lines
-    // Format: "Mar  6 09:24:34 mail postfix/smtp[1234]: QUEUEID: to=<user@example.com>, ..., status=bounced (reason)"
-    const lineRe = /^(\w{3}\s+\d+\s+\d{2}:\d{2}:\d{2})\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
+    // Parse postfix smtp bounce/defer lines — supports both timestamp formats:
+    // ISO 8601: "2026-03-06T09:24:34.123456+01:00 mail postfix/smtp[1234]: QUEUEID: ..."
+    // BSD syslog: "Mar  6 09:24:34 mail postfix/smtp[1234]: QUEUEID: ..."
+    const lineRe = /^(\S+)\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
 
     const byQueueId = new Map();
     for (const line of lines) {
@@ -326,10 +326,8 @@ export const getMailBounces = async (containerName=null, hours=48) => {
       if (!m) continue;
 
       const [, tsStr, queueId, to, origTo, status, reason] = m;
-      // Parse timestamp — postfix logs don't include year, assume current year
-      const ts = new Date(`${tsStr} ${currentYear}`);
-      // Handle year boundary: if parsed date is in the future, it's from last year
-      if (ts > new Date()) ts.setFullYear(currentYear - 1);
+      const ts = new Date(tsStr);
+      if (isNaN(ts.getTime())) continue;
 
       if (ts < cutoff) continue;
 
