@@ -537,6 +537,19 @@ const dnsProviderSettings = [
 ];
 
 // --- Export ---
+// --- Mail bounces (parsed output) ---
+const _isoTs = (hoursAgo) => new Date(Date.now() - hoursAgo * 3600 * 1000).toISOString();
+const mailBounces = {
+  bounces: [
+    { time: _isoTs(1), to: 'recipient@proofpoint-customer.com', origTo: null, dsn: '5.7.1', status: 'bounced', reason: 'host mx.proofpoint-customer.com[198.51.100.10] said: 550 5.7.1 Service unavailable, Client host [192.0.2.88] blocked using Proofpoint Dynamic Reputation; https://support.proofpoint.com/dnsbl-lookup.cgi?ip=192.0.2.88 (in reply to RCPT TO command)' },
+    { time: _isoTs(3), to: 'user@outlook-corp.com', origTo: null, dsn: '5.4.1', status: 'bounced', reason: 'host outlook-corp-com.mail.protection.outlook.com[52.101.73.28] said: 550 5.4.1 Recipient address rejected: Access denied. AS(201806281) [DB8EUR04FT063.eop-eur04.prod.protection.outlook.com 2026-03-06T08:15:22.471Z 08DE79A5DC24DE5D] (in reply to RCPT TO command)' },
+    { time: _isoTs(6), to: 'john@partner-domain.com', origTo: 'sales@example.com', dsn: '4.7.1', status: 'deferred', reason: 'host mx.partner-domain.com[203.0.113.50] said: 451 4.7.1 Try again later (in reply to end of DATA command)' },
+    { time: _isoTs(12), to: 'contact@mimecast-customer.co.uk', origTo: null, dsn: '4.0.0', status: 'deferred', reason: 'host us-smtp-inbound-1.mimecast.com[170.10.128.221] said: 451 Internal resource temporarily unavailable - https://community.mimecast.com/docs/DOC-1369#451 [ZqpxRUu_P3Kv3X4RpDLeXg.us693] (in reply to RCPT TO command)' },
+    { time: _isoTs(24), to: 'info@strict-dmarc-domain.org', origTo: null, dsn: '5.7.1', status: 'bounced', reason: 'host mx1.strict-dmarc-domain.org[198.51.100.25] said: 550 5.7.1 Unauthenticated email from strict-dmarc-domain.org is not accepted due to domain DMARC policy. Please contact the administrator of strict-dmarc-domain.org if this was a legitimate mail. Visit https://support.google.com/mail/answer/2451690 (in reply to end of DATA command)' },
+  ],
+  summary: { bounced: 3, deferred: 2 },
+};
+
 export const demoData = {
   configs,
   settings,
@@ -560,4 +573,5 @@ export const demoData = {
   dkimSelector,
   generateDkim,
   mailLogs,
+  mailBounces,
 };
