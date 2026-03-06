@@ -301,7 +301,7 @@ export const getMailBounces = async (containerName=null, hours=48) => {
   try {
     const targetDict = getTargetDict('mailserver', containerName);
     targetDict.timeout = 10;
-    const cmd = `grep -E 'postfix/smtp.*status=(bounced|deferred)' /var/log/mail/mail.log | tail -500`;
+    const cmd = `grep -e 'postfix/smtp.*status=bounced' -e 'postfix/smtp.*status=deferred' /var/log/mail/mail.log | tail -500`;
     const results = await execCommand(cmd, targetDict);
 
     if (results.returncode && !results.stdout) {
