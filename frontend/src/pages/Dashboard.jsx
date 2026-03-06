@@ -445,7 +445,7 @@ const Dashboard = () => {
                               {t(`dashboard.bounces.${b.status}`)}
                             </span>
                           </td>
-                          <td className="text-truncate" style={{maxWidth:'400px'}} title={b.reason}>{b.reason}</td>
+                          <td style={{wordBreak:'break-word'}}><small>{b.reason}</small></td>
                         </tr>
                       ))}
                     </tbody>
