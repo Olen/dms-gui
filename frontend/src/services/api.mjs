@@ -365,6 +365,42 @@ export const setAccountQuota = async (containerName, mailbox, quota) => {
   }
 };
 
+export const getSieveRules = async (containerName, mailbox) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!mailbox) return {success: false, error: 'mailbox is required'};
+  try {
+    const response = await api.get(`/sieve/${containerName}/${mailbox}`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const saveSieveRules = async (containerName, mailbox, rules) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!mailbox) return {success: false, error: 'mailbox is required'};
+  try {
+    const response = await api.put(`/sieve/${containerName}/${mailbox}`, { rules });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
+export const deleteSieveRules = async (containerName, mailbox) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  if (!mailbox) return {success: false, error: 'mailbox is required'};
+  try {
+    const response = await api.delete(`/sieve/${containerName}/${mailbox}`);
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getAliases = async (containerName=null, refresh=false) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
 

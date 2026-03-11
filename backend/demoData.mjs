@@ -550,6 +550,18 @@ const mailBounces = {
   summary: { bounced: 3, deferred: 2 },
 };
 
+// --- Sieve rules (demo) ---
+const sieveRules = {
+  rules: {
+    forward: { enabled: true, address: 'backup@example.com', keepCopy: true },
+    vacation: { enabled: false, subject: 'Out of office', message: 'I am currently on vacation. I will reply when I return.', days: 7 },
+    block: { enabled: true, addresses: ['spammer@spam.example'] },
+  },
+  scriptExists: true,
+  isActive: true,
+  rawScript: null,
+};
+
 export const demoData = {
   configs,
   settings,
@@ -574,4 +586,5 @@ export const demoData = {
   generateDkim,
   mailLogs,
   mailBounces,
+  sieveRules,
 };

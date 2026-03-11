@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
 import { addAccount, deleteAccount, doveadm, getAccounts, setQuota } from '../accounts.mjs';
+import { getSieveRules, saveSieveRules, deleteSieveRules } from '../sieve.mjs';
 import { updateDB } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
 
@@ -364,6 +365,147 @@ async (req, res) => {
 
   } catch (error) {
     serverError(res, 'index PATCH /api/accounts', error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/sieve/{containerName}/{mailbox}:
+ *   get:
+ *     summary: Get sieve rules for a mailbox
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: mailbox
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Sieve rules
+ *       500:
+ *         description: Unable to retrieve sieve rules
+ */
+router.get('/sieve/:containerName/:mailbox',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName, mailbox } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+
+    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const result = await getSieveRules(containerName, mailbox);
+    res.json(result);
+
+  } catch (error) {
+    serverError(res, 'GET /api/sieve', error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/sieve/{containerName}/{mailbox}:
+ *   put:
+ *     summary: Save sieve rules for a mailbox
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: mailbox
+ *         required: true
+ *         schema:
+ *           type: string
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               rules:
+ *                 type: object
+ *     responses:
+ *       200:
+ *         description: Sieve rules saved
+ *       500:
+ *         description: Unable to save sieve rules
+ */
+router.put('/sieve/:containerName/:mailbox',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName, mailbox } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+
+    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const { rules } = req.body;
+    if (!rules) return res.status(400).json({ error: 'rules are required' });
+
+    const result = await saveSieveRules(containerName, mailbox, rules);
+    res.json(result);
+
+  } catch (error) {
+    serverError(res, 'PUT /api/sieve', error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/sieve/{containerName}/{mailbox}:
+ *   delete:
+ *     summary: Delete sieve rules for a mailbox
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *       - in: path
+ *         name: mailbox
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Sieve rules deleted
+ *       500:
+ *         description: Unable to delete sieve rules
+ */
+router.delete('/sieve/:containerName/:mailbox',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName, mailbox } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+
+    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+      return res.status(403).json({ error: 'Permission denied' });
+    }
+
+    const result = await deleteSieveRules(containerName, mailbox);
+    res.json(result);
+
+  } catch (error) {
+    serverError(res, 'DELETE /api/sieve', error);
   }
 });
 

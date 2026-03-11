@@ -169,7 +169,30 @@
     "suggestPassword": "Suggest passphrase",
     "suggestPasswordHint": "Note this down before submitting",
     "unknownDomain": "The domain \"{{domain}}\" has no existing accounts on this server. Are you sure you want to create an account for this domain?",
-    "unknownDomainError": "Account creation cancelled — unknown domain"
+    "unknownDomainError": "Account creation cancelled — unknown domain",
+    "sieve": {
+      "title": "Mail Rules",
+      "forward": "Forward",
+      "forwardAddress": "Forward to",
+      "keepCopy": "Keep a copy in mailbox",
+      "vacation": "Vacation Auto-Reply",
+      "vacationSubject": "Subject",
+      "vacationMessage": "Message",
+      "vacationDays": "Reply interval (days)",
+      "block": "Block Senders",
+      "blockAddress": "Email address",
+      "save": "Save Rules",
+      "delete": "Delete Rules",
+      "noRules": "No rules configured",
+      "externalScript": "Script was modified outside dms-gui. Saving will overwrite it.",
+      "confirmDelete": "Delete all sieve rules for this account?",
+      "saved": "Sieve rules saved",
+      "deleted": "Sieve rules deleted",
+      "addAddress": "Add",
+      "errorSave": "Error saving sieve rules",
+      "errorFetch": "Error fetching sieve rules",
+      "errorDelete": "Error deleting sieve rules"
+    }
   },
   "aliases": {
     "addAlias": "Add Alias",

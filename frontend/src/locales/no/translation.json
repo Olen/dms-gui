@@ -169,7 +169,30 @@
     "suggestPassword": "Foreslå passfrase",
     "suggestPasswordHint": "Skriv ned dette før du sender",
     "unknownDomain": "Domenet \"{{domain}}\" har ingen eksisterende kontoer på denne serveren. Er du sikker på at du vil opprette en konto for dette domenet?",
-    "unknownDomainError": "Kontooppretting avbrutt — ukjent domene"
+    "unknownDomainError": "Kontooppretting avbrutt — ukjent domene",
+    "sieve": {
+      "title": "E-postregler",
+      "forward": "Videresending",
+      "forwardAddress": "Videresend til",
+      "keepCopy": "Behold en kopi i postboksen",
+      "vacation": "Feriesvar",
+      "vacationSubject": "Emne",
+      "vacationMessage": "Melding",
+      "vacationDays": "Svarintervall (dager)",
+      "block": "Blokker avsendere",
+      "blockAddress": "E-postadresse",
+      "save": "Lagre regler",
+      "delete": "Slett regler",
+      "noRules": "Ingen regler konfigurert",
+      "externalScript": "Skriptet ble endret utenfor dms-gui. Lagring vil overskrive det.",
+      "confirmDelete": "Slette alle sieve-regler for denne kontoen?",
+      "saved": "Sieve-regler lagret",
+      "deleted": "Sieve-regler slettet",
+      "addAddress": "Legg til",
+      "errorSave": "Feil ved lagring av sieve-regler",
+      "errorFetch": "Feil ved henting av sieve-regler",
+      "errorDelete": "Feil ved sletting av sieve-regler"
+    }
   },
   "aliases": {
     "addAlias": "Legg til alias",

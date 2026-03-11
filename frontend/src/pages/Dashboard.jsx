@@ -175,15 +175,19 @@ const Dashboard = () => {
 
         setErrorMessage(null);
         const r = statusData.message.resources;
-        setServerStatus(prev => ({ ...prev, status: statusData.message.status, resources: {
-          ...prev.resources,
-          cpuUsage: r.cpuUsage,
-          memoryUsage: r.memoryUsage,
-          memoryTotal: r.memoryTotal,
-          memoryUsed: r.memoryUsed,
-          uptime: r.uptime,
-          loadAverage: r.loadAverage,
-        }}));
+        if (r) {
+          setServerStatus(prev => ({ ...prev, status: statusData.message.status, resources: {
+            ...prev.resources,
+            cpuUsage: r.cpuUsage,
+            memoryUsage: r.memoryUsage,
+            memoryTotal: r.memoryTotal,
+            memoryUsed: r.memoryUsed,
+            uptime: r.uptime,
+            loadAverage: r.loadAverage,
+          }}));
+        } else {
+          setServerStatus(prev => ({ ...prev, status: statusData.message.status }));
+        }
         if (['api_gen', 'api_miss', 'api_match', 'api_unset', 'api_error', 'port_closed', 'port_timeout', 'port_unknown', 'unknown'].includes(statusData.message.status.status)) setErrorMessage(`dashboard.errors.${statusData.message.status.status}`);
 
       } else setErrorMessage(statusData?.error);
@@ -203,7 +207,7 @@ const Dashboard = () => {
 
     try {
       const diskData = await getServerStatus('mailserver', containerName, 'disk');
-      if (diskData.success) {
+      if (diskData.success && diskData.message.resources) {
         setServerStatus(prev => ({
           ...prev,
           resources: {

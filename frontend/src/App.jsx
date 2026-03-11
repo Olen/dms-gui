@@ -20,6 +20,7 @@ import Col from 'react-bootstrap/Col'; // Import Col
 import Login from './pages/Login';
 import ResetPassword from './pages/ResetPassword';
 import { ProtectedRoute } from './components/ProtectedRoute';
+import ErrorBoundary from './components/ErrorBoundary';
 import { AuthProvider } from './hooks/useAuth';   // must include any elements that will interact with auth
 import { BrandingProvider } from './hooks/useBranding';
 
@@ -43,6 +44,7 @@ import { BrandingProvider } from './hooks/useBranding';
 
 function App() {
   return (
+    <ErrorBoundary>
     <AuthProvider>
     <BrandingProvider>
     <div>
@@ -79,6 +81,7 @@ function App() {
     </div>
     </BrandingProvider>
     </AuthProvider>
+    </ErrorBoundary>
   );
 }
 
