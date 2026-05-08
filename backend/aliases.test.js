@@ -210,4 +210,18 @@ describe('updateAlias', () => {
     // Critical: DB must NOT have been written.
     expect(mockDbRun).not.toHaveBeenCalled();
   });
+
+  it('returns "DB out of sync" when DMS partially succeeds but DB write fails', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+    });
+    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    mockDbRun.mockReturnValue({ success: false, error: 'disk full' });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/DB out of sync/);
+    expect(result.error).toMatch(/disk full/);
+  });
 });
