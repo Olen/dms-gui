@@ -92,4 +92,44 @@ describe('updateAlias', () => {
       'mailserver',
     );
   });
+
+  it('issues alias del for each removed destination', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+    });
+    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com');
+
+    expect(result.success).toBe(true);
+    expect(execSetup).toHaveBeenCalledTimes(1);
+    expect(execSetup).toHaveBeenCalledWith(
+      expect.stringMatching(/^alias del 'info@example\.com' 'b@example\.com'$/),
+      expect.any(Object),
+    );
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ destination: 'a@example.com' }),
+      'mailserver',
+    );
+  });
+
+  it('handles a mixed diff: removes one, adds one', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+    });
+    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com,c@example.com');
+
+    expect(result.success).toBe(true);
+    expect(execSetup).toHaveBeenCalledTimes(2);
+    // First: del a@; second: add c@. Order: removals before additions.
+    expect(execSetup.mock.calls[0][0]).toMatch(/^alias del 'info@example\.com' 'a@example\.com'$/);
+    expect(execSetup.mock.calls[1][0]).toMatch(/^alias add 'info@example\.com' 'c@example\.com'$/);
+  });
 });
