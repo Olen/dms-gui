@@ -46,25 +46,61 @@ git checkout -b feature/thing
 git checkout deploy
 git merge feature/thing --no-edit
 git push origin deploy
-docker build -t ghcr.io/olen/dms-gui:latest .
-cd /home/docker && make dms-gui-recreate
+# (no manual build/deploy here — release happens by bumping
+#  package.json on a later commit; see "Release & deploy" below)
 # optionally delete: git branch -d feature/thing
 ```
 
-## Build & deploy (Apollo)
+## Release & deploy
 
-Apollo (`apollo.nytt.no`) is the development host AND the production host — there is no separate CI. Builds run directly on apollo and the resulting local image is what `make dms-gui-recreate` starts.
+Apollo (`apollo.nytt.no`) is the development host AND the production host. Releases are built by GitHub Actions (`.github/workflows/release.yml`) and published to `ghcr.io/olen/dms-gui`. Apollo pulls the published image when recreating the container.
+
+### Source of truth for the version
+
+The release version lives in the root `package.json` `version` field. CI reads it on every push to `deploy` and:
+
+1. If a git tag matching that version already exists, CI skips (idempotent — pushing non-release commits is free).
+2. Otherwise CI runs the backend + frontend test suites, builds the image with `--build-arg DMSGUI_VERSION=<version>`, pushes both `ghcr.io/olen/dms-gui:<version>` and `ghcr.io/olen/dms-gui:latest`, and creates+pushes the matching git tag.
+
+`backend/package.json` and `frontend/package.json` are internal-only and stay at `1.0.0`. Don't bump them.
+
+### Cutting a release
 
 ```bash
-cd /home/olen/prog/dms-gui
-git checkout deploy
+# bump the version (canonical source)
+npm version <new-version> --no-git-tag-version    # e.g. 2.1.0 → 2.1.1; edits root package.json only
+git add package.json
+git commit -m "Release <new-version>"
 git push origin deploy
-docker build -t ghcr.io/olen/dms-gui:latest .
+# CI does the rest: tests → build → push image → create+push git tag
+```
+
+Watch the run at https://github.com/Olen/dms-gui/actions. Typical end-to-end time is ~5–7 minutes.
+
+### Pulling the new image into production
+
+After CI completes, on apollo:
+
+```bash
 cd /home/docker && make dms-gui-recreate
 ```
 
+The Makefile's `*-recreate` target does `docker compose pull && docker compose up -d --force-recreate`, so it always lands the newest image from GHCR. There is no longer a "build locally and run that" step in the standard flow.
+
+### Local builds (when bypassing CI)
+
+For testing changes that have not been released yet (e.g. debugging in production):
+
+```bash
+cd /home/olen/prog/dms-gui
+docker build -t ghcr.io/olen/dms-gui:latest .
+cd /home/docker && docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
+```
+
+Note this uses `up -d --force-recreate` directly, not `make dms-gui-recreate`, because the latter would `docker compose pull` and overwrite the local build. Use sparingly — the canonical path is bump-and-push, let CI build.
+
 ### Image registry note
-The compose file `/home/docker/dms-gui.yaml` references `ghcr.io/olen/dms-gui:latest`, but **no CI publishes to GHCR**. The build above tags the locally-built image with the GHCR-shaped name so `docker compose up -d --force-recreate` (what `make dms-gui-recreate` invokes — note: no pull) uses the local image directly. This deviates from the global `~/CLAUDE.md` rule that prescribes `git.olen.net` as the registry; dms-gui follows upstream's GHCR convention instead.
+The compose file `/home/docker/dms-gui.yaml` references `ghcr.io/olen/dms-gui:latest`. CI is the only writer to that tag (apollo's `~/.docker/config.json` PAT is kept for the local-build fallback above). This deviates from the global `~/CLAUDE.md` rule that prescribes `git.olen.net` as the registry; dms-gui follows upstream's GHCR convention instead.
 
 ## Critical: .dockerignore
 The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc-compiled node_modules get copied into the Alpine container, breaking better-sqlite3 with `ld-linux-x86-64.so.2` errors. Always ensure `.dockerignore` exists on the `deploy` branch before building.
