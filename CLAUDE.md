@@ -45,19 +45,26 @@ git checkout -b feature/thing
 # work, commit, test
 git checkout deploy
 git merge feature/thing --no-edit
-docker build -t olen/dms-gui:latest .
+git push origin deploy
+docker build -t ghcr.io/olen/dms-gui:latest .
 cd /home/docker && make dms-gui-recreate
 # optionally delete: git branch -d feature/thing
 ```
 
 ## Build & deploy (Apollo)
 
+Apollo (`apollo.nytt.no`) is the development host AND the production host — there is no separate CI. Builds run directly on apollo and the resulting local image is what `make dms-gui-recreate` starts.
+
 ```bash
 cd /home/olen/prog/dms-gui
 git checkout deploy
-docker build -t olen/dms-gui:latest .
+git push origin deploy
+docker build -t ghcr.io/olen/dms-gui:latest .
 cd /home/docker && make dms-gui-recreate
 ```
+
+### Image registry note
+The compose file `/home/docker/dms-gui.yaml` references `ghcr.io/olen/dms-gui:latest`, but **no CI publishes to GHCR**. The build above tags the locally-built image with the GHCR-shaped name so `docker compose up -d --force-recreate` (what `make dms-gui-recreate` invokes — note: no pull) uses the local image directly. This deviates from the global `~/CLAUDE.md` rule that prescribes `git.olen.net` as the registry; dms-gui follows upstream's GHCR convention instead.
 
 ## Critical: .dockerignore
 The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc-compiled node_modules get copied into the Alpine container, breaking better-sqlite3 with `ld-linux-x86-64.so.2` errors. Always ensure `.dockerignore` exists on the `deploy` branch before building.
