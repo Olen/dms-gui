@@ -1312,9 +1312,12 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
 
             if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
             result = dbRun(`UPDATE ${table} set ${key} = @${key} WHERE 1=1 AND ${sql[table].id} = ?`, scopedValues, id);
-            if (result.success) {
+            if (result.success && result.message?.changes > 0) {
               messages.push(`Updated ${table} ${id} with ${key}=${value}`);
               successLog(`Updated ${table} ${id} with ${key}=${value}`);
+            } else if (result.success && result.message?.changes === 0) {
+              errorLog(`updateDB: no matching row for ${table} ${id}`);
+              messages.push(`No matching row found for ${table} ${id}`);
             } else messages.push(result?.error);
           }
           

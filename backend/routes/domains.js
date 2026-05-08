@@ -1,8 +1,19 @@
 import { Router } from 'express';
 import { authenticateToken, requireActive, requireAdmin, isValidDomain, serverError, validateContainerName } from '../middleware.js';
 import { dnsLookup, dnsblCheck, generateDkim, getDkimSelector, getDomains } from '../settings.mjs';
-import { updateDB } from '../db.mjs';
+import { updateDB, dbRun } from '../db.mjs';
 import { upsertDnsRecord } from '../dnsProviders.mjs';
+
+// Ensure a domain row exists in the domains table before updating it.
+// New domains only exist via postfix aliases (the allDomains UNION query),
+// so UPDATE would match 0 rows without this.
+const ensureDomainRow = (domain, containerName) => {
+  dbRun(
+    `INSERT OR IGNORE INTO domains (domain, configID) VALUES (@domain, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
+    { domain },
+    containerName,
+  );
+};
 import { demoWriteResponse } from '../demoMode.mjs';
 
 const router = Router();
@@ -211,6 +222,10 @@ async (req, res) => {
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
     if (!domain) return res.status(400).json({ error: 'domain is required' });
     if (!isValidDomain(domain)) return res.status(400).json({ error: 'invalid domain' });
+
+    // Ensure domain row exists — new domains only exist via postfix aliases,
+    // not in the domains table, so UPDATE would match 0 rows.
+    ensureDomainRow(domain, containerName);
 
     const result = await updateDB('domains', domain, req.body, containerName);
     res.json(result);
