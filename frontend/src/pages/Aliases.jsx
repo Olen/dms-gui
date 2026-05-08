@@ -313,7 +313,7 @@ const Aliases = () => {
       noSort: true,
       noFilter: true,
       render: (alias) => (
-        <>
+        <div className="d-flex gap-1">
           {!alias.regex && (
             <Button
               variant="primary"
@@ -321,7 +321,6 @@ const Aliases = () => {
               icon="pencil"
               title={t('aliases.editAlias', { source: alias.source })}
               onClick={() => handleEdit(alias)}
-              className="me-1"
             />
           )}
           <Button
@@ -331,7 +330,7 @@ const Aliases = () => {
             title={t('aliases.confirmDelete', { source: alias.source })}
             onClick={() => handleDelete(alias.source, alias.destination)}
           />
-        </>
+        </div>
       ),
     }] : []),
   ];
