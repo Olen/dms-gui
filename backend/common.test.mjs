@@ -21,6 +21,7 @@ import {
   regexEmailLax,
   regexEmailRegex,
   regexUsername,
+  safeUrl,
 } from '../common.mjs';
 
 describe('escapeShellArg', () => {
@@ -89,11 +90,13 @@ describe('escapeShellArg', () => {
   });
 
   it('handles paths with spaces', () => {
-    expect(escapeShellArg('/path/to/my file.txt')).toBe("'/path/to/my file.txt'");
+    expect(escapeShellArg('/path/to/my file.txt')).toBe(
+      "'/path/to/my file.txt'"
+    );
   });
 
   it('handles double quotes (no special treatment needed inside single quotes)', () => {
-    expect(escapeShellArg('say "hello"')).toBe("'say \"hello\"'");
+    expect(escapeShellArg('say "hello"')).toBe('\'say "hello"\'');
   });
 
   it('handles backslashes', () => {
@@ -110,7 +113,6 @@ describe('escapeShellArg', () => {
     expect(result).toBe("''\\''; DROP TABLE users; --'");
   });
 });
-
 
 describe('fixStringType', () => {
   it('converts numeric string to number', () => {
@@ -143,10 +145,11 @@ describe('fixStringType', () => {
   });
 });
 
-
 describe('funcName', () => {
   it('returns the caller name from a regular named function', () => {
-    function namedCaller() { return funcName(2, true); }
+    function namedCaller() {
+      return funcName(2, true);
+    }
     expect(namedCaller()).toBe('namedCaller');
   });
 
@@ -154,14 +157,16 @@ describe('funcName', () => {
     // Simulate a stack frame as if from app.listen's anonymous callback
     // by calling funcName from a method-shaped invocation.
     const obj = {
-      'methodWithDots.<anonymous>': function () { return funcName(2, true); },
+      'methodWithDots.<anonymous>': function () {
+        return funcName(2, true);
+      },
     };
     // Caller frame appears as something like "at Object.methodWithDots.<anonymous>".
     // Either way we must not return a raw multi-token stack line.
     const result = obj['methodWithDots.<anonymous>']();
     expect(typeof result).toBe('string');
-    expect(result.startsWith('at ')).toBe(false);    // not raw stack line
-    expect(result.includes(' (')).toBe(false);       // no file:line trailing
+    expect(result.startsWith('at ')).toBe(false); // not raw stack line
+    expect(result.includes(' (')).toBe(false); // no file:line trailing
   });
 
   it('falls back to <anonymous> rather than dumping a raw stack line', () => {
@@ -173,7 +178,6 @@ describe('funcName', () => {
     expect(result === '<anonymous>' || /^[\w.<>$_]+$/.test(result)).toBe(true);
   });
 });
-
 
 describe('parseExpiryToMs', () => {
   it('parses seconds', () => {
@@ -221,7 +225,6 @@ describe('parseExpiryToMs', () => {
   });
 });
 
-
 describe('jsonFixTrailingCommas', () => {
   it('strips trailing commas and returns JSON string', () => {
     const result = jsonFixTrailingCommas('{"a":1,"b":2,}');
@@ -237,7 +240,6 @@ describe('jsonFixTrailingCommas', () => {
     expect(() => jsonFixTrailingCommas('not json')).toThrow();
   });
 });
-
 
 describe('arrayOfStringToDict', () => {
   it('converts key=value array with custom separator', () => {
@@ -260,11 +262,13 @@ describe('arrayOfStringToDict', () => {
   });
 });
 
-
 describe('obj2ArrayOfObj', () => {
   it('converts object to array of {name, value} objects', () => {
     const result = obj2ArrayOfObj({ a: 1, b: 2 });
-    expect(result).toEqual([{ name: 'a', value: 1 }, { name: 'b', value: 2 }]);
+    expect(result).toEqual([
+      { name: 'a', value: 1 },
+      { name: 'b', value: 2 },
+    ]);
   });
 
   it('stringifies values when stringify flag is true', () => {
@@ -277,7 +281,6 @@ describe('obj2ArrayOfObj', () => {
     expect(result).toEqual([{ key: 'a', val: 1 }]);
   });
 });
-
 
 describe('reduxArrayOfObjByKey', () => {
   it('keeps only specified keys', () => {
@@ -300,7 +303,6 @@ describe('reduxArrayOfObjByKey', () => {
   });
 });
 
-
 describe('reduxArrayOfObjByValue', () => {
   it('filters by matching values', () => {
     const data = [
@@ -322,7 +324,6 @@ describe('reduxArrayOfObjByValue', () => {
   });
 });
 
-
 describe('reduxPropertiesOfObj', () => {
   it('keeps only specified properties', () => {
     const obj = { a: 1, b: 2, c: 3 };
@@ -335,12 +336,17 @@ describe('reduxPropertiesOfObj', () => {
   });
 });
 
-
 describe('mergeArrayOfObj', () => {
   it('b overrides matching entries in a', () => {
     const a = [{ name: 1, value: 'old' }];
-    const b = [{ name: 1, value: 'new' }, { name: 2, value: 'added' }];
-    expect(mergeArrayOfObj(a, b)).toEqual([{ name: 1, value: 'new' }, { name: 2, value: 'added' }]);
+    const b = [
+      { name: 1, value: 'new' },
+      { name: 2, value: 'added' },
+    ];
+    expect(mergeArrayOfObj(a, b)).toEqual([
+      { name: 1, value: 'new' },
+      { name: 2, value: 'added' },
+    ]);
   });
 
   it('wraps non-array inputs', () => {
@@ -358,7 +364,6 @@ describe('mergeArrayOfObj', () => {
     expect(mergeArrayOfObj(null, null)).toEqual([]);
   });
 });
-
 
 describe('getValueFromArrayOfObj', () => {
   const array = [
@@ -379,7 +384,6 @@ describe('getValueFromArrayOfObj', () => {
   });
 });
 
-
 describe('getValuesFromArrayOfObj', () => {
   const array = [
     { name: 'a', value: 1 },
@@ -395,7 +399,6 @@ describe('getValuesFromArrayOfObj', () => {
     expect(getValuesFromArrayOfObj(array, ['z'])).toEqual([]);
   });
 });
-
 
 describe('pluck', () => {
   it('returns unique sorted values by default', () => {
@@ -413,7 +416,6 @@ describe('pluck', () => {
     expect(pluck('not an array')).toBeNull();
   });
 });
-
 
 describe('byteSize2HumanSize', () => {
   it('returns 0B for zero bytes', () => {
@@ -433,7 +435,6 @@ describe('byteSize2HumanSize', () => {
   });
 });
 
-
 describe('humanSize2ByteSize', () => {
   it('converts 1KB to 1024', () => {
     expect(humanSize2ByteSize('1KB')).toBe('1024');
@@ -452,7 +453,6 @@ describe('humanSize2ByteSize', () => {
   });
 });
 
-
 describe('moveKeyToLast', () => {
   it('moves key to last position', () => {
     const obj = { a: 1, b: 2, c: 3 };
@@ -467,7 +467,6 @@ describe('moveKeyToLast', () => {
     expect(Object.keys(result)).toEqual(['a', 'b']);
   });
 });
-
 
 describe('regex patterns', () => {
   it('regexEmailStrict matches valid email', () => {
@@ -488,5 +487,76 @@ describe('regex patterns', () => {
   it('regexUsername matches non-whitespace strings', () => {
     expect(regexUsername.test('validuser')).toBe(true);
     expect(regexUsername.test('user name')).toBe(false);
+  });
+});
+
+describe('safeUrl', () => {
+  it('returns the URL for http://', () => {
+    expect(safeUrl('http://example.com')).toBe('http://example.com');
+  });
+
+  it('returns the URL for https://', () => {
+    expect(safeUrl('https://webmail.example.com/path?q=1')).toBe(
+      'https://webmail.example.com/path?q=1'
+    );
+  });
+
+  it('rejects javascript: scheme', () => {
+    expect(safeUrl('javascript:alert(1)')).toBeNull();
+  });
+
+  it('rejects javascript: scheme with mixed case', () => {
+    expect(safeUrl('JaVaScRiPt:alert(1)')).toBeNull();
+  });
+
+  it('rejects javascript: with leading whitespace (whitespace-trim defence)', () => {
+    expect(safeUrl('  javascript:alert(1)')).toBeNull();
+  });
+
+  it('rejects data: scheme', () => {
+    expect(safeUrl('data:text/html,<script>alert(1)</script>')).toBeNull();
+  });
+
+  it('rejects file: scheme', () => {
+    expect(safeUrl('file:///etc/passwd')).toBeNull();
+  });
+
+  it('rejects mailto: by default (only http/https in default allowlist)', () => {
+    expect(safeUrl('mailto:user@example.com')).toBeNull();
+  });
+
+  it('accepts custom allowlist containing mailto:', () => {
+    expect(
+      safeUrl('mailto:user@example.com', ['http:', 'https:', 'mailto:'])
+    ).toBe('mailto:user@example.com');
+  });
+
+  it('rejects empty string', () => {
+    expect(safeUrl('')).toBeNull();
+  });
+
+  it('rejects whitespace-only string', () => {
+    expect(safeUrl('   ')).toBeNull();
+  });
+
+  it('rejects null', () => {
+    expect(safeUrl(null)).toBeNull();
+  });
+
+  it('rejects undefined', () => {
+    expect(safeUrl(undefined)).toBeNull();
+  });
+
+  it('rejects non-string types', () => {
+    expect(safeUrl(123)).toBeNull();
+    expect(safeUrl({ url: 'https://x' })).toBeNull();
+  });
+
+  it('rejects malformed URL (no scheme)', () => {
+    expect(safeUrl('not-a-url')).toBeNull();
+  });
+
+  it('rejects relative path with no base', () => {
+    expect(safeUrl('/some/path')).toBeNull();
   });
 });

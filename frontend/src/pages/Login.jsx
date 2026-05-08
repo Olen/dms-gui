@@ -7,61 +7,49 @@ import { useTranslation } from 'react-i18next';
 import Row from 'react-bootstrap/Row'; // Import Row
 import Col from 'react-bootstrap/Col'; // Import Col
 
-import {
-  debugLog,
-} from '../../frontend.mjs';
+import { debugLog } from '../../frontend.mjs';
 
-import {
-  getConfigs,
-  loginUser,
-} from '../services/api.mjs';
+import { safeUrl } from '../../../common.mjs';
 
-import { 
-  AlertMessage,
-  Button,
-  FormField,
-  Card,
-} from '../components/index.jsx';
+import { getConfigs, loginUser } from '../services/api.mjs';
+
+import { AlertMessage, Button, FormField, Card } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
 import { useBranding } from '../hooks/useBranding';
-
 
 // function Login() {
 export const Login = () => {
   const { t, i18n } = useTranslation();
 
-  const [credential, setCredential] = useState("");
-  const [password, setPassword] = useState("");
+  const [credential, setCredential] = useState('');
+  const [password, setPassword] = useState('');
   // const [firstRun, setFirstRun] = useState(false);
-  const [firstRun, setFirstRun] = useLocalStorage("firstRun", false); // this could be used elsewhere as well
-  const [isDEMO, setIsDEMO] = useLocalStorage("isDEMO", false);
-  
+  const [firstRun, setFirstRun] = useLocalStorage('firstRun', false); // this could be used elsewhere as well
+  const [isDEMO, setIsDEMO] = useLocalStorage('isDEMO', false);
+
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
   const { user, login, logout } = useAuth();
   const { branding } = useBranding();
-  
-  const [containerName, setContainerName] = useLocalStorage("containerName", '');
-  const [mailservers, setMailservers] = useLocalStorage("mailservers", []);
-  
-  // https://www.w3schools.com/react/react_useeffect.asp
-  useEffect(() => {
-    isFirstRun();
-  }, []);
+
+  const [containerName, setContainerName] = useLocalStorage(
+    'containerName',
+    ''
+  );
+  const [mailservers, setMailservers] = useLocalStorage('mailservers', []);
 
   // redirect to /settings if no users in db
   const isFirstRun = async () => {
-
     // since we are redirected here from the api when dms-gui has restarted with fresh secret keys, we need to logout first
     if (user) logout();
 
     const result = await loginUser('admin', 'changeme', true);
     // debugLog('ddebug isFirstRun result', result);
-    
+
     // if we can login with the default user, display first run welcome message
-    
+
     if (result.success) {
       setFirstRun(true);
 
@@ -75,20 +63,27 @@ export const Login = () => {
     }
   };
 
+  // https://www.w3schools.com/react/react_useeffect.asp
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-effect that probes auth state; setState cascade is intended.
+    isFirstRun();
+  }, []);
+
   const fetchMailservers = async () => {
-    
     try {
-      const [mailserversData] = await Promise.all([
-        getConfigs('mailserver'),
-      ]);
+      const [mailserversData] = await Promise.all([getConfigs('mailserver')]);
 
       if (mailserversData.success) {
         // this will be all containers in db except dms-gui
-        debugLog('Login fetchMailservers: mailserversData', mailserversData);   // [ {value:containerName', plugin:'mailserver', schema:'dms', scope:'dms-gui'}, ..]
-  
+        debugLog('Login fetchMailservers: mailserversData', mailserversData); // [ {value:containerName', plugin:'mailserver', schema:'dms', scope:'dms-gui'}, ..]
+
         // update selector list
-        setMailservers(mailserversData.message.map(mailserver => { return { ...mailserver, label:mailserver.value } }));   // duplicate value as label for the select field
-        
+        setMailservers(
+          mailserversData.message.map((mailserver) => {
+            return { ...mailserver, label: mailserver.value };
+          })
+        ); // duplicate value as label for the select field
+
         // debugLog('Login user?.mailserver', user?.mailserver);
         // debugLog('Login mailserversData.message[0]', mailserversData.message[0]);
         // if (user?.mailserver) {
@@ -96,20 +91,20 @@ export const Login = () => {
         // } else if (mailserversData.message.length) {
         //   setContainerName(mailserversData.message[0]);   // set first one in list
         // }
-        
-      // } else setErrorMessage(mailserversData?.error);  // fails silently
+
+        // } else setErrorMessage(mailserversData?.error);  // fails silently
       }
 
-    // fails silently
+      // fails silently
     } catch (error) {
       // errorLog(t('api.errors.fetchConfigs'), error);
       // setErrorMessage('api.errors.fetchConfigs');
     }
   };
-    
+
   const handleLogin = async (e) => {
     e.preventDefault();
-    
+
     try {
       // Here you would usually send a request to your backend to authenticate the user
       // For the sake of this example, we're using a mock authentication
@@ -117,97 +112,107 @@ export const Login = () => {
       debugLog('loginUser result=', result.message);
       // without JWT: {"mailbox":"eric@domain.com","username":"eric","email":"","isAdmin":0,"isActive":1,"isAccount":0,"roles":["eric@domain.com"]}
       // with    JWT: { accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx" }
-      
+
       if (result.success) {
         // apply saved language preference
-        if (result.message.language) i18n.changeLanguage(result.message.language);
+        if (result.message.language)
+          i18n.changeLanguage(result.message.language);
 
         // now we can pull and setState for available mailservers; await a little so the Settings page don't pull it twice
         await fetchMailservers();
 
-        (firstRun) ? await login(result.message, "/settings") : await login(result.message);
+        firstRun
+          ? await login(result.message, '/settings')
+          : await login(result.message);
 
-      // this will never happen with a 401 login denied unless the backend returns 200, which it won't. HTTP error codes exist for a reason and we will use them.
+        // this will never happen with a 401 login denied unless the backend returns 200, which it won't. HTTP error codes exist for a reason and we will use them.
       } else {
         setErrorMessage('logins.denied');
       }
 
-    // react refuses to handle 401 login denied and will actually fall here
+      // react refuses to handle 401 login denied and will actually fall here
     } catch (error) {
       setErrorMessage('logins.denied');
     }
   };
-  
-  
-      // <h2 className="mb-4">{t('login.title')}</h2>
+
+  // <h2 className="mb-4">{t('login.title')}</h2>
   return (
     <>
-    <Row className="justify-content-center" style={{ minHeight: '100vh', paddingTop: '12vh' }}>
-      <Col md={6}>{' '}
-
-        <div className="text-center mb-4">
-          {branding.brandLogo ? (
-            <img src={`/uploads/${branding.brandLogo}`} alt={branding.brandName}
-              className="mb-3"
-              style={{ height: '4rem', width: 'auto' }} />
-          ) : (
-            <i className={`bi bi-${branding.brandIcon} display-4 mb-3`}></i>
-          )}
-          <h4>{branding.brandName}</h4>
-        </div>
-
-        <Card title={isDEMO ? 'logins.welcomeDEMO' : 'logins.welcome'} icon="person-lock" collapsible="false">{' '}
-          <AlertMessage type="success" message={successMessage} />
-
-          <form onSubmit={handleLogin}>
-
-            <FormField
-              type="text"
-              id="credential"
-              name="credential"
-              label="logins.credential"
-              value={credential}
-              onChange={(e) => setCredential(e.target.value)}
-              required
-            />
-
-            <FormField
-              type="password"
-              id="password"
-              name="password"
-              label="logins.password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-            />
-
-            <Button
-              type="submit"
-              variant="primary"
-              icon="box-arrow-in-right"
-              text="logins.login"
-            />
-
-          </form>
-
-          <Link to="/reset-password" className="float-end">{t('logins.forgotPassword')}</Link>
-
-          <br />
-          <AlertMessage type="danger" message={errorMessage} />
-
-        </Card>
-
-        {branding.webmailUrl && (
-          <div className="text-center mt-3">
-            <a href={branding.webmailUrl} target="_blank" rel="noopener noreferrer">
-              <i className="bi bi-envelope-open me-2"></i>
-              {t('dashboard.user.webmail')}
-            </a>
+      <Row
+        className="justify-content-center"
+        style={{ minHeight: '100vh', paddingTop: '12vh' }}
+      >
+        <Col md={6}>
+          {' '}
+          <div className="text-center mb-4">
+            {branding.brandLogo ? (
+              <img
+                src={`/uploads/${branding.brandLogo}`}
+                alt={branding.brandName}
+                className="mb-3"
+                style={{ height: '4rem', width: 'auto' }}
+              />
+            ) : (
+              <i className={`bi bi-${branding.brandIcon} display-4 mb-3`}></i>
+            )}
+            <h4>{branding.brandName}</h4>
           </div>
-        )}
+          <Card
+            title={isDEMO ? 'logins.welcomeDEMO' : 'logins.welcome'}
+            icon="person-lock"
+            collapsible="false"
+          >
+            {' '}
+            <AlertMessage type="success" message={successMessage} />
+            <form onSubmit={handleLogin}>
+              <FormField
+                type="text"
+                id="credential"
+                name="credential"
+                label="logins.credential"
+                value={credential}
+                onChange={(e) => setCredential(e.target.value)}
+                required
+              />
 
-      </Col>
-    </Row>
+              <FormField
+                type="password"
+                id="password"
+                name="password"
+                label="logins.password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+              />
+
+              <Button
+                type="submit"
+                variant="primary"
+                icon="box-arrow-in-right"
+                text="logins.login"
+              />
+            </form>
+            <Link to="/reset-password" className="float-end">
+              {t('logins.forgotPassword')}
+            </Link>
+            <br />
+            <AlertMessage type="danger" message={errorMessage} />
+          </Card>
+          {safeUrl(branding.webmailUrl) && (
+            <div className="text-center mt-3">
+              <a
+                href={safeUrl(branding.webmailUrl)}
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <i className="bi bi-envelope-open me-2"></i>
+                {t('dashboard.user.webmail')}
+              </a>
+            </div>
+          )}
+        </Col>
+      </Row>
     </>
   );
 };

@@ -1,12 +1,8 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  errorLog,
-} from '../../frontend.mjs';
-import {
-  getValueFromArrayOfObj,
-} from '../../../common.mjs';
+import { errorLog } from '../../frontend.mjs';
+import { getValueFromArrayOfObj, safeUrl } from '../../../common.mjs';
 import {
   getAccounts,
   getCount,
@@ -41,16 +37,36 @@ const formatMB = (mb) => {
 };
 
 const actionStyles = {
-  'no action':       { bg: 'success',   label: 'clean',   tip: 'Message delivered normally' },
-  'add header':      { bg: 'warning',   label: 'header',  tip: 'Spam header added, delivered to Junk' },
-  'rewrite subject': { bg: 'warning',   label: 'rewrite', tip: 'Subject rewritten with spam tag' },
-  'reject':          { bg: 'danger',    label: 'reject',  tip: 'Message rejected by server' },
-  'soft reject':     { bg: 'info',      label: 'defer',   tip: 'Temporarily rejected (greylisting)' },
-  'greylist':        { bg: 'info',      label: 'greylist', tip: 'Greylisted, retried later' },
+  'no action': {
+    bg: 'success',
+    label: 'clean',
+    tip: 'Message delivered normally',
+  },
+  'add header': {
+    bg: 'warning',
+    label: 'header',
+    tip: 'Spam header added, delivered to Junk',
+  },
+  'rewrite subject': {
+    bg: 'warning',
+    label: 'rewrite',
+    tip: 'Subject rewritten with spam tag',
+  },
+  reject: { bg: 'danger', label: 'reject', tip: 'Message rejected by server' },
+  'soft reject': {
+    bg: 'info',
+    label: 'defer',
+    tip: 'Temporarily rejected (greylisting)',
+  },
+  greylist: { bg: 'info', label: 'greylist', tip: 'Greylisted, retried later' },
 };
 
 const ActionBadge = ({ action }) => {
-  const style = actionStyles[action] || { bg: 'dark', label: action, tip: action };
+  const style = actionStyles[action] || {
+    bg: 'dark',
+    label: action,
+    tip: action,
+  };
   return (
     <span className={`badge text-bg-${style.bg}`} title={style.tip}>
       {style.label}
@@ -61,8 +77,8 @@ const ActionBadge = ({ action }) => {
 const Dashboard = () => {
   const { t } = useTranslation();
   const { user, logout } = useAuth();
-  const [containerName] = useLocalStorage("containerName", '');
-  const [mailservers] = useLocalStorage("mailservers", []);
+  const [containerName] = useLocalStorage('containerName', '');
+  const [mailservers] = useLocalStorage('mailservers', []);
 
   const [status, setServerStatus] = useState({
     status: {
@@ -146,7 +162,7 @@ const Dashboard = () => {
       const result = await getAccounts(containerName);
       if (result.success && result.message) {
         const mailbox = user.mailbox || (user.roles && user.roles[0]);
-        const account = result.message.find(a => a.mailbox === mailbox);
+        const account = result.message.find((a) => a.mailbox === mailbox);
         if (account?.storage) setUserQuota(account.storage);
       }
     } catch (error) {
@@ -171,32 +187,54 @@ const Dashboard = () => {
     if (!containerName) return;
 
     try {
-      const statusData = await getServerStatus('mailserver', containerName, 'status');
+      const statusData = await getServerStatus(
+        'mailserver',
+        containerName,
+        'status'
+      );
       if (statusData.success) {
-
         setErrorMessage(null);
         const r = statusData.message.resources;
         if (r) {
-          setServerStatus(prev => ({ ...prev, status: statusData.message.status, resources: {
-            ...prev.resources,
-            cpuUsage: r.cpuUsage,
-            memoryUsage: r.memoryUsage,
-            memoryTotal: r.memoryTotal,
-            memoryUsed: r.memoryUsed,
-            uptime: r.uptime,
-            loadAverage: r.loadAverage,
-          }}));
+          setServerStatus((prev) => ({
+            ...prev,
+            status: statusData.message.status,
+            resources: {
+              ...prev.resources,
+              cpuUsage: r.cpuUsage,
+              memoryUsage: r.memoryUsage,
+              memoryTotal: r.memoryTotal,
+              memoryUsed: r.memoryUsed,
+              uptime: r.uptime,
+              loadAverage: r.loadAverage,
+            },
+          }));
         } else {
-          setServerStatus(prev => ({ ...prev, status: statusData.message.status }));
+          setServerStatus((prev) => ({
+            ...prev,
+            status: statusData.message.status,
+          }));
         }
-        if (['api_gen', 'api_miss', 'api_match', 'api_unset', 'api_error', 'port_closed', 'port_timeout', 'port_unknown', 'unknown'].includes(statusData.message.status.status)) setErrorMessage(`dashboard.errors.${statusData.message.status.status}`);
-
+        if (
+          [
+            'api_gen',
+            'api_miss',
+            'api_match',
+            'api_unset',
+            'api_error',
+            'port_closed',
+            'port_timeout',
+            'port_unknown',
+            'unknown',
+          ].includes(statusData.message.status.status)
+        )
+          setErrorMessage(
+            `dashboard.errors.${statusData.message.status.status}`
+          );
       } else setErrorMessage(statusData?.error);
-
     } catch (error) {
       errorLog(t('api.errors.fetchServerStatus'), error);
       setErrorMessage('api.errors.fetchServerStatus');
-
     } finally {
       setStatusLoading(false);
     }
@@ -207,9 +245,13 @@ const Dashboard = () => {
     if (!containerName) return;
 
     try {
-      const diskData = await getServerStatus('mailserver', containerName, 'disk');
+      const diskData = await getServerStatus(
+        'mailserver',
+        containerName,
+        'disk'
+      );
       if (diskData.success && diskData.message.resources) {
-        setServerStatus(prev => ({
+        setServerStatus((prev) => ({
           ...prev,
           resources: {
             ...prev.resources,
@@ -220,10 +262,8 @@ const Dashboard = () => {
           },
         }));
       }
-
     } catch (error) {
       errorLog(t('api.errors.fetchServerStatus'), error);
-
     } finally {
       setDiskLoading(false);
     }
@@ -240,25 +280,24 @@ const Dashboard = () => {
         getCount('aliases', containerName),
       ]);
 
-      setServerStatus(prev => ({
+      setServerStatus((prev) => ({
         ...prev,
         db: {
           logins: loginsRes.success ? loginsRes.message : prev.db.logins,
-          accounts: accountsRes.success ? accountsRes.message : prev.db.accounts,
+          accounts: accountsRes.success
+            ? accountsRes.message
+            : prev.db.accounts,
           aliases: aliasesRes.success ? aliasesRes.message : prev.db.aliases,
         },
       }));
-
     } catch (error) {
       errorLog(t('api.errors.fetchServerStatus'), error);
-
     } finally {
       setCountsLoading(false);
     }
   };
 
   const rebootMe = async () => {
-
     killContainer('dms-gui', 'dms-gui', 'dms-gui');
     logout();
   };
@@ -304,7 +343,10 @@ const Dashboard = () => {
           />
         </div>
 
-        <h2 className="mb-4">{Translate('dashboard.title')} {t('common.for', {what:containerName})}</h2>
+        <h2 className="mb-4">
+          {Translate('dashboard.title')}{' '}
+          {t('common.for', { what: containerName })}
+        </h2>
         <AlertMessage type="danger" message={errorMessage} />
 
         <Row>
@@ -326,9 +368,23 @@ const Dashboard = () => {
               />
               <div className="mt-auto">
                 {!isStatusLoading && (
-                  <ProgressBar now={100} variant={getStatusColor()} className="mt-2" style={{height:'20px'}} label={
-                    status.resources.uptime ? <small>{t('dashboard.uptime')}: {status.resources.uptime} &mdash; load: {(status.resources.loadAverage || []).join(', ')}</small> : '\u00A0'
-                  } />
+                  <ProgressBar
+                    now={100}
+                    variant={getStatusColor()}
+                    className="mt-2"
+                    style={{ height: '20px' }}
+                    label={
+                      status.resources.uptime ? (
+                        <small>
+                          {t('dashboard.uptime')}: {status.resources.uptime}{' '}
+                          &mdash; load:{' '}
+                          {(status.resources.loadAverage || []).join(', ')}
+                        </small>
+                      ) : (
+                        '\u00A0'
+                      )
+                    }
+                  />
                 )}
               </div>
             </DashboardCard>
@@ -337,13 +393,24 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.cpuUsage"
               icon="cpu"
-              iconColor={isStatusLoading ? "secondary" : "primary"}
-              value={Number(status.resources.cpuUsage).toFixed(1)+'%'}
+              iconColor={isStatusLoading ? 'secondary' : 'primary'}
+              value={Number(status.resources.cpuUsage).toFixed(1) + '%'}
               isLoading={isStatusLoading}
             >
               <div className="mt-auto">
                 {!isStatusLoading && (
-                  <ProgressBar now={Number(status.resources.cpuUsage)} variant={Number(status.resources.cpuUsage) > 90 ? 'danger' : Number(status.resources.cpuUsage) > 60 ? 'warning' : 'primary'} className="mt-2" style={{height:'20px'}} />
+                  <ProgressBar
+                    now={Number(status.resources.cpuUsage)}
+                    variant={
+                      Number(status.resources.cpuUsage) > 90
+                        ? 'danger'
+                        : Number(status.resources.cpuUsage) > 60
+                          ? 'warning'
+                          : 'primary'
+                    }
+                    className="mt-2"
+                    style={{ height: '20px' }}
+                  />
                 )}
               </div>
             </DashboardCard>
@@ -352,15 +419,30 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.memoryUsage"
               icon="memory"
-              iconColor={isStatusLoading ? "secondary" : "info"}
-              value={Number(status.resources.memoryUsage).toFixed(1)+'%'}
+              iconColor={isStatusLoading ? 'secondary' : 'info'}
+              value={Number(status.resources.memoryUsage).toFixed(1) + '%'}
               isLoading={isStatusLoading}
             >
               <div className="mt-auto">
                 {!isStatusLoading && (
-                  <ProgressBar now={Number(status.resources.memoryUsage)} variant={Number(status.resources.memoryUsage) > 90 ? 'danger' : Number(status.resources.memoryUsage) > 75 ? 'warning' : 'info'} className="mt-2" style={{height:'20px'}} label={
-                    <small>{formatMB(status.resources.memoryUsed)} / {formatMB(status.resources.memoryTotal)}</small>
-                  } />
+                  <ProgressBar
+                    now={Number(status.resources.memoryUsage)}
+                    variant={
+                      Number(status.resources.memoryUsage) > 90
+                        ? 'danger'
+                        : Number(status.resources.memoryUsage) > 75
+                          ? 'warning'
+                          : 'info'
+                    }
+                    className="mt-2"
+                    style={{ height: '20px' }}
+                    label={
+                      <small>
+                        {formatMB(status.resources.memoryUsed)} /{' '}
+                        {formatMB(status.resources.memoryTotal)}
+                      </small>
+                    }
+                  />
                 )}
               </div>
             </DashboardCard>
@@ -369,99 +451,133 @@ const Dashboard = () => {
             <DashboardCard
               title="dashboard.diskUsage"
               icon="hdd"
-              iconColor={isDiskLoading ? "secondary" : "warning"}
+              iconColor={isDiskLoading ? 'secondary' : 'warning'}
               value={formatMB(status.resources.diskUsage)}
               isLoading={isDiskLoading}
             >
               <div className="mt-auto">
                 {!isDiskLoading && status.resources.diskTotal > 0 && (
-                  <ProgressBar now={status.resources.diskPercent} variant={status.resources.diskPercent > 90 ? 'danger' : status.resources.diskPercent > 75 ? 'warning' : 'success'} className="mt-2" style={{height:'20px'}} label={
-                    <small>{formatMB(status.resources.diskUsed)} / {formatMB(status.resources.diskTotal)}</small>
-                  } />
+                  <ProgressBar
+                    now={status.resources.diskPercent}
+                    variant={
+                      status.resources.diskPercent > 90
+                        ? 'danger'
+                        : status.resources.diskPercent > 75
+                          ? 'warning'
+                          : 'success'
+                    }
+                    className="mt-2"
+                    style={{ height: '20px' }}
+                    label={
+                      <small>
+                        {formatMB(status.resources.diskUsed)} /{' '}
+                        {formatMB(status.resources.diskTotal)}
+                      </small>
+                    }
+                  />
                 )}
               </div>
             </DashboardCard>
           </Col>
         </Row>
 
-        {user?.isAccount != 1 &&
-        <Row>
-          <Col md={4} className="mb-3">
-            <DashboardCard
-              title="dashboard.logins"
-              icon="person-lock"
-              iconColor={isCountsLoading ? "secondary" : "success"}
-              isLoading={isCountsLoading}
-              value={status.db.logins}
-              href="/logins"
-            />
-          </Col>
-          <Col md={4} className="mb-3">
-            <DashboardCard
-              title="dashboard.mailboxAccounts"
-              icon="inboxes-fill"
-              iconColor={isCountsLoading ? "secondary" : "success"}
-              isLoading={isCountsLoading}
-              value={status.db.accounts}
-              href="/accounts"
-            />
-          </Col>
-          <Col md={4} className="mb-3">
-            <DashboardCard
-              title="dashboard.aliases"
-              icon="arrow-left-right"
-              iconColor={isCountsLoading ? "secondary" : "success"}
-              isLoading={isCountsLoading}
-              value={status.db.aliases}
-              href="/aliases"
-            />
-          </Col>
-        </Row>
-        }
+        {user?.isAccount != 1 && (
+          <Row>
+            <Col md={4} className="mb-3">
+              <DashboardCard
+                title="dashboard.logins"
+                icon="person-lock"
+                iconColor={isCountsLoading ? 'secondary' : 'success'}
+                isLoading={isCountsLoading}
+                value={status.db.logins}
+                href="/logins"
+              />
+            </Col>
+            <Col md={4} className="mb-3">
+              <DashboardCard
+                title="dashboard.mailboxAccounts"
+                icon="inboxes-fill"
+                iconColor={isCountsLoading ? 'secondary' : 'success'}
+                isLoading={isCountsLoading}
+                value={status.db.accounts}
+                href="/accounts"
+              />
+            </Col>
+            <Col md={4} className="mb-3">
+              <DashboardCard
+                title="dashboard.aliases"
+                icon="arrow-left-right"
+                iconColor={isCountsLoading ? 'secondary' : 'success'}
+                isLoading={isCountsLoading}
+                value={status.db.aliases}
+                href="/aliases"
+              />
+            </Col>
+          </Row>
+        )}
 
         {!isBouncesLoading && bounces && (
-        <Row>
-          <Col md={12} className="mb-3">
-            <Card title="dashboard.bounces.title" icon="exclamation-triangle">
-              {bounces.bounces.length > 0 ? (
-                <>
-                  <p className="mb-2 text-muted">
-                    {t('dashboard.bounces.summary', { bounced: bounces.summary.bounced, deferred: bounces.summary.deferred, hours: 48 })}
-                  </p>
-                  <table className="table table-sm mb-0">
-                    <thead>
-                      <tr>
-                        <th>{t('dashboard.bounces.time')}</th>
-                        <th>{t('dashboard.bounces.recipient')}</th>
-                        <th>{t('dashboard.bounces.status')}</th>
-                        <th>{t('dashboard.bounces.reason')}</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {bounces.bounces.map((b, i) => (
-                        <tr key={i}>
-                          <td className="text-muted text-nowrap">{new Date(b.time).toLocaleString()}</td>
-                          <td>
-                            {b.to}
-                            {b.origTo && <span className="text-muted ms-1" title={`orig_to: ${b.origTo}`}>({b.origTo})</span>}
-                          </td>
-                          <td>
-                            <span className={`badge text-bg-${b.status === 'bounced' ? 'danger' : 'warning'}`}>
-                              {t(`dashboard.bounces.${b.status}`)}
-                            </span>
-                          </td>
-                          <td style={{wordBreak:'break-word'}}><small>{b.reason}</small></td>
+          <Row>
+            <Col md={12} className="mb-3">
+              <Card title="dashboard.bounces.title" icon="exclamation-triangle">
+                {bounces.bounces.length > 0 ? (
+                  <>
+                    <p className="mb-2 text-muted">
+                      {t('dashboard.bounces.summary', {
+                        bounced: bounces.summary.bounced,
+                        deferred: bounces.summary.deferred,
+                        hours: 48,
+                      })}
+                    </p>
+                    <table className="table table-sm mb-0">
+                      <thead>
+                        <tr>
+                          <th>{t('dashboard.bounces.time')}</th>
+                          <th>{t('dashboard.bounces.recipient')}</th>
+                          <th>{t('dashboard.bounces.status')}</th>
+                          <th>{t('dashboard.bounces.reason')}</th>
                         </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </>
-              ) : (
-                <p className="mb-0 text-muted">{t('dashboard.bounces.noIssues')}</p>
-              )}
-            </Card>
-          </Col>
-        </Row>
+                      </thead>
+                      <tbody>
+                        {bounces.bounces.map((b, i) => (
+                          <tr key={i}>
+                            <td className="text-muted text-nowrap">
+                              {new Date(b.time).toLocaleString()}
+                            </td>
+                            <td>
+                              {b.to}
+                              {b.origTo && (
+                                <span
+                                  className="text-muted ms-1"
+                                  title={`orig_to: ${b.origTo}`}
+                                >
+                                  ({b.origTo})
+                                </span>
+                              )}
+                            </td>
+                            <td>
+                              <span
+                                className={`badge text-bg-${b.status === 'bounced' ? 'danger' : 'warning'}`}
+                              >
+                                {t(`dashboard.bounces.${b.status}`)}
+                              </span>
+                            </td>
+                            <td style={{ wordBreak: 'break-word' }}>
+                              <small>{b.reason}</small>
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </>
+                ) : (
+                  <p className="mb-0 text-muted">
+                    {t('dashboard.bounces.noIssues')}
+                  </p>
+                )}
+              </Card>
+            </Col>
+          </Row>
         )}
       </div>
     );
@@ -496,14 +612,19 @@ const Dashboard = () => {
             isLoading={isStatusLoading}
           />
         </Col>
-        {userSettings?.WEBMAIL_URL && (
+        {safeUrl(userSettings?.WEBMAIL_URL) && (
           <Col md={3} className="mb-3">
             <DashboardCard
               title="dashboard.user.webmail"
               icon="envelope-open"
               iconColor="primary"
             >
-              <a href={userSettings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer" className="btn btn-sm btn-outline-primary">
+              <a
+                href={safeUrl(userSettings.WEBMAIL_URL)}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="btn btn-sm btn-outline-primary"
+              >
                 {t('dashboard.user.openWebmail')}
               </a>
             </DashboardCard>
@@ -536,12 +657,24 @@ const Dashboard = () => {
             <Card title="dashboard.quota" icon="hdd">
               <div className="mb-1">
                 <span className="fw-bold">{userQuota.used}</span>
-                <span className="text-muted"> / {userQuota.total === '0' ? t('dashboard.quotaUnlimited') : userQuota.total}</span>
+                <span className="text-muted">
+                  {' '}
+                  /{' '}
+                  {userQuota.total === '0'
+                    ? t('dashboard.quotaUnlimited')
+                    : userQuota.total}
+                </span>
               </div>
               {userQuota.total !== '0' && (
                 <ProgressBar
                   now={parseInt(userQuota.percent) || 0}
-                  variant={parseInt(userQuota.percent) > 90 ? 'danger' : parseInt(userQuota.percent) > 75 ? 'warning' : 'success'}
+                  variant={
+                    parseInt(userQuota.percent) > 90
+                      ? 'danger'
+                      : parseInt(userQuota.percent) > 75
+                        ? 'warning'
+                        : 'success'
+                  }
                   label={`${userQuota.percent}%`}
                   style={{ height: '20px' }}
                 />
@@ -559,45 +692,111 @@ const Dashboard = () => {
               <table className="table table-sm mb-0">
                 <tbody>
                   <tr>
-                    <td className="text-muted fw-bold" style={{width:'120px'}}>{t('mailSetup.username')}</td>
-                    <td><code>{user.mailbox || t('dashboard.user.yourEmail')}</code></td>
-                  </tr>
-                  <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                  <tr>
-                    <td className="text-muted fw-bold">IMAP {t('mailSetup.server')}</td>
-                    <td><code>{userSettings.IMAP_HOST}</code></td>
-                  </tr>
-                  <tr>
-                    <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                    <td><code>{userSettings.IMAP_PORT || '993'}</code> (SSL/TLS)</td>
-                  </tr>
-                  <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                  <tr>
-                    <td className="text-muted fw-bold">SMTP {t('mailSetup.server')}</td>
-                    <td><code>{userSettings.SMTP_HOST}</code></td>
+                    <td
+                      className="text-muted fw-bold"
+                      style={{ width: '120px' }}
+                    >
+                      {t('mailSetup.username')}
+                    </td>
+                    <td>
+                      <code>
+                        {user.mailbox || t('dashboard.user.yourEmail')}
+                      </code>
+                    </td>
                   </tr>
                   <tr>
-                    <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                    <td><code>{userSettings.SMTP_PORT || '587'}</code> (STARTTLS)</td>
+                    <td colSpan="2" className="border-0">
+                      &nbsp;
+                    </td>
                   </tr>
-                  {userSettings.POP3_HOST && (<>
-                    <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                    <tr>
-                      <td className="text-muted fw-bold">POP3 {t('mailSetup.server')}</td>
-                      <td><code>{userSettings.POP3_HOST}</code></td>
-                    </tr>
-                    <tr>
-                      <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                      <td><code>{userSettings.POP3_PORT || '995'}</code> (SSL/TLS)</td>
-                    </tr>
-                  </>)}
-                  {userSettings.WEBMAIL_URL && (<>
-                    <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                    <tr>
-                      <td className="text-muted fw-bold">Webmail</td>
-                      <td><a href={userSettings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer"><code>{userSettings.WEBMAIL_URL}</code></a></td>
-                    </tr>
-                  </>)}
+                  <tr>
+                    <td className="text-muted fw-bold">
+                      IMAP {t('mailSetup.server')}
+                    </td>
+                    <td>
+                      <code>{userSettings.IMAP_HOST}</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">
+                      {t('mailSetup.port')}
+                    </td>
+                    <td>
+                      <code>{userSettings.IMAP_PORT || '993'}</code> (SSL/TLS)
+                    </td>
+                  </tr>
+                  <tr>
+                    <td colSpan="2" className="border-0">
+                      &nbsp;
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">
+                      SMTP {t('mailSetup.server')}
+                    </td>
+                    <td>
+                      <code>{userSettings.SMTP_HOST}</code>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td className="text-muted fw-bold">
+                      {t('mailSetup.port')}
+                    </td>
+                    <td>
+                      <code>{userSettings.SMTP_PORT || '587'}</code> (STARTTLS)
+                    </td>
+                  </tr>
+                  {userSettings.POP3_HOST && (
+                    <>
+                      <tr>
+                        <td colSpan="2" className="border-0">
+                          &nbsp;
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted fw-bold">
+                          POP3 {t('mailSetup.server')}
+                        </td>
+                        <td>
+                          <code>{userSettings.POP3_HOST}</code>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted fw-bold">
+                          {t('mailSetup.port')}
+                        </td>
+                        <td>
+                          <code>{userSettings.POP3_PORT || '995'}</code>{' '}
+                          (SSL/TLS)
+                        </td>
+                      </tr>
+                    </>
+                  )}
+                  {userSettings.WEBMAIL_URL && (
+                    <>
+                      <tr>
+                        <td colSpan="2" className="border-0">
+                          &nbsp;
+                        </td>
+                      </tr>
+                      <tr>
+                        <td className="text-muted fw-bold">Webmail</td>
+                        <td>
+                          {safeUrl(userSettings.WEBMAIL_URL) ? (
+                            <a
+                              href={safeUrl(userSettings.WEBMAIL_URL)}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                            >
+                              <code>{userSettings.WEBMAIL_URL}</code>
+                            </a>
+                          ) : (
+                            <code>{userSettings.WEBMAIL_URL}</code>
+                          )}
+                        </td>
+                      </tr>
+                    </>
+                  )}
                 </tbody>
               </table>
             </Card>
@@ -611,12 +810,21 @@ const Dashboard = () => {
           <Col md={12} className="mb-3">
             <Card title="dashboard.user.spamSummary" icon="shield-check">
               <p className="mb-2">
-                {t('dashboard.user.messagesScanned', { total: spamSummary.total })} &mdash;{' '}
-                <span className="text-success">{t('dashboard.user.hamCount', { count: spamSummary.ham })}</span>,{' '}
-                <span className="text-danger">{t('dashboard.user.spamCount', { count: spamSummary.spam })}</span>
+                {t('dashboard.user.messagesScanned', {
+                  total: spamSummary.total,
+                })}{' '}
+                &mdash;{' '}
+                <span className="text-success">
+                  {t('dashboard.user.hamCount', { count: spamSummary.ham })}
+                </span>
+                ,{' '}
+                <span className="text-danger">
+                  {t('dashboard.user.spamCount', { count: spamSummary.spam })}
+                </span>
                 {spamSummary.since && (
                   <span className="text-muted ms-2">
-                    ({t('dashboard.user.since')} {new Date(spamSummary.since * 1000).toLocaleDateString()})
+                    ({t('dashboard.user.since')}{' '}
+                    {new Date(spamSummary.since * 1000).toLocaleDateString()})
                   </span>
                 )}
               </p>
@@ -636,11 +844,31 @@ const Dashboard = () => {
                     <tbody>
                       {spamSummary.recentSpam.map((item, i) => (
                         <tr key={i}>
-                          <td className="text-muted text-nowrap">{item.time ? new Date(item.time * 1000).toLocaleString() : ''}</td>
-                          <td className="text-truncate" style={{maxWidth:'200px'}}>{item.rcpt}</td>
-                          <td className="text-truncate" style={{maxWidth:'300px'}}>{item.subject}</td>
-                          <td><span className="text-danger">{item.score?.toFixed(1)}</span></td>
-                          <td><ActionBadge action={item.action} /></td>
+                          <td className="text-muted text-nowrap">
+                            {item.time
+                              ? new Date(item.time * 1000).toLocaleString()
+                              : ''}
+                          </td>
+                          <td
+                            className="text-truncate"
+                            style={{ maxWidth: '200px' }}
+                          >
+                            {item.rcpt}
+                          </td>
+                          <td
+                            className="text-truncate"
+                            style={{ maxWidth: '300px' }}
+                          >
+                            {item.subject}
+                          </td>
+                          <td>
+                            <span className="text-danger">
+                              {item.score?.toFixed(1)}
+                            </span>
+                          </td>
+                          <td>
+                            <ActionBadge action={item.action} />
+                          </td>
                         </tr>
                       ))}
                     </tbody>

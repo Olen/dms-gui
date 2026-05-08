@@ -14,6 +14,31 @@ export const regexEmailLax = /^([\S]+)@([\S]+)$/;
 export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w.\-_]+@[\w.\-_]+)/;
 export const regexUsername = /^[^\s]+$/;
 
+// safeUrl returns the input URL only if its scheme is in the allowlist
+// (default: http/https). Returns null otherwise.
+//
+// Used at every <a href={...}> / window.open(...) site that takes an
+// admin- or branding-supplied URL (WEBMAIL_URL, branding.webmailUrl,
+// rspamd external URL). Without this guard a malicious admin can plant
+// a 'javascript:' URL that runs in any non-admin user's session on
+// click — the rest=noopener attribute on <a target="_blank"> does not
+// block javascript: schemes, only opener access.
+//
+// Returns null (not '#' or '') so callers can use the truthy check to
+// drive both the href and the conditional rendering of the link itself.
+export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
+  if (typeof url !== 'string' || !url.trim()) return null;
+  try {
+    // URL parsing tolerates leading/trailing whitespace; trim explicitly
+    // so 'javascript:...'.trim() does not slip past as 'http:'-prefixed.
+    const parsed = new URL(url.trim());
+    return allowedSchemes.includes(parsed.protocol.toLowerCase()) ? url : null;
+  } catch {
+    // Malformed URL or relative path with no base — treat as unsafe.
+    return null;
+  }
+};
+
 // import {
 //   regexColors,
 //   regexPrintOnly,
