@@ -1,6 +1,7 @@
 // Export all components for easier imports
 export { default as Accordion } from './Accordion';
 export { default as AlertMessage } from './AlertMessage';
+export { default as AliasEditModal } from './AliasEditModal';
 export { default as Button } from './Button';
 export { default as ButtonDropdown } from './ButtonDropdown';
 export { default as ButtonLanguage } from './ButtonLanguage';
