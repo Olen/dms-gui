@@ -139,8 +139,9 @@ export const getAccounts = async (containerName=null, refresh=false, roles=[]) =
             }
             
           } else errorLog('sql.accounts.insert.fromDMS:', result?.error);
-          
-          if (roles.length) accounts = reduxArrayOfObjByValue(accounts, 'mailbox', roles);
+
+          // Note: no filter here — the refresh path falls through to the
+          // DB read below and applies the role filter on that result.
 
         } else errorLog('pullAccountsFromDMS:', result?.error);
 

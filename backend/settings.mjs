@@ -1427,17 +1427,21 @@ export const initAPI = async (plugin='mailserver', schema='dms', containerName=n
     }
 
     // save key in db only if there is a config, do not try to save it during testing before a config exists
+    // Note: mailserver configs are always scoped to 'dms-gui' (see FormContainerAdd flow).
     if (result.success && dms_api_key_new != dms_api_key_db && dms_api_key_param != 'inject') {
       debugLog(`Saving DMS_API_KEY=`, dms_api_key_new);
-      
-      let jsonArrayOfObjects = [{name:'DMS_API_KEY', value:dms_api_key_new}];
-      result = await saveSettings(plugin, schema, scope, containerName, jsonArrayOfObjects);
-      if (!result.success) return result;
 
-    // } else return {success: true, message: dms_api_key_new}; // this is when we test the API only // stupid: how can we test the API without the injection?
+      let jsonArrayOfObjects = [{name:'DMS_API_KEY', value:dms_api_key_new}];
+      result = await saveSettings(plugin, schema, 'dms-gui', containerName, jsonArrayOfObjects);
+      if (!result.success) return result;
     }
-        
-    return {success: false, error: result?.error};
+
+    // Reaching here means either:
+    //   - the save above succeeded, or
+    //   - the key already matched what's in the DB (no save was needed), or
+    //   - we're in the testing-before-config-exists path
+    // In all three cases the new key is the canonical one to return to the caller.
+    return {success: true, message: dms_api_key_new};
 
   } catch (error) {
     errorLog(error.message);
@@ -1500,15 +1504,16 @@ export const killContainer = async (plugin='dms-gui', schema='dms-gui', containe
 
     // reboot another container; first we check if it exists then do it
     } else {
-    
-      result = getConfigs(plugin);
+
+      result = await getConfigs(plugin);
       if (result.success) {
         let containerNames = pluck(result.message, 'value');
         if (containerNames.includes(containerName) && command[plugin][schema]?.kill) {
 
           const targetDict = getTargetDict(plugin, containerName);
-          results = await execCommand(command[plugin][schema].kill, targetDict);
+          let results = await execCommand(command[plugin][schema].kill, targetDict);
           if (results.returncode) return {success: false, error: results.stderr};
+          return {success: true, message: `reboot initiated for ${containerName}`};
 
         } else return {success: false, error: `kill command missing for ${plugin} schema=${schema}`};
       }

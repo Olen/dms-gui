@@ -43,12 +43,13 @@ vi.mock('./db.mjs', () => ({
   },
 }));
 
+const mockGetConfigs = vi.fn();
 vi.mock('./settings.mjs', () => ({
-  getConfigs: vi.fn(),
+  getConfigs: (...a) => mockGetConfigs(...a),
 }));
 
-import { execSetup } from './backend.mjs';
-import { updateAlias } from './aliases.mjs';
+import { execSetup, execCommand } from './backend.mjs';
+import { updateAlias, getAliases } from './aliases.mjs';
 
 describe('updateAlias', () => {
   beforeEach(() => {
@@ -223,5 +224,76 @@ describe('updateAlias', () => {
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/DB out of sync/);
     expect(result.error).toMatch(/disk full/);
+  });
+});
+
+
+describe('getAliases — refresh path with non-admin roles', () => {
+  // Regression test for a bug where the refresh path returned the
+  // unfiltered alias list to non-admin callers (filter was applied to
+  // result.message but `aliases` was returned, ignoring the filter).
+  // See FOLLOWUPS.md F3.
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('on refresh, applies the role filter before returning to non-admin callers', async () => {
+    // getConfigs returns a single dms-schema config for the mailserver.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'mailserver', plugin: 'mailserver', schema: 'dms', scope: 'dms-gui' }],
+    });
+
+    // Simulate the DMS `setup alias list` output: three aliases, two
+    // pointing to the user's role and one to someone else's mailbox.
+    execSetup.mockResolvedValue({
+      returncode: 0,
+      stderr: '',
+      stdout: [
+        '* alias-a@example.com user@example.com',
+        '* alias-b@example.com user@example.com',
+        '* alias-c@example.com other@example.com',
+      ].join('\n'),
+    });
+
+    // Postfix-regex pull returns no entries.
+    execCommand.mockResolvedValue({ returncode: 0, stderr: '', stdout: '' });
+
+    // DB writes succeed.
+    mockDbRun.mockReturnValue({ success: true });
+    mockDeleteEntry.mockReturnValue({ success: true });
+
+    const result = await getAliases('mailserver', /*refresh*/ true, /*roles*/ ['user@example.com']);
+
+    expect(result.success).toBe(true);
+    // Only the two aliases destined for the user's role should be returned.
+    expect(result.message).toHaveLength(2);
+    expect(result.message.every(a => a.destination === 'user@example.com')).toBe(true);
+    // Make sure the leaked alias is not present.
+    expect(result.message.find(a => a.destination === 'other@example.com')).toBeUndefined();
+  });
+
+  it('on refresh, returns the full list to admin callers (roles=[])', async () => {
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'mailserver', plugin: 'mailserver', schema: 'dms', scope: 'dms-gui' }],
+    });
+    execSetup.mockResolvedValue({
+      returncode: 0,
+      stderr: '',
+      stdout: [
+        '* alias-a@example.com user@example.com',
+        '* alias-c@example.com other@example.com',
+      ].join('\n'),
+    });
+    execCommand.mockResolvedValue({ returncode: 0, stderr: '', stdout: '' });
+    mockDbRun.mockReturnValue({ success: true });
+    mockDeleteEntry.mockReturnValue({ success: true });
+
+    const result = await getAliases('mailserver', /*refresh*/ true, /*roles*/ []);
+
+    expect(result.success).toBe(true);
+    expect(result.message).toHaveLength(2);
   });
 });

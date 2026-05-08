@@ -86,7 +86,7 @@ export const getAliases = async (containerName=null, refresh=false, roles=[]) =>
             errorLog(result?.error);
           }
 
-          if (roles.length) result.message = reduxArrayOfObjByValue(aliases, 'destination', roles);
+          if (roles.length) aliases = reduxArrayOfObjByValue(aliases, 'destination', roles);
           return {success: true, message: aliases};
 
         } else errorLog('pullPostfixRegexFromDMS:', result?.error);
