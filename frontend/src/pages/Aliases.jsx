@@ -279,6 +279,8 @@ const Aliases = () => {
   };
 
   const handleEditSave = async (source, newDestination) => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
     try {
       const result = await updateAlias(containerName, source, newDestination);
       if (result.success) {
@@ -317,6 +319,7 @@ const Aliases = () => {
               variant="primary"
               size="sm"
               icon="pencil"
+              title={t('aliases.editAlias', { source: alias.source })}
               onClick={() => handleEdit(alias)}
               className="me-1"
             />
@@ -325,6 +328,7 @@ const Aliases = () => {
             variant="danger"
             size="sm"
             icon="trash"
+            title={t('aliases.confirmDelete', { source: alias.source })}
             onClick={() => handleDelete(alias.source, alias.destination)}
           />
         </>
