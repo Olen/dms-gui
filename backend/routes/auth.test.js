@@ -15,8 +15,11 @@ vi.mock('../backend.mjs', () => ({
   infoLog: vi.fn(),
 }));
 
-vi.mock('../env.mjs', () => ({
-  env: {
+// env is mocked as a mutable object so individual tests can flip
+// RESET_BASE_URL on and off. vi.hoisted ensures the const is initialized
+// before vi.mock's hoisted factory runs.
+const { testEnv } = vi.hoisted(() => ({
+  testEnv: {
     JWT_SECRET: 'test-jwt-secret',
     JWT_SECRET_REFRESH: 'test-jwt-refresh-secret',
     ACCESS_TOKEN_EXPIRY: '1h',
@@ -24,8 +27,10 @@ vi.mock('../env.mjs', () => ({
     NODE_ENV: 'test',
     isDEMO: false,
     debug: false,
+    RESET_BASE_URL: 'https://test.example.com',
   },
 }));
+vi.mock('../env.mjs', () => ({ env: testEnv }));
 
 const mockLoginUser = vi.fn();
 const mockDbGet = vi.fn();
@@ -228,14 +233,33 @@ describe('POST /api/forgot-password', () => {
     expect(res.body.success).toBe(true);
   });
 
-  it('calls requestPasswordReset with email', async () => {
+  it('calls requestPasswordReset with email and RESET_BASE_URL', async () => {
     mockRequestPasswordReset.mockResolvedValue({ success: true, message: 'ok' });
 
     await request(app)
       .post('/api/forgot-password')
       .send({ email: 'user@test.com' });
 
-    expect(mockRequestPasswordReset).toHaveBeenCalledWith('user@test.com', expect.any(String));
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith('user@test.com', 'https://test.example.com');
+  });
+
+  it('refuses to send mail and returns generic success when RESET_BASE_URL is unset', async () => {
+    // Simulate an operator forgetting to set RESET_BASE_URL.
+    const original = testEnv.RESET_BASE_URL;
+    testEnv.RESET_BASE_URL = '';
+    try {
+      const res = await request(app)
+        .post('/api/forgot-password')
+        .send({ email: 'user@test.com' });
+
+      expect(res.status).toBe(200);
+      // Generic message — same as a non-existent email response. No info leak.
+      expect(res.body.success).toBe(true);
+      // Critically: requestPasswordReset must NOT have run, so no email was sent.
+      expect(mockRequestPasswordReset).not.toHaveBeenCalled();
+    } finally {
+      testEnv.RESET_BASE_URL = original;
+    }
   });
 });
 

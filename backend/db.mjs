@@ -930,6 +930,12 @@ export const dbInit = async (reset=false) => {
     errorLog(`AES key migration failed: ${error.message}`);
   }
 
+  try {
+    migrateEncryptionAlgorithm();
+  } catch (error) {
+    errorLog(`AES algorithm migration failed: ${error.message}`);
+  }
+
   debugLog(`end`);
 };
 
@@ -986,6 +992,43 @@ export const migrateEncryptionKey = () => {
 
   if (migrated > 0) {
     successLog(`AES key migration: re-encrypted ${migrated} settings with 256-bit key`);
+  }
+};
+
+
+// One-time migration: re-encrypt CBC-format (pre-2.2.0) settings with the
+// current GCM format. Idempotent — rows already in GCM format are skipped.
+// Runs after migrateEncryptionKey so any row first migrated to the 256-bit
+// key (still in CBC format at that point) gets promoted to GCM here.
+export const migrateEncryptionAlgorithm = () => {
+  dbOpen();
+
+  const rows = DB.prepare(
+    `SELECT s.id, s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin IN ('dnscontrol', 'userconfig')`
+  ).all();
+
+  let migrated = 0;
+  for (const row of rows) {
+    // Skip if not encrypted, plaintext, or already GCM
+    if (!row.value || typeof row.value !== 'string') continue;
+    if (row.value.startsWith(GCM_FORMAT_PREFIX)) continue;
+    if (!/^[0-9a-f]{32,}$/i.test(row.value)) continue;
+
+    try {
+      // decrypt() handles legacy CBC reads
+      const plaintext = decrypt(row.value);
+      // encrypt() always produces the new GCM format
+      const newValue = encrypt(plaintext);
+      DB.prepare('UPDATE settings SET value = ? WHERE id = ?').run(newValue, row.id);
+      migrated++;
+    } catch {
+      // Row is not actually encrypted, has a different layout, or the key
+      // doesn't match. Leave it untouched; it'll surface on first read.
+    }
+  }
+
+  if (migrated > 0) {
+    successLog(`AES algorithm migration: re-encrypted ${migrated} settings as aes-256-gcm`);
   }
 };
 
@@ -1096,23 +1139,49 @@ export const dbUpgrade = () => {
 
 // Function to generate a new IV for each encryption
 export const generateIv = () => {
-  return crypto.randomBytes(env.IV_LEN); // 16 bytes for AES-256-CBC
+  return crypto.randomBytes(env.IV_LEN); // 16 bytes
 };
+
+// Ciphertext format markers:
+//   "g1:<iv_hex>:<tag_hex>:<cipher_hex>"  — current GCM format with auth tag
+//   "<iv_hex><cipher_hex>"                — legacy CBC format (bare hex, no separator)
+// New writes always use GCM. Reads detect the format prefix and dispatch.
+const GCM_FORMAT_PREFIX = 'g1:';
 
 export const encrypt = data => {
   const iv = generateIv();
-  const cipher = crypto.createCipheriv(env.AES_ALGO, Buffer.from(env.AES_KEY), iv);
+  const cipher = crypto.createCipheriv('aes-256-gcm', Buffer.from(env.AES_KEY), iv);
   let encrypted = cipher.update(data, 'utf-8', 'hex');
   encrypted += cipher.final('hex');
-  // Combine IV and encrypted data for storage
-  return iv.toString('hex') + encrypted;
+  const tag = cipher.getAuthTag().toString('hex');
+  return `${GCM_FORMAT_PREFIX}${iv.toString('hex')}:${tag}:${encrypted}`;
 };
 
 export const decrypt = encryptedData => {
-  const ivLength = env.IV_LEN * 2; // env.IV_LEN bytes * 2 for hex representation
+  if (encryptedData == null) return encryptedData;
+
+  // GCM (current format): authenticated; final() throws on tag mismatch
+  if (typeof encryptedData === 'string' && encryptedData.startsWith(GCM_FORMAT_PREFIX)) {
+    const parts = encryptedData.slice(GCM_FORMAT_PREFIX.length).split(':');
+    if (parts.length !== 3) throw new Error('decrypt: malformed GCM ciphertext');
+    const [ivHex, tagHex, ciphertextHex] = parts;
+    const iv = Buffer.from(ivHex, 'hex');
+    const tag = Buffer.from(tagHex, 'hex');
+    const decipher = crypto.createDecipheriv('aes-256-gcm', Buffer.from(env.AES_KEY), iv);
+    decipher.setAuthTag(tag);
+    let decrypted = decipher.update(ciphertextHex, 'hex', 'utf-8');
+    decrypted += decipher.final('utf-8');
+    return decrypted;
+  }
+
+  // Legacy CBC format: read-only path for migrating pre-2.2.0 data.
+  // Lacks an auth tag — a tampered ciphertext returns garbage instead of
+  // throwing. Do NOT use this path for writes; migrateEncryptionAlgorithm()
+  // promotes any row that lands here to the GCM format.
+  const ivLength = env.IV_LEN * 2;
   const iv = Buffer.from(encryptedData.slice(0, ivLength), 'hex');
   const ciphertext = encryptedData.slice(ivLength);
-  const decipher = crypto.createDecipheriv(env.AES_ALGO, Buffer.from(env.AES_KEY), iv);
+  const decipher = crypto.createDecipheriv('aes-256-cbc', Buffer.from(env.AES_KEY), iv);
   let decrypted = decipher.update(ciphertext, 'hex', 'utf-8');
   decrypted += decipher.final('utf-8');
   return decrypted;
@@ -1217,6 +1286,17 @@ export const changePassword = async (table, id, password, schema, containerName)
 };
 
 
+// Keys whose values must never appear in logs or response messages. Match is
+// a case-insensitive substring so derivations like 'newPassword',
+// 'refreshToken', 'apiToken' etc. are also covered.
+const SENSITIVE_KEY_PATTERNS = ['password', 'passwd', 'hash', 'salt', 'token', 'secret', 'apikey'];
+const isSensitiveKey = (key) => {
+  if (!key) return false;
+  const lower = String(key).toLowerCase();
+  return SENSITIVE_KEY_PATTERNS.some(p => lower.includes(p));
+};
+const redactValue = (key, value) => isSensitiveKey(key) ? '<redacted>' : value;
+
 // Function to update a table in the db; id can very well be an array as well
 export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  // jsonDict = { column:value, .. }
   debugLog(`${table} id=${id} for scope=${scope}`);   // don't show jsonDict as it may contain a password
@@ -1296,8 +1376,8 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
               if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
               result = dbRun(sql[table].update[key], scopedValues, id);
               if (result.success) {
-                messages.push(`Updated ${table} ${id} with ${key}=${value}`);
-                successLog(`Updated ${table} ${id} with ${key}=${value}`);
+                messages.push(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
+                successLog(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
               } else messages.push(result?.error);
             }
             
@@ -1313,8 +1393,8 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
             if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
             result = dbRun(`UPDATE ${table} set ${key} = @${key} WHERE 1=1 AND ${sql[table].id} = ?`, scopedValues, id);
             if (result.success && result.message?.changes > 0) {
-              messages.push(`Updated ${table} ${id} with ${key}=${value}`);
-              successLog(`Updated ${table} ${id} with ${key}=${value}`);
+              messages.push(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
+              successLog(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
             } else if (result.success && result.message?.changes === 0) {
               errorLog(`updateDB: no matching row for ${table} ${id}`);
               messages.push(`No matching row found for ${table} ${id}`);

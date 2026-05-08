@@ -42,10 +42,15 @@ router.post('/forgot-password', async (req, res) => {
     }
 
     const { email } = req.body;
-    // Derive base URL from env var or reverse proxy headers (not client Origin — prevents phishing)
-    const baseUrl = env.RESET_BASE_URL
-      || `${req.get('x-forwarded-proto') || 'https'}://${req.get('x-forwarded-host') || req.get('host')}`;
-    const result = await requestPasswordReset(email, baseUrl);
+    // RESET_BASE_URL must be set explicitly. Deriving from headers is unsafe:
+    // X-Forwarded-Host is attacker-controllable in the absence of strict proxy
+    // hardening, so a poisoned header would point reset emails at attacker.com.
+    if (!env.RESET_BASE_URL) {
+      errorLog('POST /api/forgot-password: RESET_BASE_URL is not set in env. Refusing to send reset email. Set RESET_BASE_URL=https://<your-public-host> in .dms-gui.env.');
+      // Generic response to avoid leaking whether the account exists.
+      return res.json({ success: true, message: 'If that account exists, a reset link has been sent.' });
+    }
+    const result = await requestPasswordReset(email, env.RESET_BASE_URL);
     res.json(result);
   } catch (error) {
     errorLog(`POST /api/forgot-password: ${error.message}`);
@@ -54,7 +59,7 @@ router.post('/forgot-password', async (req, res) => {
 });
 
 
-router.post('/validate-reset-token', async (req, res) => {
+router.post('/validate-reset-token', authLimiter, async (req, res) => {
   try {
     const { token } = req.body;
     const result = validateResetToken(token);
