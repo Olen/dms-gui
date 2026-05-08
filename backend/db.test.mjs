@@ -100,4 +100,37 @@ describe('encrypt / decrypt roundtrip', () => {
     const ciphertext = encrypt(plaintext);
     expect(decrypt(ciphertext)).toBe(plaintext);
   });
+
+  it('writes the GCM format prefix on every new encryption', () => {
+    const ct = encrypt('marker');
+    expect(ct.startsWith('g1:')).toBe(true);
+    // Format is g1:iv_hex:tag_hex:cipher_hex
+    const parts = ct.slice(3).split(':');
+    expect(parts).toHaveLength(3);
+    expect(parts[0]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte IV as hex
+    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte auth tag as hex
+  });
+
+  it('reads legacy CBC ciphertext written by the pre-2.2.0 format', () => {
+    // Construct a CBC ciphertext manually using the same AES key, in the
+    // exact format the old encrypt() produced: iv_hex || cipher_hex (concat).
+    const key = crypto
+      .createHash('sha512')
+      .update(testSecret)
+      .digest()
+      .subarray(0, 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-cbc', key, iv);
+    let cbcCipher = cipher.update('legacy-payload', 'utf-8', 'hex');
+    cbcCipher += cipher.final('hex');
+    const legacyCiphertext = iv.toString('hex') + cbcCipher;
+
+    expect(legacyCiphertext.startsWith('g1:')).toBe(false);
+    expect(decrypt(legacyCiphertext)).toBe('legacy-payload');
+  });
+
+  it('passes through null/undefined unchanged', () => {
+    expect(decrypt(null)).toBe(null);
+    expect(decrypt(undefined)).toBe(undefined);
+  });
 });
