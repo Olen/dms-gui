@@ -193,7 +193,7 @@ async (req, res) => {
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
 
     const source = req.query.source || 'mail';
-    const lines = req.query.lines || 100;
+    const lines = req.query.lines ?? 100;
 
     const result = await getMailLogs(containerName, source, lines);
     res.json(result);
@@ -238,7 +238,7 @@ async (req, res) => {
     const { containerName } = req.params;
     if (!containerName) return res.status(400).json({ error: 'containerName is required' });
 
-    const hours = req.query.hours || 48;
+    const hours = req.query.hours ?? 48;
 
     const result = await getMailBounces(containerName, hours);
     res.json(result);
