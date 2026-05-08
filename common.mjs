@@ -52,16 +52,21 @@ export const funcName = (parent=4, onlyParent=false) => {
     // This regular expression works well for many Node.js stack formats.
     // It looks for "at <functionName>".
     // match = /at\s+([^ ]+)\s+/.exec(errorLines[i]);
-    match = /at\s+(\w+)\s+/.exec(errorLines[i]);
+    // Capture the token between "at " and the next whitespace or "(".
+    // Handles "at funcName (file:...)", "at Server.<anonymous> (file:...)",
+    // "at Object.<anonymous> (file:...)", "at <anonymous>". The previous
+    // /\w+/ form failed on the dotted/bracketed cases and fell through to
+    // dumping the raw stack line into the log.
+    match = /at\s+([^\s(]+)/.exec(errorLines[i]);
 
-    // append indentation to parent function until we reach 
+    // append indentation to parent function until we reach
     if (match) {
       funcName = (funcName) ? "  " + funcName : match[1];
       if (onlyParent) break;
 
     // either we reached the end or it was anonymous == root from the main script
     } else {
-      funcName = (funcName) ? funcName : errorLines[i];
+      funcName = (funcName) ? funcName : '<anonymous>';
       break;
     }
       
