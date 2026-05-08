@@ -44,6 +44,6 @@
     "json-server": "^1.0.0-beta.3",
     "prettier": "3.7.4",
     "supertest": "^7.2.2",
-    "vitest": "^4.0.18"
+    "vitest": "^4.1.5"
   }
 }
