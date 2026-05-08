@@ -116,7 +116,30 @@ async (req, res) => {
         .json({ error: 'Source and destination are required' });
     }
 
-    // Users can only act on their own mailboxes or those in their roles (unless admin)
+    //
+    // Non-admin alias-creation policy (POST):
+    //
+    //   1. ALLOW_USER_ALIASES must be enabled for this container (operator
+    //      opt-in — admins can disable per-user aliases entirely).
+    //   2. Both source and destination must contain a valid @domain.
+    //   3. Source and destination domains must match (a user cannot create
+    //      cross-domain forwarders; that prevents using one domain's
+    //      "respected" local-parts to phish into a domain they don't own).
+    //   4. Destination must be in req.user.roles — the user must already
+    //      be the recipient of the forwarded mail. This is the load-bearing
+    //      check; it ensures a user can only redirect mail TO themselves.
+    //
+    // Note: the source local-part is intentionally NOT restricted to the
+    // user's roles. The whole point of role-based alias delegation is that
+    // a user with a role for `userA@example.com` can create forwarders like
+    // `info@example.com -> userA@example.com` even though `info@` isn't a
+    // pre-existing role. The "they could create postmaster@example.com ->
+    // self" risk is accepted: granting a user a role for a destination
+    // mailbox in that domain implies you trust them to redirect any
+    // local-part of that domain to themselves. If you don't want them
+    // capturing postmaster@/abuse@ etc., don't grant a role whose
+    // destination is in that domain.
+    //
     let result;
     if (req.user.isAdmin) {
       result = await addAlias(containerName, source, destination);
@@ -126,7 +149,6 @@ async (req, res) => {
         return res.status(403).json({ success: false, error: 'Alias creation is disabled for non-admin users' });
       }
 
-      // check source for obvious hack attempt. extract domains and see that they match. Only admins can create aliases for different domain then destination
       let domainSource = source.match(/.*@([\_\-\.\w]+)/);
       let domainDest = destination.match(/.*@([\_\-\.\w]+)/);
       if (!domainSource || !domainDest) {

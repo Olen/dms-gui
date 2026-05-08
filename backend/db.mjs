@@ -199,12 +199,24 @@ logins: {
   select: {
     count:    `SELECT COUNT(*) count from logins WHERE 1=1 and mailserver = @mailserver`,
     login:      `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND id = @id`,
-    loginObj:   `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND {key} = @{key}`,
+    // Per-key variants used by getLogin's object-credential path. Replaces
+    // a single template that used string-replace to splice the column name
+    // in before .prepare() — safe in practice because the caller validated
+    // the key against an allowlist, but a structural defect (a future
+    // caller passing a key that slips past the allowlist would inject SQL).
+    // Note: the existing `login` statement above already covers id lookups;
+    // these add the missing mailbox/username variants.
+    loginByMailbox:   `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND mailbox = @mailbox`,
+    loginByUsername:  `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND username = @username`,
     loginGuess: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND (mailbox = @mailbox OR username = @username)`,
     logins:   `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1`,
     admins:   `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND isAdmin = 1`,
     roles:    `SELECT roles from logins WHERE 1=1 AND id = @id`,
-    rolesObj: `SELECT roles from logins WHERE 1=1 AND {key} = @{key}`,
+    // Static-statement variants for the object-credential lookup. Same
+    // rationale as loginByMailbox / loginByUsername above — drops the
+    // string-replace template in favour of explicit prepared statements.
+    rolesByMailbox:   `SELECT roles from logins WHERE 1=1 AND mailbox = @mailbox`,
+    rolesByUsername:  `SELECT roles from logins WHERE 1=1 AND username = @username`,
     salt:     `SELECT salt from logins WHERE id = ?`,
     hash:     `SELECT hash from logins WHERE id = ?`,
     saltHash: `SELECT salt, hash FROM logins WHERE (mailbox = @mailbox OR username = @username)`,

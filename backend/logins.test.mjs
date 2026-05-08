@@ -26,17 +26,18 @@ vi.mock('./db.mjs', () => ({
   verifyPassword: vi.fn(async () => true),
   sql: {
     logins: {
-      id: 'mailbox',
+      // Match production: the primary-key column for the logins table
+      // is named 'id', and the bind-by-id statement uses @id.
+      id: 'id',
       insert: { login: 'INSERT INTO logins ...' },
       select: {
-        login: 'SELECT * FROM logins WHERE mailbox = @mailbox',
-        loginObj: 'SELECT * FROM logins WHERE {key} = @value',
+        login: 'SELECT * FROM logins WHERE id = @id',
         loginGuess: 'SELECT * FROM logins WHERE mailbox = @mailbox OR username = @username',
-        loginByMailbox: 'SELECT ...',
-        loginByUsername: 'SELECT ...',
-        loginById: 'SELECT ...',
-        roles: 'SELECT roles FROM logins WHERE mailbox = @mailbox',
-        rolesObj: 'SELECT roles FROM logins WHERE {key} = @value',
+        loginByMailbox: 'SELECT * FROM logins WHERE mailbox = @mailbox',
+        loginByUsername: 'SELECT * FROM logins WHERE username = @username',
+        roles: 'SELECT roles FROM logins WHERE id = @id',
+        rolesByMailbox: 'SELECT roles FROM logins WHERE mailbox = @mailbox',
+        rolesByUsername: 'SELECT roles FROM logins WHERE username = @username',
       },
     },
   },
@@ -131,7 +132,7 @@ describe('getLogin — key validation', () => {
     await getLogin('user@example.com');
     expect(dbGet).toHaveBeenCalledWith(
       expect.any(String),
-      { mailbox: 'user@example.com' },
+      { id: 'user@example.com' },
     );
   });
 });
