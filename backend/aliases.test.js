@@ -68,4 +68,28 @@ describe('updateAlias', () => {
     expect(execSetup).not.toHaveBeenCalled();
     expect(mockDbRun).not.toHaveBeenCalled();
   });
+
+  it('issues alias add for each added destination and updates DB on success', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+    });
+    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+
+    expect(result.success).toBe(true);
+    expect(execSetup).toHaveBeenCalledTimes(1);
+    expect(execSetup).toHaveBeenCalledWith(
+      expect.stringMatching(/^alias add 'info@example\.com' 'b@example\.com'$/),
+      expect.any(Object),
+    );
+    // DB updated with the merged set
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }),
+      'mailserver',
+    );
+  });
 });

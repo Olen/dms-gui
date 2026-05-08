@@ -476,8 +476,52 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     return {success: true, message: 'No changes'};
   }
 
-  // Future tasks expand this function. For now, no-op success only.
-  return {success: false, error: 'not implemented yet'};
+  const targetDict = getTargetDict('mailserver', containerName);
+  const failedRemove = [];
+  const failedAdd = [];
+
+  // Removals first, so the alias is never temporarily over-fanned-out
+  // beyond what the user requested.
+  for (const dest of removed) {
+    const r = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+    if (r.returncode) {
+      const msg = await formatDMSError('execSetup', r.stderr);
+      errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
+      failedRemove.push(dest);
+    }
+  }
+
+  for (const dest of added) {
+    const r = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+    if (r.returncode) {
+      const msg = await formatDMSError('execSetup', r.stderr);
+      errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
+      failedAdd.push(dest);
+    }
+  }
+
+  // Compute what actually exists on DMS now:
+  // = (oldList minus removals that succeeded) plus (additions that succeeded)
+  const lower = (s) => s.toLowerCase();
+  const failedRemoveLower = new Set(failedRemove.map(lower));
+  const failedAddLower = new Set(failedAdd.map(lower));
+  const survivingFromOld = oldList.filter(d => !removed.includes(d) || failedRemoveLower.has(lower(d)));
+  const successfulAdds = added.filter(d => !failedAddLower.has(lower(d)));
+  const actualSet = [...survivingFromOld, ...successfulAdds];
+
+  // Persist the actual state. Use REPLACE-style insert (sql.aliases.insert.alias).
+  const dbResult = dbRun(sql.aliases.insert.alias,
+    { source, destination: actualSet.join(','), regex: 0 },
+    containerName);
+
+  if (failedRemove.length === 0 && failedAdd.length === 0) {
+    if (!dbResult.success) return dbResult;
+    successLog(`Alias updated: ${source}`);
+    return { success: true, message: `Alias updated: ${source}` };
+  }
+
+  const failed = [...failedRemove, ...failedAdd];
+  return { success: false, error: `Partially updated. Failed: ${failed.join(', ')}` };
 };
 
 // module.exports = {
