@@ -22,10 +22,12 @@ import {
   getUserSettings,
   addAlias,
   deleteAlias,
+  updateAlias,
 } from '../services/api.mjs';
 
 import {
   AlertMessage,
+  AliasEditModal,
   Button,
   Card,
   DataTable,
@@ -56,6 +58,7 @@ const Aliases = () => {
     destination: [],
   });
   const [formErrors, setFormErrors] = useState({});
+  const [editingAlias, setEditingAlias] = useState(null);
 
   /* 
   TODO: useEffect properly on object change
@@ -269,6 +272,30 @@ const Aliases = () => {
     }
   };
 
+  const handleEdit = (alias) => {
+    setErrorMessage(null);
+    setSuccessMessage(null);
+    setEditingAlias(alias);
+  };
+
+  const handleEditSave = async (source, newDestination) => {
+    try {
+      const result = await updateAlias(containerName, source, newDestination);
+      if (result.success) {
+        setEditingAlias(null);
+        fetchAliases(true);
+        setSuccessMessage('aliases.aliasUpdated');
+      } else {
+        setErrorMessage(result?.error);
+      }
+    } catch (error) {
+      errorLog(t('api.errors.updateAlias'), error.message);
+      setErrorMessage('api.errors.updateAlias');
+    }
+  };
+
+  const handleEditCancel = () => setEditingAlias(null);
+
   // Can the current user create/delete aliases?
   const canModify = user?.isAdmin == 1 || allowUserAliases === true;
 
@@ -284,12 +311,23 @@ const Aliases = () => {
       noSort: true,
       noFilter: true,
       render: (alias) => (
-        <Button
-          variant="danger"
-          size="sm"
-          icon="trash"
-          onClick={() => handleDelete(alias.source, alias.destination)}
-        />
+        <>
+          {!alias.regex && (
+            <Button
+              variant="primary"
+              size="sm"
+              icon="pencil"
+              onClick={() => handleEdit(alias)}
+              className="me-1"
+            />
+          )}
+          <Button
+            variant="danger"
+            size="sm"
+            icon="trash"
+            onClick={() => handleDelete(alias.source, alias.destination)}
+          />
+        </>
       ),
     }] : []),
   ];
@@ -450,6 +488,14 @@ const Aliases = () => {
         {/* Close second Col */}
       </Row>{' '}
       {/* Close Row */}
+      <AliasEditModal
+        show={!!editingAlias}
+        alias={editingAlias}
+        accountOptions={accountOptions}
+        isAdmin={isAdmin}
+        onSave={handleEditSave}
+        onCancel={handleEditCancel}
+      />
     </div>
   );
 };
