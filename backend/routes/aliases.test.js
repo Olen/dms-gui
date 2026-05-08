@@ -89,4 +89,16 @@ describe('PUT /api/aliases/:containerName', () => {
     expect(res.body.success).toBe(true);
     expect(mockUpdateAlias).toHaveBeenCalledWith('mailserver', 'info@example.com', 'a@example.com,b@example.com');
   });
+
+  it('returns 400 for non-admin when destination string parses to empty list', async () => {
+    mockDbGet.mockReturnValue({ success: true, message: { value: 'true' } });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({ source: 'info@test.com', destination: ',,,' });
+
+    expect(res.status).toBe(400);
+    expect(mockUpdateAlias).not.toHaveBeenCalled();
+  });
 });

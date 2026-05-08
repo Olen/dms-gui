@@ -274,6 +274,9 @@ async (req, res) => {
       // domain must match every destination domain (defensive against
       // cross-domain hijacking).
       const dests = destination.split(',').map(d => d.trim()).filter(Boolean);
+      if (dests.length === 0) {
+        return res.status(400).json({ success: false, error: 'At least one destination is required' });
+      }
       const sourceMatch = source.match(/.*@([\_\-\.\w]+)/);
       if (!sourceMatch) {
         return res.status(400).json({ success: false, error: 'Source must contain a valid @domain' });
