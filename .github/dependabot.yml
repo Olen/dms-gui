@@ -1,14 +1,14 @@
 version: 2
 
-# Dependabot opens PRs against `deploy` (the dev branch per CLAUDE.md
-# branch model). `main` is the frozen upstream snapshot and must never
-# receive automated commits.
+# Dependabot opens PRs against `main` (the primary branch).
+# `upstream-snapshot` preserves the original fork point and must
+# never receive automated commits.
 
 updates:
   # Root npm — devDependencies (eslint, husky, lint-staged)
   - package-ecosystem: "npm"
     directory: "/"
-    target-branch: "deploy"
+    target-branch: "main"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -19,7 +19,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/backend"
-    target-branch: "deploy"
+    target-branch: "main"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -31,7 +31,7 @@ updates:
 
   - package-ecosystem: "npm"
     directory: "/frontend"
-    target-branch: "deploy"
+    target-branch: "main"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
@@ -46,7 +46,7 @@ updates:
   # those upstream actions release Node-24-compatible versions.
   - package-ecosystem: "github-actions"
     directory: "/"
-    target-branch: "deploy"
+    target-branch: "main"
     schedule:
       interval: "weekly"
     commit-message:
@@ -58,7 +58,7 @@ updates:
   # Dockerfile base image (currently node:24.14.0-alpine).
   - package-ecosystem: "docker"
     directory: "/"
-    target-branch: "deploy"
+    target-branch: "main"
     schedule:
       interval: "weekly"
     commit-message:

@@ -12,44 +12,46 @@ Web GUI for docker-mailserver (DMS). React frontend (Vite, Bootstrap) + Node.js/
 
 ## Branch strategy
 
-### Branch model (fork-first, Feb 2026+)
+### Branch model
 ```
-deploy                      ← primary development + production branch
+main                        ← primary development + production branch
   └── feature/<name>        ← optional branches for larger features
-main                        ← frozen snapshot of upstream (audioscavenger/dms-gui)
+upstream-snapshot           ← frozen at the original fork point (audioscavenger/dms-gui v1.5.23)
+fix/*                       ← archived branches mapped to upstream PRs #7–#25 (still open, no engagement)
 ```
 
-Upstream PRs (#7–#25) remain open but unreviewed. We develop directly on `deploy`.
-If upstream ever engages, we can cherry-pick or rebase selectively.
+This repo was forked from [audioscavenger/dms-gui](https://github.com/audioscavenger/dms-gui) at version 1.5.23 (tag `fork-from-upstream-1.5.23`). Since the fork, this repo has diverged 230+ commits while upstream has made one. The 18 `fix/*` branches were sent as PRs to upstream but received no review; they remain pushed to origin as archived snapshots of those proposals.
+
+The `upstream` git remote (`https://github.com/audioscavenger/dms-gui.git`) is kept available locally for cherry-picks if upstream ever revives, but routine development assumes no upstream collaboration.
 
 ### Core rules
-1. **`deploy` is the primary branch** — all development happens here
-2. **Feature branches are optional** — use `feature/<name>` off `deploy` for larger multi-commit work, merge back when done
-3. **`main` is frozen** — do not commit to main; it preserves the upstream fork point
-4. **Old `fix/*` branches are archived** — they still exist for the open PRs but are not actively maintained
+1. **`main` is the primary branch** — all development happens here
+2. **Feature branches are optional** — use `feature/<name>` off `main` for larger multi-commit work, merge back when done
+3. **`upstream-snapshot` is frozen** — do not commit to it; it preserves the upstream fork point for historical reference
+4. **`fix/*` branches are archived** — they still exist for the open upstream PRs but are not actively maintained
 
 ### Day-to-day workflow
 
-Develop on any machine with a clone of the repo. Push to `deploy`. Cutting a release and bringing it to production are separate steps documented under "Release & deploy" below.
+Develop on any machine with a clone of the repo. Push to `main`. Cutting a release and bringing it to production are separate steps documented under "Release & deploy" below.
 
 ```bash
-# Simple changes: commit directly to deploy
-git checkout deploy
+# Simple changes: commit directly to main
+git checkout main
 # edit, test
 git add <files> && git commit -m "description"
-git push origin deploy
+git push origin main
 # Nothing builds yet. To ship the change, bump package.json
 # on a later commit (see "Cutting a release" below).
 ```
 
 ### Larger features
 ```bash
-git checkout deploy
+git checkout main
 git checkout -b feature/thing
 # work, commit, test
-git checkout deploy
+git checkout main
 git merge feature/thing --no-edit
-git push origin deploy
+git push origin main
 # (no manual build/deploy here — release happens by bumping
 #  package.json on a later commit; see "Release & deploy" below)
 # optionally delete: git branch -d feature/thing
@@ -63,7 +65,7 @@ A local checkout on the production host is useful only for the local-build fallb
 
 ### Source of truth for the version
 
-The release version lives in the root `package.json` `version` field. CI reads it on every push to `deploy` and:
+The release version lives in the root `package.json` `version` field. CI reads it on every push to `main` and:
 
 1. If a git tag matching that version already exists, CI skips (idempotent — pushing non-release commits is free).
 2. Otherwise CI runs the backend + frontend test suites, builds the image with `--build-arg DMSGUI_VERSION=<version>`, pushes both `ghcr.io/olen/dms-gui:<version>` and `ghcr.io/olen/dms-gui:latest`, and creates+pushes the matching git tag.
@@ -77,7 +79,7 @@ The release version lives in the root `package.json` `version` field. CI reads i
 npm version <new-version> --no-git-tag-version    # e.g. 2.1.0 → 2.1.1; edits root package.json only
 git add package.json
 git commit -m "Release <new-version>"
-git push origin deploy
+git push origin main
 # CI does the rest: tests → build → push image → create+push git tag
 ```
 
@@ -101,7 +103,7 @@ The repo's `GITHUB_TOKEN` can only push to packages it owns. If a `ghcr.io/olen/
 
 #### Dependency-update notifications
 
-`.github/dependabot.yml` watches root/backend/frontend npm dependencies, GitHub Actions versions used in the workflow, and the Dockerfile base image. Updates are opened as PRs against `deploy` (not `main`, which is frozen per the branch model). The Node.js 20 deprecation warnings on `actions/checkout`/`docker/*-action` will surface as Dependabot PRs once those upstream actions cut Node-24-compatible releases.
+`.github/dependabot.yml` watches root/backend/frontend npm dependencies, GitHub Actions versions used in the workflow, and the Dockerfile base image. Updates are opened as PRs against `main` (not `upstream-snapshot`, which is frozen per the branch model). The Node.js 20 deprecation warnings on `actions/checkout`/`docker/*-action` will surface as Dependabot PRs once those upstream actions cut Node-24-compatible releases.
 
 ### Pulling the new image into production
 
@@ -137,14 +139,14 @@ docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
 
 Note: do NOT use `make dms-gui-recreate` for rollback — its `pull` step would re-fetch `:latest` from GHCR (i.e., the broken release). The direct `up -d --force-recreate` uses the locally-retagged image.
 
-To restore the forward path afterwards, fix on `deploy`, bump the patch version, and let CI publish the fix.
+To restore the forward path afterwards, fix on `main`, bump the patch version, and let CI publish the fix.
 
 ### Image registry note
 
 The compose file references `ghcr.io/olen/dms-gui:latest`. CI is the only writer to that tag — a manual PAT may exist on the production host for the local-build fallback above, but it is no longer the canonical publisher.
 
 ## Critical: .dockerignore
-The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc-compiled node_modules get copied into the Alpine container, breaking better-sqlite3 with `ld-linux-x86-64.so.2` errors. Always ensure `.dockerignore` exists on the `deploy` branch before building.
+The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc-compiled node_modules get copied into the Alpine container, breaking better-sqlite3 with `ld-linux-x86-64.so.2` errors. Always ensure `.dockerignore` exists on the `main` branch before building.
 
 ## REST API (rest-api.py)
 - Lives in the DMS container's config dir (typically mounted from the host's `<dms-config>/dms-gui/rest-api.py`)

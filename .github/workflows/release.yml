@@ -1,6 +1,6 @@
 name: Release
 
-# Triggered on every push to deploy. Reads the version from the root
+# Triggered on every push to main. Reads the version from the root
 # package.json and only releases if a git tag for that version does not
 # already exist — so a release happens by bumping package.json.version
 # in a commit, nothing else.
@@ -10,7 +10,7 @@ name: Release
 
 on:
   push:
-    branches: [deploy]
+    branches: [main]
   workflow_dispatch:
 
 permissions:
