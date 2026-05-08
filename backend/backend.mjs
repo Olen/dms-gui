@@ -51,6 +51,7 @@ export const color = (env.LOG_COLORS) ? {
   REV: '',
   UND: '',
   HGL: '',
+  kLOW: '',
 }
 export const ICON = (env.LOG_COLORS) ? {
   success:  '\x1B[92m✔️\x1B[39m ',
@@ -82,16 +83,19 @@ export const LEVEL = {
 // }, { native }
 // );
 // });
-export const logger = async (level, message='', ...data) => {
-  // console[level](`[\x1B[90m${(new Date).toLocaleTimeString()}\x1B[39m]`, ICON[level], color.k+color.HIG+LEVEL[level]+color.end, color.LOW+funcName(4)+color.end, message, data);
+// Sync — console.log is sync and the helpers do no async work. Previously
+// these were `async` for no reason, returning a Promise the callers usually
+// did not await; that wasted a microtask and made awaited callers (rare)
+// pay for a no-op promise tick.
+export const logger = (level, message='', ...data) => {
   console.log(`[${color.kLOW}${(new Date).toLocaleTimeString()}]${color.end}`, ICON[level], color.k+color.HIG+LEVEL[level], color.LOW+funcName(4)+(level == 'debug' ? '' : color.end), message, ...data, color.end);
 };
 
-export const successLog = async (message, ...data) => { logger('success', message, ...data) };
-export const errorLog = async (message, ...data) => { logger('error', message, ...data) };
-export const warnLog = async (message, ...data) => { logger('warn', message, ...data) };
-export const infoLog = async (message, ...data) => { logger('info', message, ...data) };
-export const debugLog = async (message, ...data) => { if (env.debug) logger('debug', message, ...data) };
+export const successLog = (message, ...data) => { logger('success', message, ...data) };
+export const errorLog   = (message, ...data) => { logger('error', message, ...data) };
+export const warnLog    = (message, ...data) => { logger('warn', message, ...data) };
+export const infoLog    = (message, ...data) => { logger('info', message, ...data) };
+export const debugLog   = (message, ...data) => { if (env.debug) logger('debug', message, ...data) };
 
 
 /** Redact passwords from command strings before logging */
