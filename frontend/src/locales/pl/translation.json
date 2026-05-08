@@ -98,7 +98,12 @@
     "typeToAdd": "Wpisz adres email i naciśnij Enter",
     "selectDestination": "Wybierz lub wpisz adresy email",
     "addAlias": "Dodaj Alias",
+    "aliasUpdated": "Alias zaktualizowany!",
+    "cannotEditRegex": "Edycja aliasów regex nie jest obsługiwana.",
+    "editAlias": "Edytuj alias dla {{source}}",
+    "editTitle": "Edytuj odbiorców aliasu",
     "noAliases": "Brak aliasów. Dodaj pierwszy alias.",
+    "save": "Zapisz",
     "sourceRequired": "Adres źródłowy jest wymagany",
     "sourceAlreadyExists": "Alias z tym adresem źródłowym już istnieje",
     "sourceIsAccount": "Ten adres jest już kontem pocztowym — użyj innego adresu źródłowego",
@@ -209,7 +214,8 @@
       "updatePassword": "Błąd podczas aktualizacji hasła",
       "fetchAliases": "Błąd podczas pobierania aliasów",
       "addAlias": "Błąd podczas dodawania aliasu",
-      "deleteAlias": "Błąd podczas usuwania aliasu"
+      "deleteAlias": "Błąd podczas usuwania aliasu",
+      "updateAlias": "Błąd podczas aktualizacji aliasu"
     }
   },
   "rspamd": {
