@@ -205,33 +205,48 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             logger(f"Executing command: {command}")
 
             def run_pipeline(cmd):
-              """Run a single command or pipeline (supports | and > / >>)."""
-              # Split on pipe
-              stages = [s.strip() for s in cmd.split('|')]
-              last_stage = stages[-1]
+              """Run a single command or pipeline (supports | and > / >>).
+
+              Tokenises with shlex.shlex(posix=True, punctuation_chars='|<>')
+              so '|', '>' and '>>' are treated as operators while respecting
+              quoting. Previously this used cmd.split('|') and similar
+              character-level splits, which corrupted the pipeline whenever
+              a quoted argument contained a literal '|' (e.g. a password
+              like 'pa|ss') — the quote-aware split now keeps such pipes
+              inside the argument they belong to.
+              """
+              lex = shlex.shlex(cmd, posix=True, punctuation_chars='|<>')
+              lex.whitespace_split = True
+              tokens = list(lex)
+
+              # Split tokens into stages on '|' operators; pull out a
+              # trailing redirect (> or >>) if present.
+              stages = [[]]
               redir_file = None
               redir_mode = None
+              i = 0
+              while i < len(tokens):
+                tok = tokens[i]
+                if tok == '|':
+                  stages.append([])
+                elif tok in ('>', '>>'):
+                  redir_mode = 'a' if tok == '>>' else 'w'
+                  if i + 1 < len(tokens):
+                    redir_file = tokens[i + 1]
+                    i += 1  # consume filename token
+                else:
+                  stages[-1].append(tok)
+                i += 1
 
-              # Check last stage for output redirection (>> or >)
-              if '>>' in last_stage:
-                parts = last_stage.split('>>', 1)
-                stages[-1] = parts[0].strip()
-                redir_file = parts[1].strip()
-                redir_mode = 'a'
-              elif '>' in last_stage:
-                parts = last_stage.split('>', 1)
-                stages[-1] = parts[0].strip()
-                redir_file = parts[1].strip()
-                redir_mode = 'w'
-
-              # Remove empty stages (e.g. "echo foo >> file" leaves empty after split)
               stages = [s for s in stages if s]
+              if not stages:
+                return 1, '', 'empty command'
 
               prev_proc = None
               procs = []
               for stage in stages:
                 stdin_src = prev_proc.stdout if prev_proc else None
-                proc = subprocess.Popen(shlex.split(stage),
+                proc = subprocess.Popen(stage,
                                         stdin=stdin_src,
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE,
