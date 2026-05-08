@@ -54,6 +54,7 @@ const mockGetAliases = vi.fn();
 const mockGetAccounts = vi.fn();
 const mockAddAlias = vi.fn();
 const mockDeleteAlias = vi.fn();
+const mockUpdateAlias = vi.fn();
 
 const mockGetUserSettings = vi.fn();
 
@@ -62,19 +63,45 @@ vi.mock('../services/api.mjs', () => ({
   getAccounts: (...args) => mockGetAccounts(...args),
   addAlias: (...args) => mockAddAlias(...args),
   deleteAlias: (...args) => mockDeleteAlias(...args),
+  updateAlias: (...args) => mockUpdateAlias(...args),
   getUserSettings: (...args) => mockGetUserSettings(...args),
 }));
 
+// Captures from the AliasEditModal mock so tests can drive it.
+let _editModalLatestProps = null;
+
 vi.mock('../components/index.jsx', () => ({
   AlertMessage: ({ type, message }) => message ? <div data-testid={`alert-${type}`}>{message}</div> : null,
-  Button: ({ type, variant, text, onClick, ...rest }) => (
-    <button type={type} className={variant} onClick={onClick} {...rest}>{text}</button>
+  AliasEditModal: (props) => {
+    _editModalLatestProps = props;
+    return props.show
+      ? (
+          <div data-testid="alias-edit-modal">
+            <span data-testid="modal-source">{props.alias?.source}</span>
+            <span data-testid="modal-destination">{props.alias?.destination}</span>
+          </div>
+        )
+      : null;
+  },
+  Button: ({ type, variant, text, icon, onClick, ...rest }) => (
+    <button
+      type={type}
+      className={variant}
+      data-icon={icon}
+      onClick={onClick}
+      {...rest}
+    >{text || icon}</button>
   ),
   Card: ({ title, children }) => <div data-testid={`card-${title}`}>{children}</div>,
-  DataTable: ({ data, emptyMessage }) => (
+  DataTable: ({ columns, data, emptyMessage }) => (
     <div data-testid="data-table">
       {data.length === 0 ? <span>{emptyMessage}</span> : data.map((row, i) => (
-        <div key={i} data-testid="alias-row">{row.source} → {row.destination}</div>
+        <div key={i} data-testid="alias-row" data-source={row.source}>
+          <span>{row.source} → {row.destination}</span>
+          {(columns || []).filter(c => c.render && c.key === 'actions').map((col) => (
+            <span key={col.key} data-testid={`row-${i}-${col.key}`}>{col.render(row)}</span>
+          ))}
+        </div>
       ))}
     </div>
   ),
@@ -447,5 +474,69 @@ describe('Aliases — non-admin user restrictions', () => {
 
     // The "Add: ..." create label should not appear for non-admin
     expect(screen.queryByText(/Add.*external@other\.com/)).not.toBeInTheDocument();
+  });
+});
+
+
+describe('Aliases — edit flow', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockUser = { isAdmin: true };
+    _editModalLatestProps = null;
+    setupMocks({
+      aliases: [
+        { source: 'info@example.com', destination: 'alice@example.com,bob@example.com', regex: 0 },
+        { source: '/^postmaster.*/', destination: 'alice@example.com', regex: 1 },
+      ],
+    });
+  });
+
+  it('renders pencil button only for non-regex rows', async () => {
+    await renderAliases();
+    await waitFor(() => expect(screen.getAllByTestId('alias-row')).toHaveLength(2));
+
+    const row0Actions = screen.getByTestId('row-0-actions');
+    const row1Actions = screen.getByTestId('row-1-actions');
+    expect(row0Actions.querySelector('[data-icon="pencil"]')).not.toBeNull();
+    expect(row1Actions.querySelector('[data-icon="pencil"]')).toBeNull();
+    // Trash exists on both rows.
+    expect(row0Actions.querySelector('[data-icon="trash"]')).not.toBeNull();
+    expect(row1Actions.querySelector('[data-icon="trash"]')).not.toBeNull();
+  });
+
+  it('clicking pencil opens the modal with the row prefilled', async () => {
+    await renderAliases();
+    await waitFor(() => expect(screen.getAllByTestId('alias-row')).toHaveLength(2));
+
+    const pencil = screen.getByTestId('row-0-actions').querySelector('[data-icon="pencil"]');
+    await act(async () => { fireEvent.click(pencil); });
+
+    expect(screen.getByTestId('alias-edit-modal')).toBeInTheDocument();
+    expect(screen.getByTestId('modal-source').textContent).toBe('info@example.com');
+    expect(screen.getByTestId('modal-destination').textContent).toBe('alice@example.com,bob@example.com');
+  });
+
+  it('saving from the modal calls updateAlias and refreshes the list', async () => {
+    mockUpdateAlias.mockResolvedValue({ success: true, message: 'Alias updated' });
+
+    await renderAliases();
+    await waitFor(() => expect(screen.getAllByTestId('alias-row')).toHaveLength(2));
+
+    const pencil = screen.getByTestId('row-0-actions').querySelector('[data-icon="pencil"]');
+    await act(async () => { fireEvent.click(pencil); });
+
+    // Drive the captured onSave from the mock — the modal itself is mocked, so
+    // we don't actually click an in-modal button; we invoke the onSave prop directly.
+    await act(async () => {
+      await _editModalLatestProps.onSave('info@example.com', 'alice@example.com,bob@example.com,carol@example.com');
+    });
+
+    expect(mockUpdateAlias).toHaveBeenCalledWith(
+      'test-mailserver',
+      'info@example.com',
+      'alice@example.com,bob@example.com,carol@example.com',
+    );
+    // After save, fetchAliases should have been called again (initial + refresh).
+    expect(mockGetAliases).toHaveBeenCalledTimes(2);
   });
 });
