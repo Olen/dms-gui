@@ -188,7 +188,7 @@ const Rspamd = () => {
 
   useEffect(() => {
     fetchData();
-  }, [containerName]);
+  }, [fetchData]);
 
   if (loading) return <LoadingSpinner />;
   if (error)

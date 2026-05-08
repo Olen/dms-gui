@@ -40,33 +40,36 @@ export const Login = () => {
   );
   const [mailservers, setMailservers] = useLocalStorage('mailservers', []);
 
-  // redirect to /settings if no users in db
-  const isFirstRun = async () => {
-    // since we are redirected here from the api when dms-gui has restarted with fresh secret keys, we need to logout first
-    if (user) logout();
-
-    const result = await loginUser('admin', 'changeme', true);
-    // debugLog('ddebug isFirstRun result', result);
-
-    // if we can login with the default user, display first run welcome message
-
-    if (result.success) {
-      setFirstRun(true);
-
-      if (result?.isDEMO || isDEMO) {
-        setIsDEMO(true);
-        setSuccessMessage('logins.isDEMO');
-      } else {
-        setIsDEMO(false);
-        setSuccessMessage('logins.isFirstRun');
-      }
-    }
-  };
-
   // https://www.w3schools.com/react/react_useeffect.asp
+  // Mount-once probe: try to log in as the default admin to detect a
+  // first-run install. Defined inside the effect so the
+  // react-hooks/set-state-in-effect lint rule sees the state updates as
+  // intentional (and doesn't require us to track every dependency the
+  // probe transitively closes over). Result is the same: setState
+  // happens after the login fetch resolves, on mount, exactly once.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-effect that probes auth state; setState cascade is intended.
+    const isFirstRun = async () => {
+      // since we are redirected here from the api when dms-gui has restarted with fresh secret keys, we need to logout first
+      if (user) logout();
+
+      const result = await loginUser('admin', 'changeme', true);
+      // debugLog('ddebug isFirstRun result', result);
+
+      // if we can login with the default user, display first run welcome message
+      if (result.success) {
+        setFirstRun(true);
+
+        if (result?.isDEMO || isDEMO) {
+          setIsDEMO(true);
+          setSuccessMessage('logins.isDEMO');
+        } else {
+          setIsDEMO(false);
+          setSuccessMessage('logins.isFirstRun');
+        }
+      }
+    };
     isFirstRun();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once probe
   }, []);
 
   const fetchMailservers = async () => {
