@@ -46,6 +46,16 @@ export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
   }
 };
 
+// redactKey returns a short fingerprint suitable for logs: the first
+// four and last four characters separated by '...'. Anything shorter
+// than 12 chars is fully redacted to '***' (the prefix-suffix form
+// would leak too much). Use whenever a secret-like value (API key,
+// generated password) needs to appear in a log line for traceability.
+export const redactKey = (key) => {
+  if (typeof key !== 'string' || key.length < 12) return '***';
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+};
+
 // import {
 //   regexColors,
 //   regexPrintOnly,

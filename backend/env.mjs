@@ -182,31 +182,50 @@ def logger(message):
 def debugg(message):
   if LOG_LEVEL == 'debug': logger(message)
 
+def redact(s):
+  # Show first 4 + last 4 chars for traceability without leaking the
+  # full secret. Anything shorter than 12 chars is fully redacted —
+  # the prefix-suffix form would leak too much of a short value.
+  s = str(s) if s is not None else ''
+  if len(s) < 12: return '***'
+  return f"{s[:4]}...{s[-4:]}"
+
 class APIHandler(http.server.BaseHTTPRequestHandler):
 
   def do_POST(self):
-    # 1. Get the content length from the headers
-    api_key  = self.headers.get('Authorization', 'missing')
-    content_length  = int(self.headers.get('Content-Length', 0))
+    api_key = self.headers.get('Authorization', 'missing')
+    content_length = int(self.headers.get('Content-Length', 0))
 
-    # 2. Read the raw POST data from the request body
-    post_data = self.rfile.read(content_length)
+    # Reject oversized requests BEFORE reading the body. Previously
+    # the read happened first and the size check came after, so a
+    # caller (with the API key) could push arbitrary bytes into the
+    # process before the limit triggered — and the limit didn't
+    # actually short-circuit, it just set an error string and
+    # processing continued.
+    if content_length > DMS_API_SIZE:
+      response_message = {"status": "error", "error": "data received is too large"}
+      logger(response_message['error'])
+      self.send_response(413)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
 
-    # 3. Attempt to parse the data as JSON
+    # Defence in depth: cap the read at DMS_API_SIZE bytes even if
+    # Content-Length is missing or under-reports.
+    post_data = self.rfile.read(min(content_length, DMS_API_SIZE))
+
     try:
-      # 4. Rejects content > DMS_API_SIZE
-      if content_length > DMS_API_SIZE:
-        response_message = {"status": "error", "error": "data recieved is too large"}
-        logger(response_message['error'])
-
       json_data = json.loads(post_data.decode('utf-8'))
       debugg(f"Received JSON data: {json_data}")
-      
+
       command = json_data.get('command')
       timeout = json_data.get('timeout', timeout_default)
-      
-      debugg(f"      my API Key: {DMS_API_KEY}")
-      debugg(f"Received API Key: {api_key}")
+
+      # Never log the configured DMS_API_KEY in full; show only a
+      # fingerprint of the *received* key so failed-auth diagnosis
+      # is still possible.
+      debugg(f"Received API Key: {redact(api_key)}")
       debugg(f"Received command: {command}")
       debugg(f"Received timeout: {timeout}")
     
@@ -328,10 +347,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       else:
         if DMS_API_KEY != 'missing':
           if api_key != 'missing':
-            response_message = {"status": "error", "error": f"Invalid api_key: api_match: {str(api_key)}"}
+            response_message = {"status": "error", "error": f"Invalid api_key: api_match: {redact(api_key)}"}
           else:
             response_message = {"status": "error", "error": f"Missing api_key: api_miss"}
-        else: 
+        else:
           response_message = {"status": "error", "error": f"DMS api_key unset: api_unset"}
         logger(response_message['error'])
 

@@ -22,6 +22,7 @@ import {
   regexEmailRegex,
   regexUsername,
   safeUrl,
+  redactKey,
 } from '../common.mjs';
 
 describe('escapeShellArg', () => {
@@ -566,5 +567,34 @@ describe('safeUrl', () => {
 
   it('rejects relative path with no base', () => {
     expect(safeUrl('/some/path')).toBeNull();
+  });
+});
+
+describe('redactKey', () => {
+  it('shows first 4 and last 4 chars for keys >= 12 chars', () => {
+    expect(redactKey('mailserver-12345678-90ab-cdef-1234')).toBe('mail...1234');
+  });
+
+  it('returns *** for keys shorter than 12 chars', () => {
+    expect(redactKey('short')).toBe('***');
+    expect(redactKey('eleven-chrs')).toBe('***'); // 11 chars
+  });
+
+  it('returns *** for empty string', () => {
+    expect(redactKey('')).toBe('***');
+  });
+
+  it('returns *** for non-string input', () => {
+    expect(redactKey(null)).toBe('***');
+    expect(redactKey(undefined)).toBe('***');
+    expect(redactKey(12345)).toBe('***');
+    expect(redactKey({})).toBe('***');
+  });
+
+  it('does not include the middle of a real-looking key in output', () => {
+    const key = 'super-secret-actual-key-content-99999';
+    const out = redactKey(key);
+    expect(out).not.toContain('secret-actual-key-content');
+    expect(out).toContain('...');
   });
 });
