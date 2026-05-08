@@ -221,7 +221,8 @@ docker compose up -d
 | `NODE_ENV` | `production` | Node.js environment |
 | `DEBUG` | `false` | Enable debug logging |
 | `AES_SECRET` | — | **Required.** Encryption key for stored credentials. Generate once, never change. |
-| `AES_ALGO` | `aes-256-cbc` | Encryption algorithm |
+| `AES_ALGO` | `aes-256-gcm` | Encryption algorithm. Authenticated GCM is the only mode used for new writes since 2.2.0; `aes-256-cbc` is read only for one-time migration of older ciphertexts. |
+| `RESET_BASE_URL` | — | **Required for password reset.** Public base URL of your dms-gui (e.g. `https://epost.example.com`). See [Why this is required](#why-reset_base_url-is-required) below. |
 | `ACCESS_TOKEN_EXPIRY` | `1h` | JWT access token lifetime |
 | `REFRESH_TOKEN_EXPIRY` | `1d` | JWT refresh token lifetime |
 | `DMSGUI_CRON` | `0 1 23 * * *` | Daily restart schedule (regenerates JWT secrets) |
@@ -229,6 +230,12 @@ docker compose up -d
 | `HASH_LEN` | `64` | Password hash key length |
 | `LOG_COLORS` | `true` | Colored backend logs |
 | `isDEMO` | `false` | Demo mode — shows anonymized fake data, all write operations are no-ops |
+
+#### Why `RESET_BASE_URL` is required
+
+The dms-gui container runs behind a reverse proxy (Traefik) that handles TLS and routing. The container itself doesn't inherently know its public hostname — the only signals it has are HTTP headers like `Host` and `X-Forwarded-Host`, both of which are user-controllable in the absence of strict proxy hardening.
+
+A pre-2.2.0 deployment derived the password-reset URL from these headers. An attacker could send a request with a forged `X-Forwarded-Host: attacker.com` header; the reset email would point to the attacker's domain; clicking the link would leak the reset token. Since 2.2.0 the route refuses to send mail unless `RESET_BASE_URL` is set explicitly. Set it once in `.dms-gui.env` and forget it.
 
 ### DMS REST API Environment (in your DMS compose)
 
