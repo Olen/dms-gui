@@ -262,7 +262,7 @@ export const parsePostfixRegexFromDMS = async (stdout='') => {
         destination,
       });
     } else {
-      warnLog(`Failed to parse regex line: ${line}`);
+      warnLog(`Failed to parse regex line: ${lines[i]}`);
     }
   }
   return regexes;

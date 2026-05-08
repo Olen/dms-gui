@@ -197,10 +197,10 @@ async function execInContainer(command, containerName) {
 export const checkPort = async (targetDict={}) => {
   return new Promise((resolve) => {
 
-    if (env.isDEMO) return {success: true, message: 'port_open'};
+    if (env.isDEMO) return resolve({success: true, message: 'port_open'});
     try {
       const socket = new net.Socket();
-      socket.setTimeout((targetDict?.timeout || 0.3) * 1000);   // we don't accept less then 300ms reply time
+      socket.setTimeout((targetDict?.timeout ?? 0.3) * 1000);   // we don't accept less then 300ms reply time
 
       // Attempt to connect to the specified host and port
       socket.connect(targetDict.port, targetDict.host, () => {
@@ -290,7 +290,7 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
       const jsonData = Object.assign({}, 
         {
           command: command,
-          timeout: Number(targetDict?.timeout || env.timeout),
+          timeout: Number(targetDict?.timeout ?? env.timeout),
         },
         ...rest);
 
@@ -568,8 +568,9 @@ export const writeJson = async (jsonFile=null, DBdict={}) => {
       throw new Error(error.message);
     }
   } else {
-    errorLog(error.message);
-    throw new Error(error.message);
+    const msg = `writeJson: DBdict must be a plain object, got ${typeof DBdict}`;
+    errorLog(msg);
+    throw new Error(msg);
   }
 };
 

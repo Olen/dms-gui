@@ -551,7 +551,7 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       
     } else {
       errorLog(results.stderr);
-      return { success: false, error: results.sterr };
+      return { success: false, error: results.stderr };
     }
     
   } catch (error) {

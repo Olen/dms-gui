@@ -3,14 +3,14 @@ import crypto from 'node:crypto';
 
 dotenv.config({ path: '/app/config/.dms-gui.env' });
 export const env = {
-  debug: ((process.env?.DEBUG || '') == 'true') ? true : false,
+  debug: ((process.env.DEBUG || '').toLowerCase() == 'true') ? true : false,
 
   // const { name, version, description }: require('./package.json');
   DMSGUI_VERSION: (process.env.DMSGUI_VERSION.split("v").length == 2) ? process.env.DMSGUI_VERSION.split("v")[1] : process.env.DMSGUI_VERSION,
   DMSGUI_DESCRIPTION: process.env.DMSGUI_DESCRIPTION,
   HOSTNAME: process.env.HOSTNAME,
   NODE_ENV: process.env.NODE_ENV || 'production',
-  PORT_NODEJS: process.env.PORT_NODEJS || 3001,
+  PORT_NODEJS: Number(process.env.PORT_NODEJS) || 3001,
   TZ: process.env.TZ || 'UTC',
 
   // internals of dms-gui
@@ -99,7 +99,7 @@ export const env = {
   RESET_BASE_URL: process.env.RESET_BASE_URL || '',
 
 
-  LOG_COLORS: (process.env.LOG_COLORS === 'false') ? false : true,
+  LOG_COLORS: ((process.env.LOG_COLORS || '').toLowerCase() === 'false') ? false : true,
 
   // DEMO will activate a mock database and disable all refresh options
   isDEMO : ((process.env?.isDEMO || '').toLowerCase() == 'true') ? true : false,

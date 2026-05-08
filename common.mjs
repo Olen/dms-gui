@@ -83,7 +83,11 @@ export const funcName = (parent=4, onlyParent=false) => {
 
 
 export const fixStringType = string => {
-  return Number(string) ? Number(string) : string;
+  // Convert numeric strings to numbers; preserves '0' and '0.0' as numeric (the
+  // previous `Number(s) ? Number(s) : s` form fell back to the string for any
+  // value that coerced to a falsy number).
+  const n = Number(string);
+  return (string !== '' && string != null && !Number.isNaN(n)) ? n : string;
 };
 
 

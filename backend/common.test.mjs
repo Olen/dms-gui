@@ -119,8 +119,25 @@ describe('fixStringType', () => {
     expect(fixStringType('hello')).toBe('hello');
   });
 
-  it('returns zero string as string (falsy Number(0) edge case)', () => {
-    expect(fixStringType('0')).toBe('0');
+  it('converts the zero string to numeric 0', () => {
+    expect(fixStringType('0')).toBe(0);
+  });
+
+  it('converts decimal zero to numeric 0', () => {
+    expect(fixStringType('0.0')).toBe(0);
+  });
+
+  it('converts negative numeric string to number', () => {
+    expect(fixStringType('-7')).toBe(-7);
+  });
+
+  it('returns empty string as-is (does not coerce to 0)', () => {
+    expect(fixStringType('')).toBe('');
+  });
+
+  it('returns null/undefined unchanged (no NaN coercion)', () => {
+    expect(fixStringType(null)).toBe(null);
+    expect(fixStringType(undefined)).toBe(undefined);
   });
 });
 
