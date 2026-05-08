@@ -31,8 +31,10 @@ export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
   const trimmed = url.trim();
   if (!trimmed) return null;
   try {
-    // URL parsing tolerates leading/trailing whitespace; trim explicitly
-    // so 'javascript:...'.trim() does not slip past as 'http:'-prefixed.
+    // We parse the trimmed value (not `url`) so that the value we
+    // return matches the value we validated. `new URL()` already
+    // tolerates surrounding whitespace, so the trim here is a
+    // canonicalisation step, not a security-critical defence.
     const parsed = new URL(trimmed);
     // Both sides of the scheme comparison are lowercased so a caller can
     // pass either ['HTTPS:'] or ['https:'] and get the same result.

@@ -52,8 +52,16 @@ export const Login = () => {
       // since we are redirected here from the api when dms-gui has restarted with fresh secret keys, we need to logout first
       if (user) logout();
 
-      const result = await loginUser('admin', 'changeme', true);
-      // debugLog('ddebug isFirstRun result', result);
+      // loginUser rejects on non-2xx (e.g. 401 once the default admin
+      // password is no longer 'changeme') — that's the normal
+      // post-install state, not an error worth surfacing. Catch and
+      // treat any failure as "not a first-run install".
+      let result;
+      try {
+        result = await loginUser('admin', 'changeme', true);
+      } catch {
+        return;
+      }
 
       // if we can login with the default user, display first run welcome message
       if (result.success) {
