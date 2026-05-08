@@ -530,54 +530,6 @@ try {
 */
 
 
-export const readJson = async (jsonFile=null) => {
-  var json = {};
-
-  debugLog(`start to read ${jsonFile}`);
-  try {
-    debugLog(`checking if exist ${jsonFile}`);
-    
-    if (fs.existsSync(jsonFile)) {
-      debugLog(`reading ${jsonFile}`);
-      
-      const data = await fs.promises.readFile(jsonFile, "utf8");
-      json = JSON.parse(Buffer.from(data));
-      successLog(`json from ${jsonFile}`);
-      debugLog(`json from ${jsonFile}`, json);
-      
-    } else {
-      warnLog(`empty ${jsonFile}`);
-    }
-    return json;
-    
-  } catch (error) {
-    errorLog(error.message);
-    throw new Error(error.message);
-  }
-};
-
-
-
-export const writeJson = async (jsonFile=null, DBdict={}) => {
-  
-  if (DBdict.constructor == Object) {
-    try {
-
-      await writeFile(jsonFile, JSON.stringify(DBdict, null, 2));
-      successLog(`DBdict into ${jsonFile}`);
-
-      
-    } catch (error) {
-      errorLog(`${jsonFile} write error:`, error.message);
-      throw new Error(error.message);
-    }
-  } else {
-    const msg = `writeJson: DBdict must be a plain object, got ${typeof DBdict}`;
-    errorLog(msg);
-    throw new Error(msg);
-  }
-};
-
 
 export const writeFile = async (file=null, content='') => {
   

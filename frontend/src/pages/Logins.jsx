@@ -34,6 +34,7 @@ import {
   Button,
   DataTable,
   FormField,
+  PasswordChangeModal,
   SelectField,
   LoadingSpinner,
   Translate,
@@ -948,55 +949,16 @@ const Logins = () => {
       <Accordion tabs={loginTabs}>
       </Accordion>
 
-      {/* Password Change Modal using react-bootstrap */}
-      <Modal show={showPasswordModal} onHide={handleClosePasswordModal}>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {Translate('password.changePassword')} - {selectedLogin?.mailbox}{' '}
-            {/* Use optional chaining */}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {selectedLogin && ( // Ensure selectedLogin exists before rendering form
-            <form onSubmit={handleSubmitPasswordChange} ref={passwordFormRef}>
-              <FormField
-                type="password"
-                id="newPassword"
-                name="newPassword"
-                label="password.newPassword"
-                value={passwordFormData.newPassword}
-                onChange={handlePasswordInputChange}
-                error={passwordFormErrors.newPassword}
-                required
-              />
-
-              <FormField
-                type="password"
-                id="confirmPasswordModal"
-                name="confirmPassword"
-                label="password.confirmPassword"
-                value={passwordFormData.confirmPassword}
-                onChange={handlePasswordInputChange}
-                error={passwordFormErrors.confirmPassword}
-                required
-              />
-            </form>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          {/* Use refactored Button component */}
-          <Button
-            variant="secondary"
-            onClick={handleClosePasswordModal}
-            text="common.cancel"
-          />
-          <Button
-            variant="primary"
-            onClick={handleSubmitPasswordChange}
-            text="password.changePassword"
-          />
-        </Modal.Footer>
-      </Modal>
+      <PasswordChangeModal
+        subject={selectedLogin}
+        show={showPasswordModal}
+        onClose={handleClosePasswordModal}
+        onSubmit={handleSubmitPasswordChange}
+        formRef={passwordFormRef}
+        formData={passwordFormData}
+        formErrors={passwordFormErrors}
+        onChange={handlePasswordInputChange}
+      />
 
     </div>
   );

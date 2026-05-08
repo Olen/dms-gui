@@ -18,9 +18,6 @@ import {
   updateAccount,
   updateLogin,
   getConfigs,
-  getSieveRules,
-  saveSieveRules,
-  deleteSieveRules,
 } from '../services/api.mjs';
 
 import {
@@ -28,9 +25,12 @@ import {
   Button,
   FormField,
   LoadingSpinner,
+  PasswordChangeModal,
+  SieveModal,
   Translate,
   SelectField,
 } from '../components/index.jsx';
+import { useSieveRules } from '../hooks/useSieveRules';
 
 
 const Profile = () => {
@@ -60,14 +60,8 @@ const Profile = () => {
   });
   const [passwordFormErrors, setPasswordFormErrors] = useState({});
 
-  // State for sieve rules modal ---------------------------------
-  const [showSieveModal, setShowSieveModal] = useState(false);
-  const [sieveRules, setSieveRules] = useState(null);
-  const [sieveScriptExists, setSieveScriptExists] = useState(false);
-  const [sieveExternalScript, setSieveExternalScript] = useState(null);
-  const [isSieveLoading, setIsSieveLoading] = useState(false);
-  const [isSieveSaving, setIsSieveSaving] = useState(false);
-  const [newBlockAddress, setNewBlockAddress] = useState('');
+  // Sieve state + handlers extracted to a shared hook.
+  const sieve = useSieveRules({ containerName, setErrorMessage, setSuccessMessage });
 
   useEffect(() => {
     debugLog('user', user);
@@ -314,111 +308,6 @@ const Profile = () => {
   };
 
 
-  // Sieve rule handlers ------------------------------------------
-  const handleOpenSieve = async () => {
-    setShowSieveModal(true);
-    setIsSieveLoading(true);
-    setSieveExternalScript(null);
-    setSieveRules(null);
-    setSieveScriptExists(false);
-    setNewBlockAddress('');
-
-    try {
-      const result = await getSieveRules(containerName, user.mailbox);
-      if (result.success) {
-        const data = result.message;
-        setSieveScriptExists(data.scriptExists);
-        if (data.rules) {
-          setSieveRules(data.rules);
-        } else if (data.scriptExists && data.rawScript) {
-          setSieveExternalScript(data.rawScript);
-          setSieveRules({
-            forward: { enabled: false, address: '', keepCopy: true },
-            vacation: { enabled: false, subject: '', message: '', days: 7 },
-            block: { enabled: false, addresses: [] },
-          });
-        } else {
-          setSieveRules({
-            forward: { enabled: false, address: '', keepCopy: true },
-            vacation: { enabled: false, subject: '', message: '', days: 7 },
-            block: { enabled: false, addresses: [] },
-          });
-        }
-      } else {
-        setErrorMessage(result?.error);
-      }
-    } catch (error) {
-      errorLog('getSieveRules', error);
-      setErrorMessage('accounts.sieve.errorFetch');
-    } finally {
-      setIsSieveLoading(false);
-    }
-  };
-
-  const handleCloseSieve = () => {
-    setShowSieveModal(false);
-    setSieveRules(null);
-    setSieveExternalScript(null);
-  };
-
-  const handleSaveSieve = async () => {
-    if (!sieveRules) return;
-    setIsSieveSaving(true);
-    try {
-      const result = await saveSieveRules(containerName, user.mailbox, sieveRules);
-      if (result.success) {
-        setSuccessMessage('accounts.sieve.saved');
-        setSieveExternalScript(null);
-        setSieveScriptExists(true);
-      } else {
-        setErrorMessage(result?.error);
-      }
-    } catch (error) {
-      errorLog('saveSieveRules', error);
-      setErrorMessage('accounts.sieve.errorSave');
-    } finally {
-      setIsSieveSaving(false);
-    }
-  };
-
-  const handleDeleteSieve = async () => {
-    if (!window.confirm(t('accounts.sieve.confirmDelete'))) return;
-    setIsSieveSaving(true);
-    try {
-      const result = await deleteSieveRules(containerName, user.mailbox);
-      if (result.success) {
-        setSuccessMessage('accounts.sieve.deleted');
-        handleCloseSieve();
-      } else {
-        setErrorMessage(result?.error);
-      }
-    } catch (error) {
-      errorLog('deleteSieveRules', error);
-      setErrorMessage('accounts.sieve.errorDelete');
-    } finally {
-      setIsSieveSaving(false);
-    }
-  };
-
-  const updateSieveRule = (section, key, value) => {
-    setSieveRules(prev => ({
-      ...prev,
-      [section]: { ...prev[section], [key]: value },
-    }));
-  };
-
-  const addBlockAddress = () => {
-    const addr = newBlockAddress.trim();
-    if (!addr || !regexEmailStrict.test(addr)) return;
-    if (sieveRules.block.addresses.includes(addr)) return;
-    updateSieveRule('block', 'addresses', [...sieveRules.block.addresses, addr]);
-    setNewBlockAddress('');
-  };
-
-  const removeBlockAddress = (addr) => {
-    updateSieveRule('block', 'addresses', sieveRules.block.addresses.filter(a => a !== addr));
-  };
-
 
   if (isLoading) {
     return <LoadingSpinner />;
@@ -547,247 +436,26 @@ const Profile = () => {
             variant="secondary"
             icon="funnel"
             text={t('accounts.sieve.title')}
-            onClick={handleOpenSieve}
+            onClick={() => sieve.handleOpenSieve(user.mailbox)}
             className="me-2"
           />
         )}
       </Form>
 
-      {/* Password Change Modal using react-bootstrap */}
-      <Modal show={showPasswordModal} onHide={handleClosePasswordModal}>
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {Translate('password.changePassword')} - {selectedLogin?.username}{' '}
-            {/* Use optional chaining */}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {!selectedLogin?.isAdmin && !selectedLogin?.isAccount && <AlertMessage type="info" message={t('password.notMailbox')} />}
-          {selectedLogin && ( // Ensure selectedLogin exists before rendering form
-            <form onSubmit={handleSubmitPasswordChange} ref={passwordFormRef}>
-              <FormField
-                type="password"
-                id="newPassword"
-                name="newPassword"
-                label="password.newPassword"
-                value={passwordFormData.newPassword}
-                onChange={handlePasswordInputChange}
-                error={passwordFormErrors.newPassword}
-                required
-              />
+      <PasswordChangeModal
+        subject={selectedLogin}
+        subjectField="username"
+        showNotMailboxNotice={!selectedLogin?.isAdmin && !selectedLogin?.isAccount}
+        show={showPasswordModal}
+        onClose={handleClosePasswordModal}
+        onSubmit={handleSubmitPasswordChange}
+        formRef={passwordFormRef}
+        formData={passwordFormData}
+        formErrors={passwordFormErrors}
+        onChange={handlePasswordInputChange}
+      />
 
-              <FormField
-                type="password"
-                id="confirmPasswordModal"
-                name="confirmPassword"
-                label="password.confirmPassword"
-                value={passwordFormData.confirmPassword}
-                onChange={handlePasswordInputChange}
-                error={passwordFormErrors.confirmPassword}
-                required
-              />
-            </form>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          {/* Use refactored Button component */}
-          <Button
-            variant="secondary"
-            onClick={handleClosePasswordModal}
-            text="common.cancel"
-          />
-          <Button
-            variant="primary"
-            onClick={handleSubmitPasswordChange}
-            text="password.changePassword"
-          />
-        </Modal.Footer>
-      </Modal>
-
-      {/* Sieve Rules Modal */}
-      <Modal show={showSieveModal} onHide={handleCloseSieve} size="lg">
-        <Modal.Header closeButton>
-          <Modal.Title>
-            {Translate('accounts.sieve.title')} - {user?.mailbox}
-          </Modal.Title>
-        </Modal.Header>
-        <Modal.Body>
-          {isSieveLoading ? (
-            <LoadingSpinner />
-          ) : sieveRules ? (
-            <div>
-              {sieveExternalScript && (
-                <div className="alert alert-warning mb-3">
-                  <i className="bi bi-exclamation-triangle me-2"></i>
-                  {t('accounts.sieve.externalScript')}
-                  <pre className="mt-2 mb-0 small" style={{maxHeight: '150px', overflow: 'auto'}}>{sieveExternalScript}</pre>
-                </div>
-              )}
-
-              {/* Forward */}
-              <div className="card mb-3">
-                <div className="card-header d-flex align-items-center justify-content-between">
-                  <span><i className="bi bi-forward me-2"></i>{t('accounts.sieve.forward')}</span>
-                  <div className="form-check form-switch mb-0">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      checked={sieveRules.forward.enabled}
-                      onChange={(e) => updateSieveRule('forward', 'enabled', e.target.checked)}
-                    />
-                  </div>
-                </div>
-                {sieveRules.forward.enabled && (
-                  <div className="card-body">
-                    <div className="mb-2">
-                      <label className="form-label small">{t('accounts.sieve.forwardAddress')}</label>
-                      <input
-                        type="email"
-                        className="form-control form-control-sm"
-                        value={sieveRules.forward.address}
-                        onChange={(e) => updateSieveRule('forward', 'address', e.target.value)}
-                        placeholder="user@example.com"
-                      />
-                    </div>
-                    <div className="form-check">
-                      <input
-                        className="form-check-input"
-                        type="checkbox"
-                        id="sieveKeepCopy"
-                        checked={sieveRules.forward.keepCopy}
-                        onChange={(e) => updateSieveRule('forward', 'keepCopy', e.target.checked)}
-                      />
-                      <label className="form-check-label" htmlFor="sieveKeepCopy">
-                        {t('accounts.sieve.keepCopy')}
-                      </label>
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Vacation */}
-              <div className="card mb-3">
-                <div className="card-header d-flex align-items-center justify-content-between">
-                  <span><i className="bi bi-airplane me-2"></i>{t('accounts.sieve.vacation')}</span>
-                  <div className="form-check form-switch mb-0">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      checked={sieveRules.vacation.enabled}
-                      onChange={(e) => updateSieveRule('vacation', 'enabled', e.target.checked)}
-                    />
-                  </div>
-                </div>
-                {sieveRules.vacation.enabled && (
-                  <div className="card-body">
-                    <div className="mb-2">
-                      <label className="form-label small">{t('accounts.sieve.vacationSubject')}</label>
-                      <input
-                        type="text"
-                        className="form-control form-control-sm"
-                        value={sieveRules.vacation.subject}
-                        onChange={(e) => updateSieveRule('vacation', 'subject', e.target.value)}
-                      />
-                    </div>
-                    <div className="mb-2">
-                      <label className="form-label small">{t('accounts.sieve.vacationMessage')}</label>
-                      <textarea
-                        className="form-control form-control-sm"
-                        rows="3"
-                        value={sieveRules.vacation.message}
-                        onChange={(e) => updateSieveRule('vacation', 'message', e.target.value)}
-                      />
-                    </div>
-                    <div>
-                      <label className="form-label small">{t('accounts.sieve.vacationDays')}</label>
-                      <input
-                        type="number"
-                        className="form-control form-control-sm"
-                        style={{ maxWidth: '100px' }}
-                        value={sieveRules.vacation.days}
-                        onChange={(e) => updateSieveRule('vacation', 'days', parseInt(e.target.value, 10) || 7)}
-                        min="1"
-                        max="365"
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-
-              {/* Block Senders */}
-              <div className="card mb-3">
-                <div className="card-header d-flex align-items-center justify-content-between">
-                  <span><i className="bi bi-slash-circle me-2"></i>{t('accounts.sieve.block')}</span>
-                  <div className="form-check form-switch mb-0">
-                    <input
-                      className="form-check-input"
-                      type="checkbox"
-                      checked={sieveRules.block.enabled}
-                      onChange={(e) => updateSieveRule('block', 'enabled', e.target.checked)}
-                    />
-                  </div>
-                </div>
-                {sieveRules.block.enabled && (
-                  <div className="card-body">
-                    <div className="d-flex mb-2">
-                      <input
-                        type="email"
-                        className="form-control form-control-sm me-2"
-                        value={newBlockAddress}
-                        onChange={(e) => setNewBlockAddress(e.target.value)}
-                        placeholder={t('accounts.sieve.blockAddress')}
-                        onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addBlockAddress(); }}}
-                      />
-                      <Button
-                        variant="outline-secondary"
-                        size="sm"
-                        text="accounts.sieve.addAddress"
-                        onClick={addBlockAddress}
-                      />
-                    </div>
-                    {sieveRules.block.addresses.map((addr) => (
-                      <div key={addr} className="d-flex align-items-center mb-1">
-                        <span className="me-2 small">{addr}</span>
-                        <button
-                          type="button"
-                          className="btn btn-sm btn-outline-danger py-0 px-1"
-                          onClick={() => removeBlockAddress(addr)}
-                        >
-                          <i className="bi bi-x"></i>
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </div>
-          ) : (
-            <p className="text-muted">{t('accounts.sieve.noRules')}</p>
-          )}
-        </Modal.Body>
-        <Modal.Footer>
-          {sieveScriptExists && (
-            <Button
-              variant="danger"
-              onClick={handleDeleteSieve}
-              text="accounts.sieve.delete"
-              disabled={isSieveSaving}
-              className="me-auto"
-            />
-          )}
-          <Button
-            variant="secondary"
-            onClick={handleCloseSieve}
-            text="common.cancel"
-          />
-          <Button
-            variant="primary"
-            onClick={handleSaveSieve}
-            text="accounts.sieve.save"
-            disabled={isSieveSaving || isSieveLoading || !sieveRules}
-          />
-        </Modal.Footer>
-      </Modal>
+      <SieveModal sieve={sieve} titleMailbox={user?.mailbox} />
 
     </div>
   );

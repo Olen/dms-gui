@@ -3,6 +3,7 @@ import { Badge, Modal, Form, Table } from 'react-bootstrap';
 import { Trans, useTranslation } from 'react-i18next';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { getDomains, getDnsLookup, generateDkim, getDkimSelector, getDnsblCheck, updateDomain, getConfigs, getSettings, pushDnsRecord } from '../services/api.mjs';
+import { regexEmailStrict } from '../../../common.mjs';
 
 import {
   AlertMessage,
@@ -356,13 +357,12 @@ const Domains = () => {
     setEditSaving(true);
     setEditError(null);
     setEditSuccess(null);
-    const emailRe = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (dmarcRua && !emailRe.test(dmarcRua.trim())) {
+    if (dmarcRua && !regexEmailStrict.test(dmarcRua.trim())) {
       setEditError('domains.invalidEmail');
       setEditSaving(false);
       return;
     }
-    if (dmarcRuf && !emailRe.test(dmarcRuf.trim())) {
+    if (dmarcRuf && !regexEmailStrict.test(dmarcRuf.trim())) {
       setEditError('domains.invalidEmail');
       setEditSaving(false);
       return;
