@@ -1,6 +1,19 @@
 import { Router } from 'express';
-import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
-import { addAccount, deleteAccount, doveadm, getAccounts, setQuota } from '../accounts.mjs';
+import {
+  authenticateToken,
+  denyPermission,
+  requireActive,
+  requireAdmin,
+  serverError,
+  validateContainerName,
+} from '../middleware.js';
+import {
+  addAccount,
+  deleteAccount,
+  doveadm,
+  getAccounts,
+  setQuota,
+} from '../accounts.mjs';
 import { getSieveRules, saveSieveRules, deleteSieveRules } from '../sieve.mjs';
 import { updateDB } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
@@ -34,29 +47,30 @@ router.param('containerName', validateContainerName);
  *       500:
  *         description: Unable to retrieve accounts
  */
-router.get('/accounts/:containerName',
+router.get(
+  '/accounts/:containerName',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    const refresh = ('refresh' in req.query) ? req.query.refresh : false;
+  async (req, res) => {
+    try {
+      const { containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      const refresh = 'refresh' in req.query ? req.query.refresh : false;
 
-    // Users can only pull their own mailboxes or those in their roles (unless admin)
-    let accounts;
-    if (req.user.isAdmin) {
-      accounts = await getAccounts(containerName, refresh);
-
-    } else {
-      accounts = await getAccounts(containerName, false, req.user.roles);
+      // Users can only pull their own mailboxes or those in their roles (unless admin)
+      let accounts;
+      if (req.user.isAdmin) {
+        accounts = await getAccounts(containerName, refresh);
+      } else {
+        accounts = await getAccounts(containerName, false, req.user.roles);
+      }
+      res.json(accounts);
+    } catch (error) {
+      serverError(res, 'GET /api/accounts', error);
     }
-    res.json(accounts);
-
-  } catch (error) {
-    serverError(res, 'GET /api/accounts', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -102,26 +116,36 @@ async (req, res) => {
  *       500:
  *         description: Unable to create account
  */
-router.post('/accounts/:schema/:containerName',
+router.post(
+  '/accounts/:schema/:containerName',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { schema, containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { schema, containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const { mailbox, password, createLogin } = req.body;
-    if (!mailbox || !password) {
-      return res.status(400).json({ error: 'Mailbox and password are required' });
+      const { mailbox, password, createLogin } = req.body;
+      if (!mailbox || !password) {
+        return res
+          .status(400)
+          .json({ error: 'Mailbox and password are required' });
+      }
+      const result = await addAccount(
+        schema,
+        containerName,
+        mailbox,
+        password,
+        createLogin
+      );
+      res.status(201).json(result);
+    } catch (error) {
+      serverError(res, 'POST /api/accounts', error);
     }
-    const result = await addAccount(schema, containerName, mailbox, password, createLogin);
-    res.status(201).json(result);
-
-  } catch (error) {
-    serverError(res, 'POST /api/accounts', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -162,30 +186,46 @@ async (req, res) => {
  *       500:
  *         description: See error message
  */
-router.put('/doveadm/:schema/:containerName/:command/:mailbox',
+router.put(
+  '/doveadm/:schema/:containerName/:command/:mailbox',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { schema, containerName, command, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!command || !mailbox) return res.status(400).json({ error: 'Command and Mailbox are required' });
+  async (req, res) => {
+    try {
+      const { schema, containerName, command, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!command || !mailbox)
+        return res
+          .status(400)
+          .json({ error: 'Command and Mailbox are required' });
 
-    // Users can only act on their own mailboxes or those in their roles (unless admin)
-    let result;
-    if (req.user.isAdmin) {
-      result = await doveadm(schema, containerName, command, mailbox, req.body);
-
-    } else {
-      if (!req.user.roles.includes(mailbox)) return denyPermission(res);
-      result = await doveadm(schema, containerName, command, mailbox, req.body);
+      // Users can only act on their own mailboxes or those in their roles (unless admin)
+      let result;
+      if (req.user.isAdmin) {
+        result = await doveadm(
+          schema,
+          containerName,
+          command,
+          mailbox,
+          req.body
+        );
+      } else {
+        if (!req.user.roles.includes(mailbox)) return denyPermission(res);
+        result = await doveadm(
+          schema,
+          containerName,
+          command,
+          mailbox,
+          req.body
+        );
+      }
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PUT /api/doveadm', error);
     }
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PUT /api/doveadm', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -220,24 +260,26 @@ async (req, res) => {
  *       500:
  *         description: Unable to delete account
  */
-router.delete('/accounts/:containerName/:mailbox',
+router.delete(
+  '/accounts/:containerName/:mailbox',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox) {
-      return res.status(400).json({ error: 'Mailbox is required' });
+  async (req, res) => {
+    try {
+      const { containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox) {
+        return res.status(400).json({ error: 'Mailbox is required' });
+      }
+      const result = await deleteAccount('dms', containerName, mailbox);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'DELETE /api/accounts', error);
     }
-    const result = await deleteAccount('dms', containerName, mailbox);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'DELETE /api/accounts', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -274,28 +316,31 @@ async (req, res) => {
  *       500:
  *         description: Unable to set quota
  */
-router.put('/accounts/:containerName/:mailbox/quota',
+router.put(
+  '/accounts/:containerName/:mailbox/quota',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+  async (req, res) => {
+    try {
+      const { containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox)
+        return res.status(400).json({ error: 'mailbox is required' });
 
-    const { quota } = req.body;
-    const result = await setQuota(containerName, mailbox, quota);
-    if (result.success) {
-      // Trigger account refresh to update stored quota data
-      await getAccounts(containerName, true);
+      const { quota } = req.body;
+      const result = await setQuota(containerName, mailbox, quota);
+      if (result.success) {
+        // Trigger account refresh to update stored quota data
+        await getAccounts(containerName, true);
+      }
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PUT /api/accounts/quota', error);
     }
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PUT /api/accounts/quota', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -343,40 +388,43 @@ async (req, res) => {
  *       500:
  *         description: Unable to update account
  */
-router.patch('/accounts/:schema/:containerName/:mailbox',
+router.patch(
+  '/accounts/:schema/:containerName/:mailbox',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { schema, containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox)       return res.status(400).json({ error: 'Mailbox is required' });
+  async (req, res) => {
+    try {
+      const { schema, containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox)
+        return res.status(400).json({ error: 'Mailbox is required' });
 
-    // Users can only act on their own mailboxes or those in their roles (unless admin)
-    let result, jsonDict;
+      // Users can only act on their own mailboxes or those in their roles (unless admin)
+      let result, jsonDict;
 
-    if (req.user.isAdmin) {
-      jsonDict = {...req.body, schema:schema};
-      result = await updateDB('accounts', mailbox, jsonDict, containerName);
-
-    } else {
-      if (!req.user.roles.includes(mailbox)) return denyPermission(res);
-      // Strip privilege-escalation fields before updateDB. updateDB filters
-      // jsonDict against sql.accounts.keys, but configID is a valid key and
-      // a non-admin who can update their own account could otherwise pass
-      // a different configID and reassign their account to another mail
-      // server's config. Same defence-in-depth pattern PATCH /api/logins
-      // already uses (it strips isAdmin/isActive/roles for non-admins).
-      const { configID, ...safeBody } = req.body;
-      jsonDict = {...safeBody, schema:schema};
-      result = await updateDB('accounts', mailbox, jsonDict, containerName);
+      if (req.user.isAdmin) {
+        jsonDict = { ...req.body, schema: schema };
+        result = await updateDB('accounts', mailbox, jsonDict, containerName);
+      } else {
+        if (!req.user.roles.includes(mailbox)) return denyPermission(res);
+        // Strip privilege-escalation fields before updateDB. updateDB filters
+        // jsonDict against sql.accounts.keys, but configID is a valid key and
+        // a non-admin who can update their own account could otherwise pass
+        // a different configID and reassign their account to another mail
+        // server's config. Same defence-in-depth pattern PATCH /api/logins
+        // already uses (it strips isAdmin/isActive/roles for non-admins).
+        const safeBody = { ...req.body };
+        delete safeBody.configID;
+        jsonDict = { ...safeBody, schema: schema };
+        result = await updateDB('accounts', mailbox, jsonDict, containerName);
+      }
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PATCH /api/accounts', error);
     }
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PATCH /api/accounts', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -400,26 +448,29 @@ async (req, res) => {
  *       500:
  *         description: Unable to retrieve sieve rules
  */
-router.get('/sieve/:containerName/:mailbox',
+router.get(
+  '/sieve/:containerName/:mailbox',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+  async (req, res) => {
+    try {
+      const { containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox)
+        return res.status(400).json({ error: 'mailbox is required' });
 
-    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-      return res.status(403).json({ error: 'Permission denied' });
+      if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+        return res.status(403).json({ error: 'Permission denied' });
+      }
+
+      const result = await getSieveRules(containerName, mailbox);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/sieve', error);
     }
-
-    const result = await getSieveRules(containerName, mailbox);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'GET /api/sieve', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -452,29 +503,32 @@ async (req, res) => {
  *       500:
  *         description: Unable to save sieve rules
  */
-router.put('/sieve/:containerName/:mailbox',
+router.put(
+  '/sieve/:containerName/:mailbox',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+  async (req, res) => {
+    try {
+      const { containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox)
+        return res.status(400).json({ error: 'mailbox is required' });
 
-    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-      return res.status(403).json({ error: 'Permission denied' });
+      if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+        return res.status(403).json({ error: 'Permission denied' });
+      }
+
+      const { rules } = req.body;
+      if (!rules) return res.status(400).json({ error: 'rules are required' });
+
+      const result = await saveSieveRules(containerName, mailbox, rules);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PUT /api/sieve', error);
     }
-
-    const { rules } = req.body;
-    if (!rules) return res.status(400).json({ error: 'rules are required' });
-
-    const result = await saveSieveRules(containerName, mailbox, rules);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PUT /api/sieve', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -498,25 +552,28 @@ async (req, res) => {
  *       500:
  *         description: Unable to delete sieve rules
  */
-router.delete('/sieve/:containerName/:mailbox',
+router.delete(
+  '/sieve/:containerName/:mailbox',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName, mailbox } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!mailbox) return res.status(400).json({ error: 'mailbox is required' });
+  async (req, res) => {
+    try {
+      const { containerName, mailbox } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      if (!mailbox)
+        return res.status(400).json({ error: 'mailbox is required' });
 
-    if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-      return res.status(403).json({ error: 'Permission denied' });
+      if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
+        return res.status(403).json({ error: 'Permission denied' });
+      }
+
+      const result = await deleteSieveRules(containerName, mailbox);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'DELETE /api/sieve', error);
     }
-
-    const result = await deleteSieveRules(containerName, mailbox);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'DELETE /api/sieve', error);
   }
-});
+);
 
 export default router;

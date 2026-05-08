@@ -3,10 +3,13 @@ import crypto from 'node:crypto';
 
 dotenv.config({ path: '/app/config/.dms-gui.env' });
 export const env = {
-  debug: ((process.env.DEBUG || '').toLowerCase() == 'true') ? true : false,
+  debug: (process.env.DEBUG || '').toLowerCase() == 'true' ? true : false,
 
   // const { name, version, description }: require('./package.json');
-  DMSGUI_VERSION: (process.env.DMSGUI_VERSION.split("v").length == 2) ? process.env.DMSGUI_VERSION.split("v")[1] : process.env.DMSGUI_VERSION,
+  DMSGUI_VERSION:
+    process.env.DMSGUI_VERSION.split('v').length == 2
+      ? process.env.DMSGUI_VERSION.split('v')[1]
+      : process.env.DMSGUI_VERSION,
   DMSGUI_DESCRIPTION: process.env.DMSGUI_DESCRIPTION,
   HOSTNAME: process.env.HOSTNAME,
   NODE_ENV: process.env.NODE_ENV || 'production',
@@ -14,21 +17,24 @@ export const env = {
   TZ: process.env.TZ || 'UTC',
 
   // internals of dms-gui
-  FRONTEND_URL  : process.env.FRONTEND_URL || '/api',     // for cors if you really are crazy with this sort of security
-  API_URL  : process.env.API_URL || '/api',               // for cors too
-  DMSGUI_CONFIG_PATH  : process.env.DMSGUI_CONFIG_PATH || '/app/config',
-  DATABASE: (process.env.isDEMO === 'true') ? '/app/config/dms-gui-demo.sqlite3' : (process.env.DATABASE || '/app/config/dms-gui.sqlite3'),
+  FRONTEND_URL: process.env.FRONTEND_URL || '/api', // for cors if you really are crazy with this sort of security
+  API_URL: process.env.API_URL || '/api', // for cors too
+  DMSGUI_CONFIG_PATH: process.env.DMSGUI_CONFIG_PATH || '/app/config',
+  DATABASE:
+    process.env.isDEMO === 'true'
+      ? '/app/config/dms-gui-demo.sqlite3'
+      : process.env.DATABASE || '/app/config/dms-gui.sqlite3',
   DATABASE_SAMPLE: '/app/config/dms-gui-example.sqlite3',
   DATABASE_SAMPLE_LIVE: '/app/config/dms-gui-demo.sqlite3',
 
   // some selectors in the DKIM UI
-  DKIM_KEYTYPES: ['rsa','ed25519'],
-  DKIM_KEYSIZES: ['1024','2048'],
+  DKIM_KEYTYPES: ['rsa', 'ed25519'],
+  DKIM_KEYSIZES: ['1024', '2048'],
   DKIM_KEYTYPE_DEFAULT: 'rsa',
   DKIM_KEYSIZE_DEFAULT: 2048,
 
-  // variables we will capture from DMS 
-  DMS_OPTIONS  : [
+  // variables we will capture from DMS
+  DMS_OPTIONS: [
     'TZ',
     'HOSTNAME',
     'DMS_RELEASE',
@@ -44,13 +50,19 @@ export const env = {
   isImmutable: 0,
 
   // other DMS internals defaults
-  DMS_SETUP_SCRIPT: ((process.env.DMS_SETUP_SCRIPT) ? process.env.DMS_SETUP_SCRIPT : '/usr/local/bin/setup'),
-  DMS_CONFIG_PATH: ((process.env.DMS_CONFIG_PATH) ? process.env.DMS_CONFIG_PATH : '/tmp/docker-mailserver'),
-  DKIM_SELECTOR_DEFAULT: ((process.env.DKIM_SELECTOR_DEFAULT) ? process.env.DKIM_SELECTOR_DEFAULT : 'mail'), // hardcoded in DMS
-  protocol: "http",
+  DMS_SETUP_SCRIPT: process.env.DMS_SETUP_SCRIPT
+    ? process.env.DMS_SETUP_SCRIPT
+    : '/usr/local/bin/setup',
+  DMS_CONFIG_PATH: process.env.DMS_CONFIG_PATH
+    ? process.env.DMS_CONFIG_PATH
+    : '/tmp/docker-mailserver',
+  DKIM_SELECTOR_DEFAULT: process.env.DKIM_SELECTOR_DEFAULT
+    ? process.env.DKIM_SELECTOR_DEFAULT
+    : 'mail', // hardcoded in DMS
+  protocol: 'http',
   port: 8888,
   timeout: 4,
-  containerName: "dms",
+  containerName: 'dms',
 
   // JWT_SECRET and JWT_SECRET_REFRESH regenerated when container starts, and will invalidates all sessions
   JWT_SECRET: process.env.JWT_SECRET,
@@ -73,7 +85,11 @@ export const env = {
   // AES_HASH is the used to hash the secret key
   AES_HASH: process.env.AES_HASH || 'sha512',
   // Derive a 256-bit key from your secretKey (raw 32 bytes for true AES-256)
-  AES_KEY: crypto.createHash(process.env.AES_HASH || 'sha512').update(process.env.AES_SECRET || 'changeme').digest().subarray(0, 32),
+  AES_KEY: crypto
+    .createHash(process.env.AES_HASH || 'sha512')
+    .update(process.env.AES_SECRET || 'changeme')
+    .digest()
+    .subarray(0, 32),
 
   // doveadm API port, possible to especially with dovecot 2.4, but not used and likely never will
   // DOVEADM_PORT: ((process.env.DOVEADM_PORT) ? process.env.DOVEADM_PORT : 8080),
@@ -88,7 +104,10 @@ export const env = {
   //                                              │ │ │  │ │ │
   //                                              │ │ │  │ │ │
   //                                              * * *  * * *
-  DMSGUI_CRON: (process.env.isDEMO === 'true') ? '6 7 *  * * *' : (process.env.DMSGUI_CRON || '* 1 23 * * *'),
+  DMSGUI_CRON:
+    process.env.isDEMO === 'true'
+      ? '6 7 *  * * *'
+      : process.env.DMSGUI_CRON || '* 1 23 * * *',
 
   // SMTP for password reset emails (local delivery to DMS container, no auth)
   SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
@@ -98,27 +117,25 @@ export const env = {
   // If not set, derived from X-Forwarded-Proto/Host headers (set by reverse proxy)
   RESET_BASE_URL: process.env.RESET_BASE_URL || '',
 
-
-  LOG_COLORS: ((process.env.LOG_COLORS || '').toLowerCase() === 'false') ? false : true,
+  LOG_COLORS:
+    (process.env.LOG_COLORS || '').toLowerCase() === 'false' ? false : true,
 
   // DEMO will activate a mock database and disable all refresh options
-  isDEMO : ((process.env?.isDEMO || '').toLowerCase() == 'true') ? true : false,
-  github : 'https://github.com/audioscavenger/dms-gui',
-  wiki : 'https://github.com/audioscavenger/dms-gui',
-  dockerhub : 'https://hub.docker.com/repositories/audioscavenger',
-
-}
+  isDEMO: (process.env?.isDEMO || '').toLowerCase() == 'true' ? true : false,
+  github: 'https://github.com/audioscavenger/dms-gui',
+  wiki: 'https://github.com/audioscavenger/dms-gui',
+  dockerhub: 'https://hub.docker.com/repositories/audioscavenger',
+};
 
 // we don't set any defaults here, as they will override whatever users set // cancelled, we only use the db
 // export var live = {
-  // // Docker container name for docker-mailserver  // cancelled
-  // DMS_CONTAINER: process.env.DMS_CONTAINER,
-  // containers: {},   // used to hold the DMS Docker.containers but we don't use docker.sock anymore
+// // Docker container name for docker-mailserver  // cancelled
+// DMS_CONTAINER: process.env.DMS_CONTAINER,
+// containers: {},   // used to hold the DMS Docker.containers but we don't use docker.sock anymore
 
-
-  // // DMS API key and port we need, to execute commands in DMS container; must be in DMS environement too // cancelled
-  // DMS_API_KEY: process.env.DMS_API_KEY,
-  // DMS_API_PORT: process.env.DMS_API_PORT,
+// // DMS API key and port we need, to execute commands in DMS container; must be in DMS environement too // cancelled
+// DMS_API_KEY: process.env.DMS_API_KEY,
+// DMS_API_PORT: process.env.DMS_API_PORT,
 
 // };
 
@@ -133,7 +150,6 @@ nohup /usr/bin/python3 $(dirname $0)/rest-api.py &
 `,
   },
 */
-
 
 export const mailserverRESTAPI = {
   dms: {
@@ -237,6 +253,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 elif tok in ('>', '>>'):
                   if i + 1 >= len(tokens):
                     return 1, '', f"redirect operator '{tok}' requires a filename"
+                  if i + 2 < len(tokens):
+                    # We only support a trailing redirect on the final
+                    # pipeline stage. Mid-pipeline redirects (e.g.
+                    # 'a > out | b') would have shell semantics we don't
+                    # replicate (the redirect would attach to the LEFT
+                    # process's stdout and break the pipe), so reject
+                    # them rather than silently doing the wrong thing.
+                    return 1, '', f"redirect operator '{tok}' must be the last operator in the command"
                   redir_mode = 'a' if tok == '>>' else 'w'
                   redir_file = tokens[i + 1]
                   i += 1  # consume filename token
@@ -346,7 +370,7 @@ with socketserver.TCPServer((DMS_API_HOST, DMS_API_PORT), APIHandler) as httpd:
     cron: {
       desc: 'https://github.com/orgs/docker-mailserver/discussions/2908 - mount this to /etc/supervisor/conf.d/rest-api.conf',
       path: env.DMSGUI_CONFIG_PATH + '/rest-api.conf',
-      content:`
+      content: `
 [program:rest-api]
 startsecs=1
 stopwaitsecs=0
@@ -358,8 +382,7 @@ command=/usr/bin/python3 /tmp/docker-mailserver/dms-gui/rest-api.py
 `,
     },
   },
-}
-
+};
 
 // https://github.com/orgs/docker-mailserver/discussions/2908
 // Much better to just use a supervisord service config like I had shown over a month ago:
@@ -375,12 +398,10 @@ command=/usr/bin/python3 /tmp/docker-mailserver/dms-gui/rest-api.py
 // stderr_logfile=/var/log/supervisor/%(program_name)s.log
 // command=/usr/bin/python3 /tmp/docker-mailserver/rest-api.py
 
-
 // plugins are only for settings where isMutable=1 and not the environment where isMutable=0 or anything else
 // TODO: plugins and schemas should be in their own table really
-export const plugins =
-{
-  "dms-gui": {
+export const plugins = {
+  'dms-gui': {
     DB_VERSION: {
       config: env.DMSGUI_VERSION,
       settings: env.DMSGUI_VERSION,
@@ -403,20 +424,20 @@ export const plugins =
   //     isAdmin:0,
   //     isAccount:1,
   //     isActive:1,
-  //     mailserver:'', 
+  //     mailserver:'',
   //     roles:[],
   //   },
 
   mailserver: {
     dms: {
       keys: {
-        containerName: "containerName",
-        protocol: "protocol",
-        host: "containerName",
-        port: "DMS_API_PORT",
-        Authorization: "DMS_API_KEY",
-        setupPath: "setupPath",
-        timeout: "timeout",
+        containerName: 'containerName',
+        protocol: 'protocol',
+        host: 'containerName',
+        port: 'DMS_API_PORT',
+        Authorization: 'DMS_API_KEY',
+        setupPath: 'setupPath',
+        timeout: 'timeout',
       },
       defaults: {
         containerName: env.containerName,
@@ -445,38 +466,39 @@ export const plugins =
       DOVECOT_ZLIB: 1,
       DKIM_ENABLED: 'true',
       DKIM_SELECTOR: 'dkim',
-      DKIM_PATH: '/tmp/docker-mailserver/rspamd/dkim/rsa-2048-$selector-$domain.private.txt'
+      DKIM_PATH:
+        '/tmp/docker-mailserver/rspamd/dkim/rsa-2048-$selector-$domain.private.txt',
     },
   },
 
   dnscontrol: {
     cloudflare: {
-      desc: "https://developers.cloudflare.com/api/",
-      TYPE: "CLOUDFLAREAPI",
-      apitoken: "your-cloudflare-api-token",
+      desc: 'https://developers.cloudflare.com/api/',
+      TYPE: 'CLOUDFLAREAPI',
+      apitoken: 'your-cloudflare-api-token',
     },
     domeneshop: {
-      desc: "https://api.domeneshop.no/docs/",
-      TYPE: "DOMAINNAMESHOP",
-      token: "your-api-token",
-      secret: "your-api-secret",
+      desc: 'https://api.domeneshop.no/docs/',
+      TYPE: 'DOMAINNAMESHOP',
+      token: 'your-api-token',
+      secret: 'your-api-secret',
     },
     digitalocean: {
-      desc: "https://docs.digitalocean.com/reference/api/",
-      TYPE: "DIGITALOCEAN",
-      apitoken: "your-digitalocean-api-token",
+      desc: 'https://docs.digitalocean.com/reference/api/',
+      TYPE: 'DIGITALOCEAN',
+      apitoken: 'your-digitalocean-api-token',
     },
     hetzner: {
-      desc: "https://dns.hetzner.com/api-docs",
-      TYPE: "HETZNER",
-      apitoken: "your-hetzner-dns-api-token",
+      desc: 'https://dns.hetzner.com/api-docs',
+      TYPE: 'HETZNER',
+      apitoken: 'your-hetzner-dns-api-token',
     },
-  }
-}
+  },
+};
 
 export const command = {
-  "dms-gui": {
-    "dms-gui": {
+  'dms-gui': {
+    'dms-gui': {
       kill: `sleep 1 && kill -9 $(pgrep "master process nginx")`,
     },
   },
@@ -484,6 +506,6 @@ export const command = {
   mailserver: {
     dms: {
       kill: `sleep 1 && kill -9 $(pgrep "supervisord")`,
-    }
-  }
+    },
+  },
 };
