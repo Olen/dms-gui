@@ -68,10 +68,19 @@ export const getLogin = async (credential, guess=false) => {
 
     } else if (typeof credential === "object" && Object.keys(credential).length === 1) {
       const key = Object.keys(credential)[0];
-      if (!['id', 'mailbox', 'username'].includes(key)) {
+      // Static-statement dispatch — replaces a previous string-replace into
+      // the SQL template (loginObj.replace("{key}", key)) which would have
+      // been an SQL-injection vector if a future caller bypassed the
+      // allowlist below.
+      const stmt = {
+        id:       sql.logins.select.login,
+        mailbox:  sql.logins.select.loginByMailbox,
+        username: sql.logins.select.loginByUsername,
+      }[key];
+      if (!stmt) {
         return {success: false, message: 'invalid credential key'};
       }
-      login = dbGet(sql.logins.select.loginObj.replace("{key}", key), credential);
+      login = dbGet(stmt, credential);
     }
     if (login.success) {
       
@@ -165,10 +174,16 @@ export const getRoles = async (credential=null) => {
       roles = dbGet(sql.logins.select.roles, {[sql.logins.id]: credential});
     } else if (typeof credential === "object" && Object.keys(credential).length === 1) {
       const key = Object.keys(credential)[0];
-      if (!['id', 'mailbox', 'username'].includes(key)) {
+      // Static-statement dispatch (see getLogin for the same pattern).
+      const stmt = {
+        id:       sql.logins.select.roles,
+        mailbox:  sql.logins.select.rolesByMailbox,
+        username: sql.logins.select.rolesByUsername,
+      }[key];
+      if (!stmt) {
         return {success: false, message: 'invalid credential key'};
       }
-      roles = dbGet(sql.logins.select.rolesObj.replace("{key}", key), credential);
+      roles = dbGet(stmt, credential);
     }
     if (roles.success) {
       return {success: true, message: JSON.parse(roles.message)};
