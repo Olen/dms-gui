@@ -141,10 +141,12 @@ const Accounts = () => {
       const accountsData = await getAccounts(containerName, refresh);
       if (accountsData.success) {
         if (refresh) sessionStorage.setItem('accountsRefreshed', '1');
-        // Ensure usedBytes exists for sorting (computed from human-readable 'used' field)
+        // Ensure usedBytes exists for sorting (computed from human-readable 'used' field).
+        // Spread (not mutate) so the API response objects stay immutable — direct
+        // mutation broke React's same-reference equality checks downstream.
         const enriched = accountsData.message.map(a => {
           if (a.storage && a.storage.used && !a.storage.usedBytes) {
-            a.storage.usedBytes = Number(humanSize2ByteSize(a.storage.used));
+            return { ...a, storage: { ...a.storage, usedBytes: Number(humanSize2ByteSize(a.storage.used)) } };
           }
           return a;
         });

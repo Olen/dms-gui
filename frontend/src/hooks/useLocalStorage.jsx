@@ -26,9 +26,11 @@ export const useLocalStorage = (key, initialValue) => {
     if (typeof window === 'undefined') return initialValue;
     
     const raw = localStorage.getItem(key) || initialValue;   // returns null when not exist so let's use initialValue instead
-    
-    // Check if the raw string changed before parsing
-    if (key == 'containerName') console.debug(`${key}.raw: ${JSON.stringify(cache.current.raw)} == ${JSON.stringify(raw)}`);
+
+    // Check if the raw string changed before parsing.
+    // (A diagnostic console.debug for `containerName` used to fire on every
+    //  render of every page; removed because the cost outweighed any value
+    //  in production.)
     if (cache.current.raw !== raw) {
       cache.current.raw = raw;
       try {

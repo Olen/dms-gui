@@ -924,7 +924,7 @@ const Logins = () => {
           <DataTable
           columns={columns}
           data={logins}
-          keyExtractor={(login) => login.mailbox}
+          keyExtractor={(login) => login.id}
           isLoading={isLoading}
           emptyMessage="logins.noLogins"
           />

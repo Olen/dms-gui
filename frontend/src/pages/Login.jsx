@@ -114,7 +114,7 @@ export const Login = () => {
       // Here you would usually send a request to your backend to authenticate the user
       // For the sake of this example, we're using a mock authentication
       const result = await loginUser(credential, password);
-      console.debug('ddebug loginUser result=', result.message);
+      debugLog('loginUser result=', result.message);
       // without JWT: {"mailbox":"eric@domain.com","username":"eric","email":"","isAdmin":0,"isActive":1,"isAccount":0,"roles":["eric@domain.com"]}
       // with    JWT: { accessToken: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.xxx" }
       

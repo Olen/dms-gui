@@ -69,14 +69,19 @@ const Profile = () => {
   const [isSieveSaving, setIsSieveSaving] = useState(false);
   const [newBlockAddress, setNewBlockAddress] = useState('');
 
-  // https://www.w3schools.com/react/react_useeffect.asp
   useEffect(() => {
-    debugLog('user',user);
-    setLoading(true);
-    if (!mailservers || !mailservers.length) fetchMailservers();
+    debugLog('user', user);
+    // Initial setup is synchronous: copy user into the form. The previous
+    // setLoading(true)/setLoading(false) sandwich never let the spinner
+    // render because both calls fired in the same React batch. mailservers
+    // is fired and awaited so the spinner stays up until the list is ready.
     setloginFormData(user);
-    setLoading(false);
-    debugLog('loginFormData',loginFormData);
+    if (!mailservers || !mailservers.length) {
+      setLoading(true);
+      fetchMailservers().finally(() => setLoading(false));
+    } else {
+      setLoading(false);
+    }
   }, [user]);
 
   // const fetchProfile = async () => {
