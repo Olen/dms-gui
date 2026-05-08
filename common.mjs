@@ -27,12 +27,17 @@ export const regexUsername = /^[^\s]+$/;
 // Returns null (not '#' or '') so callers can use the truthy check to
 // drive both the href and the conditional rendering of the link itself.
 export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
-  if (typeof url !== 'string' || !url.trim()) return null;
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
   try {
     // URL parsing tolerates leading/trailing whitespace; trim explicitly
     // so 'javascript:...'.trim() does not slip past as 'http:'-prefixed.
-    const parsed = new URL(url.trim());
-    return allowedSchemes.includes(parsed.protocol.toLowerCase()) ? url : null;
+    const parsed = new URL(trimmed);
+    // Both sides of the scheme comparison are lowercased so a caller can
+    // pass either ['HTTPS:'] or ['https:'] and get the same result.
+    const allowed = allowedSchemes.map((s) => s.toLowerCase());
+    return allowed.includes(parsed.protocol.toLowerCase()) ? trimmed : null;
   } catch {
     // Malformed URL or relative path with no base — treat as unsafe.
     return null;

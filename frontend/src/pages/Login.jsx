@@ -137,6 +137,7 @@ export const Login = () => {
   };
 
   // <h2 className="mb-4">{t('login.title')}</h2>
+  const webmailUrl = safeUrl(branding.webmailUrl);
   return (
     <>
       <Row
@@ -199,13 +200,9 @@ export const Login = () => {
             <br />
             <AlertMessage type="danger" message={errorMessage} />
           </Card>
-          {safeUrl(branding.webmailUrl) && (
+          {webmailUrl && (
             <div className="text-center mt-3">
-              <a
-                href={safeUrl(branding.webmailUrl)}
-                target="_blank"
-                rel="noopener noreferrer"
-              >
+              <a href={webmailUrl} target="_blank" rel="noopener noreferrer">
                 <i className="bi bi-envelope-open me-2"></i>
                 {t('dashboard.user.webmail')}
               </a>

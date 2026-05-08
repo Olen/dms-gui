@@ -584,6 +584,7 @@ const Dashboard = () => {
   }
 
   // Non-admin user dashboard view
+  const webmailUrl = safeUrl(userSettings?.WEBMAIL_URL);
   return (
     <div>
       <div className="float-end position-sticky z-1">
@@ -612,7 +613,7 @@ const Dashboard = () => {
             isLoading={isStatusLoading}
           />
         </Col>
-        {safeUrl(userSettings?.WEBMAIL_URL) && (
+        {webmailUrl && (
           <Col md={3} className="mb-3">
             <DashboardCard
               title="dashboard.user.webmail"
@@ -620,7 +621,7 @@ const Dashboard = () => {
               iconColor="primary"
             >
               <a
-                href={safeUrl(userSettings.WEBMAIL_URL)}
+                href={webmailUrl}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="btn btn-sm btn-outline-primary"
@@ -782,9 +783,9 @@ const Dashboard = () => {
                       <tr>
                         <td className="text-muted fw-bold">Webmail</td>
                         <td>
-                          {safeUrl(userSettings.WEBMAIL_URL) ? (
+                          {webmailUrl ? (
                             <a
-                              href={safeUrl(userSettings.WEBMAIL_URL)}
+                              href={webmailUrl}
                               target="_blank"
                               rel="noopener noreferrer"
                             >

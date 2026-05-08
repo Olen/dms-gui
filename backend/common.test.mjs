@@ -531,6 +531,14 @@ describe('safeUrl', () => {
     ).toBe('mailto:user@example.com');
   });
 
+  it('accepts uppercase scheme in caller-supplied allowlist', () => {
+    expect(safeUrl('https://x.com', ['HTTPS:'])).toBe('https://x.com');
+  });
+
+  it('returns the trimmed URL, not the input with surrounding whitespace', () => {
+    expect(safeUrl('  https://x.com  ')).toBe('https://x.com');
+  });
+
   it('rejects empty string', () => {
     expect(safeUrl('')).toBeNull();
   });

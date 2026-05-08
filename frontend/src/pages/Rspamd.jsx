@@ -233,7 +233,9 @@ const Rspamd = () => {
               variant="outline-primary"
               icon="box-arrow-up-right"
               text="rspamd.openExternal"
-              onClick={() => window.open(externalUrl, '_blank')}
+              onClick={() =>
+                window.open(externalUrl, '_blank', 'noopener,noreferrer')
+              }
             />
           )}
         </div>

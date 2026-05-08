@@ -58,6 +58,7 @@ const MailSetup = () => {
   if (isLoading) return <LoadingSpinner />;
 
   const hasSettings = settings && (settings.IMAP_HOST || settings.SMTP_HOST);
+  const webmailUrl = safeUrl(settings?.WEBMAIL_URL);
 
   return (
     <div>
@@ -173,9 +174,9 @@ const MailSetup = () => {
                         <tr>
                           <td className="text-muted fw-bold">Webmail</td>
                           <td>
-                            {safeUrl(settings.WEBMAIL_URL) ? (
+                            {webmailUrl ? (
                               <a
-                                href={safeUrl(settings.WEBMAIL_URL)}
+                                href={webmailUrl}
                                 target="_blank"
                                 rel="noopener noreferrer"
                               >
