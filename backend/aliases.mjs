@@ -449,79 +449,91 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
   const demo = demoWriteResponse(`Alias updated: ${source}`);
   if (demo) return demo;
 
-  // Look up existing alias from the DB cache. We read all aliases for the
-  // container and find by source, mirroring how getAliases reads.
-  const allRes = dbAll(sql.aliases.select.aliases, {}, containerName);
-  if (!allRes.success) return allRes;
-  const existing = (allRes.message || []).find(a => a.source === source);
-  if (!existing) return {success: false, error: 'Alias not found'};
-  if (existing.regex) return {success: false, error: 'Editing regex aliases is not supported'};
+  try {
+    // Look up existing alias from the DB cache.
+    const allRes = dbAll(sql.aliases.select.aliases, {}, containerName);
+    if (!allRes.success) return allRes;
+    const existing = (allRes.message || []).find(a => a.source === source);
+    if (!existing) return {success: false, error: 'Alias not found'};
+    if (existing.regex) return {success: false, error: 'Editing regex aliases is not supported'};
 
-  // Split, trim, drop empties.
-  const splitTrim = (s) => String(s).split(',').map(d => d.trim()).filter(Boolean);
-  const oldList = splitTrim(existing.destination);
-  const newList = splitTrim(newDestination);
+    // Split, trim, drop empties.
+    const splitTrim = (s) => String(s).split(',').map(d => d.trim()).filter(Boolean);
+    const oldList = splitTrim(existing.destination);
+    const newList = splitTrim(newDestination);
 
-  if (newList.length === 0) return {success: false, error: 'destination is null'};
+    if (newList.length === 0) return {success: false, error: 'destination is null'};
 
-  // Case-insensitive set diff. Track lowercase-keyed lookup but preserve
-  // original-case strings when issuing alias add/del to DMS.
-  const lowerSet = (list) => new Set(list.map(d => d.toLowerCase()));
-  const oldLower = lowerSet(oldList);
-  const newLower = lowerSet(newList);
-  const added = newList.filter(d => !oldLower.has(d.toLowerCase()));
-  const removed = oldList.filter(d => !newLower.has(d.toLowerCase()));
+    // Case-insensitive set diff. Lowercase set membership; preserve original
+    // case in the strings we pass to DMS and write back to the DB.
+    const lower = (s) => s.toLowerCase();
+    const oldLower = new Set(oldList.map(lower));
+    const newLower = new Set(newList.map(lower));
+    const added = newList.filter(d => !oldLower.has(lower(d)));
+    const removed = oldList.filter(d => !newLower.has(lower(d)));
 
-  if (added.length === 0 && removed.length === 0) {
-    return {success: true, message: 'No changes'};
-  }
-
-  const targetDict = getTargetDict('mailserver', containerName);
-  const failedRemove = [];
-  const failedAdd = [];
-
-  // Removals first, so the alias is never temporarily over-fanned-out
-  // beyond what the user requested.
-  for (const dest of removed) {
-    const r = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
-    if (r.returncode) {
-      const msg = await formatDMSError('execSetup', r.stderr);
-      errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
-      failedRemove.push(dest);
+    if (added.length === 0 && removed.length === 0) {
+      return {success: true, message: 'No changes'};
     }
-  }
 
-  for (const dest of added) {
-    const r = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
-    if (r.returncode) {
-      const msg = await formatDMSError('execSetup', r.stderr);
-      errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
-      failedAdd.push(dest);
+    const targetDict = getTargetDict('mailserver', containerName);
+    const failedRemove = [];
+    const failedAdd = [];
+
+    // Removals first, so the alias is never temporarily over-fanned-out.
+    for (const dest of removed) {
+      const r = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+      if (r.returncode) {
+        const msg = await formatDMSError('execSetup', r.stderr);
+        errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
+        failedRemove.push(dest);
+      }
     }
+
+    for (const dest of added) {
+      const r = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+      if (r.returncode) {
+        const msg = await formatDMSError('execSetup', r.stderr);
+        errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
+        failedAdd.push(dest);
+      }
+    }
+
+    // If every operation failed, do not touch the DB.
+    if (failedRemove.length === removed.length && failedAdd.length === added.length) {
+      return { success: false, error: 'Failed to update alias' };
+    }
+
+    // Compute what actually exists on DMS now:
+    // = (oldList minus removals that succeeded) plus (additions that succeeded)
+    const removedLower = new Set(removed.map(lower));
+    const failedRemoveLower = new Set(failedRemove.map(lower));
+    const failedAddLower = new Set(failedAdd.map(lower));
+    const survivingFromOld = oldList.filter(d => !removedLower.has(lower(d)) || failedRemoveLower.has(lower(d)));
+    const successfulAdds = added.filter(d => !failedAddLower.has(lower(d)));
+    const actualSet = [...survivingFromOld, ...successfulAdds];
+
+    const dbResult = dbRun(sql.aliases.insert.alias,
+      { source, destination: actualSet.join(','), regex: 0 },
+      containerName);
+
+    if (!dbResult.success) {
+      errorLog(`DB write failed after partial DMS update for ${source}`);
+      return { success: false, error: `DB out of sync: ${dbResult.error || 'write failed'}` };
+    }
+
+    if (failedRemove.length === 0 && failedAdd.length === 0) {
+      successLog(`Alias updated: ${source}`);
+      return { success: true, message: `Alias updated: ${source}` };
+    }
+
+    const failed = [...failedRemove, ...failedAdd];
+    return { success: false, error: `Partially updated. Failed: ${failed.join(', ')}` };
+
+  } catch (error) {
+    errorLog(error.message);
+    throw new Error(error.message);
   }
-
-  // Compute what actually exists on DMS now:
-  // = (oldList minus removals that succeeded) plus (additions that succeeded)
-  const lower = (s) => s.toLowerCase();
-  const failedRemoveLower = new Set(failedRemove.map(lower));
-  const failedAddLower = new Set(failedAdd.map(lower));
-  const survivingFromOld = oldList.filter(d => !removed.includes(d) || failedRemoveLower.has(lower(d)));
-  const successfulAdds = added.filter(d => !failedAddLower.has(lower(d)));
-  const actualSet = [...survivingFromOld, ...successfulAdds];
-
-  // Persist the actual state. Use REPLACE-style insert (sql.aliases.insert.alias).
-  const dbResult = dbRun(sql.aliases.insert.alias,
-    { source, destination: actualSet.join(','), regex: 0 },
-    containerName);
-
-  if (failedRemove.length === 0 && failedAdd.length === 0) {
-    if (!dbResult.success) return dbResult;
-    successLog(`Alias updated: ${source}`);
-    return { success: true, message: `Alias updated: ${source}` };
-  }
-
-  const failed = [...failedRemove, ...failedAdd];
-  return { success: false, error: `Partially updated. Failed: ${failed.join(', ')}` };
 };
 
 // module.exports = {

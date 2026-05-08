@@ -168,4 +168,46 @@ describe('updateAlias', () => {
     expect(result.success).toBe(false);
     expect(execSetup).not.toHaveBeenCalled();
   });
+
+  it('on partial failure, writes the actual surviving set to the DB', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+    });
+    // First call (del a@) succeeds, second call (add c@) fails.
+    execSetup
+      .mockResolvedValueOnce({ returncode: 0, stderr: '' })
+      .mockResolvedValueOnce({ returncode: 1, stderr: 'boom' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com,c@example.com');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Partially updated/);
+    expect(result.error).toMatch(/c@example\.com/);
+
+    // DB should be written with the actual surviving set: just b@example.com
+    // (a@ was successfully removed; c@ failed to add).
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ destination: 'b@example.com' }),
+      'mailserver',
+    );
+  });
+
+  it('on full failure, leaves DB unchanged and returns the spec-mandated error', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+    });
+    // All execSetup calls fail.
+    execSetup.mockResolvedValue({ returncode: 1, stderr: 'boom' });
+
+    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toBe('Failed to update alias');
+    // Critical: DB must NOT have been written.
+    expect(mockDbRun).not.toHaveBeenCalled();
+  });
 });
