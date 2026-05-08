@@ -101,4 +101,53 @@ describe('PUT /api/aliases/:containerName', () => {
     expect(res.status).toBe(400);
     expect(mockUpdateAlias).not.toHaveBeenCalled();
   });
+
+  it('non-admin: returns 403 when ALLOW_USER_ALIASES is not set', async () => {
+    mockDbGet.mockReturnValue({ success: true, message: { value: 'false' } });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({ source: 'info@test.com', destination: 'user@test.com' });
+
+    expect(res.status).toBe(403);
+    expect(mockUpdateAlias).not.toHaveBeenCalled();
+  });
+
+  it('non-admin: returns 403 when a destination is not in their roles', async () => {
+    mockDbGet.mockReturnValue({ success: true, message: { value: 'true' } });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({ source: 'info@test.com', destination: 'someone-else@test.com' });
+
+    expect(res.status).toBe(403);
+    expect(mockUpdateAlias).not.toHaveBeenCalled();
+  });
+
+  it('non-admin: returns 403 when source domain differs from destination domain', async () => {
+    mockDbGet.mockReturnValue({ success: true, message: { value: 'true' } });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({ source: 'info@test.com', destination: 'user@other.com' });
+
+    expect(res.status).toBe(403);
+    expect(mockUpdateAlias).not.toHaveBeenCalled();
+  });
+
+  it('non-admin: succeeds when ALLOW_USER_ALIASES=true and destination is in roles with matching domain', async () => {
+    mockDbGet.mockReturnValue({ success: true, message: { value: 'true' } });
+    mockUpdateAlias.mockResolvedValue({ success: true, message: 'Alias updated: info@test.com' });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({ source: 'info@test.com', destination: 'user@test.com' });
+
+    expect(res.status).toBe(200);
+    expect(mockUpdateAlias).toHaveBeenCalledWith('mailserver', 'info@test.com', 'user@test.com');
+  });
 });
