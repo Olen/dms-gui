@@ -1,0 +1,92 @@
+import { describe, it, expect, vi, beforeEach } from 'vitest';
+import request from 'supertest';
+
+vi.mock('../backend.mjs', () => ({
+  debugLog: vi.fn(),
+  errorLog: vi.fn(),
+  successLog: vi.fn(),
+  warnLog: vi.fn(),
+  infoLog: vi.fn(),
+}));
+
+vi.mock('../env.mjs', () => ({
+  env: {
+    JWT_SECRET: 'test-jwt-secret',
+    JWT_SECRET_REFRESH: 'test-jwt-refresh-secret',
+    ACCESS_TOKEN_EXPIRY: '1h',
+    REFRESH_TOKEN_EXPIRY: '7d',
+    NODE_ENV: 'test',
+  },
+}));
+
+const mockGetAliases = vi.fn();
+const mockAddAlias = vi.fn();
+const mockDeleteAlias = vi.fn();
+const mockUpdateAlias = vi.fn();
+
+vi.mock('../aliases.mjs', () => ({
+  getAliases: (...a) => mockGetAliases(...a),
+  addAlias: (...a) => mockAddAlias(...a),
+  deleteAlias: (...a) => mockDeleteAlias(...a),
+  updateAlias: (...a) => mockUpdateAlias(...a),
+}));
+
+const mockDbGet = vi.fn();
+vi.mock('../db.mjs', () => ({
+  dbGet: (...a) => mockDbGet(...a),
+}));
+
+import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import aliasRoutes from './aliases.js';
+
+const app = createTestApp(aliasRoutes);
+
+describe('PUT /api/aliases/:containerName', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('returns 401 without auth', async () => {
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .send({ source: 'info@example.com', destination: 'a@example.com' });
+    expect(res.status).toBe(401);
+  });
+
+  it('returns 403 when user is inactive', async () => {
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${inactiveToken}`])
+      .send({ source: 'info@example.com', destination: 'a@example.com' });
+    expect(res.status).toBe(403);
+  });
+
+  it('returns 400 when source is missing', async () => {
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ destination: 'a@example.com' });
+    expect(res.status).toBe(400);
+  });
+
+  it('returns 400 when destination is missing', async () => {
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ source: 'info@example.com' });
+    expect(res.status).toBe(400);
+  });
+
+  it('admin: calls updateAlias and returns 200', async () => {
+    mockUpdateAlias.mockResolvedValue({ success: true, message: 'Alias updated: info@example.com' });
+
+    const res = await request(app)
+      .put('/api/aliases/mailserver')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ source: 'info@example.com', destination: 'a@example.com,b@example.com' });
+
+    expect(res.status).toBe(200);
+    expect(res.body.success).toBe(true);
+    expect(mockUpdateAlias).toHaveBeenCalledWith('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+  });
+});

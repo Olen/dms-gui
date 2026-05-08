@@ -1,6 +1,6 @@
 import { Router } from 'express';
 import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
-import { addAlias, deleteAlias, getAliases } from '../aliases.mjs';
+import { addAlias, deleteAlias, getAliases, updateAlias } from '../aliases.mjs';
 import { dbGet } from '../db.mjs';
 
 const router = Router();
@@ -207,6 +207,99 @@ async (req, res) => {
 
   } catch (error) {
     serverError(res, 'DELETE /api/aliases', error);
+  }
+});
+
+/**
+ * @swagger
+ * /api/aliases/{containerName}:
+ *   put:
+ *     summary: Update an alias's destinations
+ *     description: Update the destination list of an existing alias. Source is read-only. Regex aliases are not editable.
+ *     parameters:
+ *       - in: path
+ *         name: containerName
+ *         required: true
+ *         schema:
+ *           type: string
+ *         description: DMS containerName
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               source:
+ *                 type: string
+ *                 description: Source email address (must already exist)
+ *               destination:
+ *                 type: string
+ *                 description: New comma-separated destination list
+ *             required:
+ *               - source
+ *               - destination
+ *     responses:
+ *       200:
+ *         description: Alias updated successfully
+ *       400:
+ *         description: Source and destination are required
+ *       403:
+ *         description: Permission denied
+ *       500:
+ *         description: Unable to update alias
+ */
+router.put('/aliases/:containerName',
+  authenticateToken,
+  requireActive,
+async (req, res) => {
+  try {
+    const { containerName } = req.params;
+    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+
+    const { source, destination } = req.body;
+    if (!source || !destination) {
+      return res.status(400).json({ error: 'Source and destination are required' });
+    }
+
+    let result;
+    if (req.user.isAdmin) {
+      result = await updateAlias(containerName, source, destination);
+    } else {
+      if (!isUserAliasAllowed(containerName)) {
+        return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
+      }
+
+      // Non-admin: every destination must be in the user's roles, and source
+      // domain must match every destination domain (defensive against
+      // cross-domain hijacking).
+      const dests = destination.split(',').map(d => d.trim()).filter(Boolean);
+      const sourceMatch = source.match(/.*@([\_\-\.\w]+)/);
+      if (!sourceMatch) {
+        return res.status(400).json({ success: false, error: 'Source must contain a valid @domain' });
+      }
+      const sourceDomain = sourceMatch[1].toLowerCase();
+
+      for (const d of dests) {
+        const m = d.match(/.*@([\_\-\.\w]+)/);
+        if (!m) {
+          return res.status(400).json({ success: false, error: 'Destinations must contain a valid @domain' });
+        }
+        if (m[1].toLowerCase() !== sourceDomain) {
+          return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+        if (!req.user.roles.includes(d)) {
+          return res.status(403).json({ success: false, error: 'Permission denied' });
+        }
+      }
+
+      result = await updateAlias(containerName, source, destination);
+    }
+
+    res.json(result);
+
+  } catch (error) {
+    serverError(res, 'PUT /api/aliases', error);
   }
 });
 
