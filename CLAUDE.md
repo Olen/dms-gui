@@ -29,13 +29,17 @@ If upstream ever engages, we can cherry-pick or rebase selectively.
 4. **Old `fix/*` branches are archived** — they still exist for the open PRs but are not actively maintained
 
 ### Day-to-day workflow
+
+Develop on any machine with a clone of the repo. Push to `deploy`. Cutting a release and bringing it to production are separate steps documented under "Release & deploy" below.
+
 ```bash
 # Simple changes: commit directly to deploy
 git checkout deploy
 # edit, test
 git add <files> && git commit -m "description"
-docker build -t olen/dms-gui:latest .
-cd /home/docker && make dms-gui-recreate
+git push origin deploy
+# Nothing builds yet. To ship the change, bump package.json
+# on a later commit (see "Cutting a release" below).
 ```
 
 ### Larger features
@@ -53,7 +57,9 @@ git push origin deploy
 
 ## Release & deploy
 
-Apollo (`apollo.nytt.no`) is the development host AND the production host. Releases are built by GitHub Actions (`.github/workflows/release.yml`) and published to `ghcr.io/olen/dms-gui`. Apollo pulls the published image when recreating the container.
+Builds happen in GitHub Actions (`.github/workflows/release.yml`) and the resulting image is published to `ghcr.io/olen/dms-gui`. The production host's only role at deploy time is pulling the published image and recreating the container — it never runs a local build for routine deploys.
+
+A local checkout on the production host is useful only for the local-build fallback (see below) and for source-vs-running-image comparisons during debugging. Routine deploys do not require the production host to be on a current revision.
 
 ### Source of truth for the version
 
@@ -99,35 +105,34 @@ The repo's `GITHUB_TOKEN` can only push to packages it owns. If a `ghcr.io/olen/
 
 ### Pulling the new image into production
 
-After CI completes, on apollo:
+After CI completes, on the production host (in the directory containing the compose files):
 
 ```bash
-cd /home/docker && make dms-gui-recreate
+make dms-gui-recreate
 ```
 
-The Makefile's `*-recreate` target does `docker compose pull && docker compose up -d --force-recreate`, so it always lands the newest image from GHCR. There is no longer a "build locally and run that" step in the standard flow.
+The Makefile's `*-recreate` target does `docker compose pull && docker compose up -d --force-recreate`, so it always lands the newest image from GHCR. There is no "build locally and run that" step in the standard flow.
 
 ### Local builds (when bypassing CI)
 
-For testing changes that have not been released yet (e.g. debugging in production):
+For testing changes that have not been released yet (e.g. debugging an issue you can only reproduce in production), from a checkout of the repo on the production host:
 
 ```bash
-cd /home/olen/prog/dms-gui
 docker build -t ghcr.io/olen/dms-gui:latest .
-cd /home/docker && docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
+docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
 ```
 
-Note this uses `up -d --force-recreate` directly, not `make dms-gui-recreate`, because the latter would `docker compose pull` and overwrite the local build. Use sparingly — the canonical path is bump-and-push, let CI build.
+The second command uses `up -d --force-recreate` directly, not `make dms-gui-recreate`, because the latter would `docker compose pull` and overwrite the local build. Use sparingly — the canonical path is bump-and-push, let CI build.
 
 ### Rolling back a release
 
 Every released version stays on GHCR as an immutable versioned tag (`ghcr.io/olen/dms-gui:<version>`). To revert production to a known-good earlier version:
 
 ```bash
-# on apollo
+# on the production host
 docker pull ghcr.io/olen/dms-gui:<earlier-version>
 docker tag ghcr.io/olen/dms-gui:<earlier-version> ghcr.io/olen/dms-gui:latest
-cd /home/docker && docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
+docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
 ```
 
 Note: do NOT use `make dms-gui-recreate` for rollback — its `pull` step would re-fetch `:latest` from GHCR (i.e., the broken release). The direct `up -d --force-recreate` uses the locally-retagged image.
@@ -135,28 +140,29 @@ Note: do NOT use `make dms-gui-recreate` for rollback — its `pull` step would 
 To restore the forward path afterwards, fix on `deploy`, bump the patch version, and let CI publish the fix.
 
 ### Image registry note
-The compose file `/home/docker/dms-gui.yaml` references `ghcr.io/olen/dms-gui:latest`. CI is the only writer to that tag (apollo's `~/.docker/config.json` PAT is kept for the local-build fallback above). This deviates from the global `~/CLAUDE.md` rule that prescribes `git.olen.net` as the registry; dms-gui follows upstream's GHCR convention instead.
+
+The compose file references `ghcr.io/olen/dms-gui:latest`. CI is the only writer to that tag — a manual PAT may exist on the production host for the local-build fallback above, but it is no longer the canonical publisher.
 
 ## Critical: .dockerignore
 The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc-compiled node_modules get copied into the Alpine container, breaking better-sqlite3 with `ld-linux-x86-64.so.2` errors. Always ensure `.dockerignore` exists on the `deploy` branch before building.
 
 ## REST API (rest-api.py)
-- Lives at `/home/mailserver/config/dms-gui/rest-api.py` on Apollo
+- Lives in the DMS container's config dir (typically mounted from the host's `<dms-config>/dms-gui/rest-api.py`)
 - Runs inside DMS container via supervisor on port 8888
 - Authenticated via `DMS_API_KEY` env var (must match in both mailserver.env and dms-gui .env)
 - Uses `shlex.split()` for command execution (not `shell=True`) to prevent injection
 - Supports shell pipes by splitting on `|` and chaining via `subprocess.Popen`
 - Supports `>` / `>>` redirect on the last pipe stage only
 - Supports `&&` command chaining (splits on `&&`, runs sequentially, stops on non-zero exit)
-- Supervisor config: `/home/mailserver/config/dms-gui/rest-api.conf`
+- Supervisor config: `<dms-config>/dms-gui/rest-api.conf` on the host
 - Deployed by `user-patches.sh` in the DMS container
 
-## Apollo deployment details
-- Runs behind Traefik at `epost.nytt.no`
-- Compose file: `/home/docker/dms-gui.yaml`
-- Config: `/home/docker/dms-gui/config/.dms-gui.env`
+## Production deployment topology
+- Runs behind Traefik (hostname configured per environment)
+- Compose file: `dms-gui.yaml` (lives in the production host's docker-compose dir)
+- Config: `<compose-dir>/dms-gui/config/.dms-gui.env`
 - Container exposes port 80 (nginx serves SPA + proxies /api/ to backend on 3001)
-- Shares `docker_traefik_net` with mailserver container
+- Shares the Traefik docker network with the mailserver container
 
 ## Backend architecture (refactored Feb 28)
 Backend was split from a 2,980-line monolith into modular route files:
@@ -194,9 +200,10 @@ Backend was split from a 2,980-line monolith into modular route files:
 - Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks
 
 ## Testing
-Tests use vitest + supertest:
+Tests use vitest + supertest. Run from the project root:
 ```bash
-cd /home/olen/prog/dms-gui/backend && npx vitest run
+cd backend && npx vitest run
+cd frontend && npx vitest run
 ```
 - `backend/middleware.test.mjs` — 31 tests for shared middleware
 - `backend/routes/auth.test.js` — 14 tests for auth routes
@@ -204,8 +211,9 @@ cd /home/olen/prog/dms-gui/backend && npx vitest run
 - `backend/test/routeHelper.mjs` — Shared test utilities (createTestApp, JWT tokens)
 - Existing tests in `backend/` — 115 tests
 
-Also verify manually:
-1. Build image and recreate container
-2. Check backend logs: `sudo docker logs dms-gui --tail 20`
-3. Test login at https://epost.nytt.no
-4. Verify affected functionality in the web UI
+CI runs both suites before any release; releases fail closed if any test fails.
+
+For manual verification after a deploy:
+1. Check backend logs: `docker logs dms-gui --tail 20`
+2. Test login at the configured production hostname
+3. Verify affected functionality in the web UI
