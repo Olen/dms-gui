@@ -135,8 +135,8 @@ const Aliases = () => {
     
     
     if (name == 'source') {
-      console.debug('value.match(regexEmailStrict)',value.match(regexEmailStrict));
-      console.debug('value.match(regexEmailRegex)',value.match(regexEmailRegex));
+      debugLog('value.match(regexEmailStrict)', value.match(regexEmailStrict));
+      debugLog('value.match(regexEmailRegex)', value.match(regexEmailRegex));
       setIsSource({
         alias: value.trim().match(regexEmailStrict),
         valid: value.trim().match(regexEmailStrict) || value.trim().match(regexEmailRegex),
@@ -177,8 +177,8 @@ const Aliases = () => {
     
     let matchEmailStrict = formData.source.trim().match(regexEmailStrict);
     let matchEmailRegex = formData.source.trim().match(regexEmailRegex);
-    console.debug('matchEmailStrict',matchEmailStrict)
-    console.debug('matchEmailRegex',matchEmailRegex)
+    debugLog('matchEmailStrict', matchEmailStrict);
+    debugLog('matchEmailRegex', matchEmailRegex);
 
     if (!formData.source.trim()) {
       errors.source = 'aliases.sourceRequired';

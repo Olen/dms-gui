@@ -27,6 +27,15 @@ import crypto from 'node:crypto';
 
 var DB;
 
+// Register signal handlers once at module import time so the DB is closed on
+// shutdown. Previously these were registered inside dbOpen() which is called
+// many times during runtime — each call stacked another set of listeners and
+// Node would emit a MaxListenersExceededWarning at 11.
+process.on('exit', () => { if (DB && DB.open) DB.close(); });
+process.on('SIGHUP',  () => process.exit(128 + 1));
+process.on('SIGINT',  () => process.exit(128 + 2));
+process.on('SIGTERM', () => process.exit(128 + 15));
+
 // rsa-2048-dkim-$domain.private.txt
 // keytypes = ['rsa','ed25519']
 // keysizes = ['1024','2048']
@@ -707,12 +716,6 @@ export const dbOpen = () => {
       DB = new Database(env.DATABASE);
       DB.pragma('journal_mode = WAL');
 
-      // https://github.com/WiseLibs/better-sqlite3/blob/HEAD/docs/api.md#close---this
-      process.on('exit', () => DB.close());
-      process.on('SIGHUP', () => process.exit(128 + 1));
-      process.on('SIGINT', () => process.exit(128 + 2));
-      process.on('SIGTERM', () => process.exit(128 + 15));
-      
       return DB;
     }
   } catch (error) {
@@ -1301,7 +1304,12 @@ const isSensitiveKey = (key) => {
 const redactValue = (key, value) => isSensitiveKey(key) ? '<redacted>' : value;
 
 // Function to update a table in the db; id can very well be an array as well
-export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  // jsonDict = { column:value, .. }
+// Renamed parameter `encrypt` -> `shouldEncrypt` to stop shadowing the
+// module-level `encrypt()` function. With the old name, `if (encrypt)
+// scopedValues[key] = encrypt(scopedValues[key])` resolved to "if (true)
+// scopedValues[key] = true(scopedValues[key])" when a caller passed `true`
+// for the flag — TypeError instead of an actual encryption call.
+export const updateDB = async (table, id, jsonDict, scope, shouldEncrypt=false) => {  // jsonDict = { column:value, .. }
   debugLog(`${table} id=${id} for scope=${scope}`);   // don't show jsonDict as it may contain a password
 
   let result, scopedValues, value2test, testResult;
@@ -1360,7 +1368,7 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
               if (sql[table].update[key][value2test].check(testResult.message)) {
                 
                 // we pass the test, apply update
-                if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
+                if (shouldEncrypt) scopedValues[key] = encrypt(scopedValues[key]);
                 result = dbRun(sql[table].update[key][value2test].pass, scopedValues, id);
                 if (result.success) {
                   messages.push(`Updated ${table} ${id} with ${key}=${value}`);
@@ -1376,7 +1384,7 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
               
             // no test for any value of key, update the db with new value
             } else {
-              if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
+              if (shouldEncrypt) scopedValues[key] = encrypt(scopedValues[key]);
               result = dbRun(sql[table].update[key], scopedValues, id);
               if (result.success) {
                 messages.push(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
@@ -1393,7 +1401,7 @@ export const updateDB = async (table, id, jsonDict, scope, encrypt=false) => {  
               continue;
             }
 
-            if (encrypt) scopedValues[key] = encrypt(scopedValues[key]);
+            if (shouldEncrypt) scopedValues[key] = encrypt(scopedValues[key]);
             result = dbRun(`UPDATE ${table} set ${key} = @${key} WHERE 1=1 AND ${sql[table].id} = ?`, scopedValues, id);
             if (result.success && result.message?.changes > 0) {
               messages.push(`Updated ${table} ${id} with ${key}=${redactValue(key, value)}`);
@@ -1508,7 +1516,7 @@ export const refreshTokens = async (credentials) => {
     
     let result = dbRun(sql.logins.update.refreshTokens, credentials);
     if (result.success) {
-      successLog(`tokens refreshed:`, credentials || '*');
+      successLog(`tokens refreshed:`, credentials ?? '*');
       return {success: true, message: `tokens refreshed:`};
       
     } else return result;
