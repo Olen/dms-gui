@@ -354,13 +354,21 @@ async (req, res) => {
 
     // Users can only act on their own mailboxes or those in their roles (unless admin)
     let result, jsonDict;
-    jsonDict = {...req.body, schema:schema};
 
     if (req.user.isAdmin) {
-      result = await updateDB('accounts', mailbox,jsonDict, containerName);
+      jsonDict = {...req.body, schema:schema};
+      result = await updateDB('accounts', mailbox, jsonDict, containerName);
 
     } else {
       if (!req.user.roles.includes(mailbox)) return denyPermission(res);
+      // Strip privilege-escalation fields before updateDB. updateDB filters
+      // jsonDict against sql.accounts.keys, but configID is a valid key and
+      // a non-admin who can update their own account could otherwise pass
+      // a different configID and reassign their account to another mail
+      // server's config. Same defence-in-depth pattern PATCH /api/logins
+      // already uses (it strips isAdmin/isActive/roles for non-admins).
+      const { configID, ...safeBody } = req.body;
+      jsonDict = {...safeBody, schema:schema};
       result = await updateDB('accounts', mailbox, jsonDict, containerName);
     }
     res.json(result);
