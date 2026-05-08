@@ -3,6 +3,7 @@ import {
   escapeShellArg,
   fixStringType,
   funcName,
+  parseExpiryToMs,
   jsonFixTrailingCommas,
   arrayOfStringToDict,
   obj2ArrayOfObj,
@@ -170,6 +171,53 @@ describe('funcName', () => {
     // which contained "    at Server.<anonymous> (file:///...)". The new
     // fallback returns the static label.
     expect(result === '<anonymous>' || /^[\w.<>$_]+$/.test(result)).toBe(true);
+  });
+});
+
+
+describe('parseExpiryToMs', () => {
+  it('parses seconds', () => {
+    expect(parseExpiryToMs('30s')).toBe(30_000);
+  });
+
+  it('parses minutes', () => {
+    expect(parseExpiryToMs('15m')).toBe(15 * 60_000);
+  });
+
+  it('parses hours', () => {
+    expect(parseExpiryToMs('1h')).toBe(3_600_000);
+    expect(parseExpiryToMs('24h')).toBe(86_400_000);
+  });
+
+  it('parses days', () => {
+    expect(parseExpiryToMs('1d')).toBe(86_400_000);
+    expect(parseExpiryToMs('7d')).toBe(7 * 86_400_000);
+  });
+
+  it('accepts numeric input as-is', () => {
+    expect(parseExpiryToMs(60_000)).toBe(60_000);
+  });
+
+  it('is case-insensitive on the unit', () => {
+    expect(parseExpiryToMs('1H')).toBe(3_600_000);
+    expect(parseExpiryToMs('30S')).toBe(30_000);
+  });
+
+  it('tolerates whitespace', () => {
+    expect(parseExpiryToMs('  1h  ')).toBe(3_600_000);
+    expect(parseExpiryToMs('5 m')).toBe(5 * 60_000);
+  });
+
+  it('returns the fallback for unparsable input', () => {
+    expect(parseExpiryToMs('forever', 999)).toBe(999);
+    expect(parseExpiryToMs('', 42)).toBe(42);
+    expect(parseExpiryToMs(null, 7)).toBe(7);
+    expect(parseExpiryToMs(undefined, 7)).toBe(7);
+    expect(parseExpiryToMs({}, 7)).toBe(7);
+  });
+
+  it('returns 0 fallback by default for unparsable input', () => {
+    expect(parseExpiryToMs('nope')).toBe(0);
   });
 });
 
