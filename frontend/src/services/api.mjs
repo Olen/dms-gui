@@ -439,6 +439,17 @@ export const deleteAlias = async (containerName=null, source, destination) => {
   }
 };
 
+export const updateAlias = async (containerName=null, source, destination) => {
+  if (!containerName) return {success: false, error: 'containerName is required'};
+  try {
+    const response = await api.put(`/aliases/${containerName}`, { source, destination });
+    return response.data;
+  } catch (error) {
+    errorLog(error.message);
+    throw error;
+  }
+};
+
 export const getMailLogs = async (containerName=null, source='mail', lines=100) => {
   if (!containerName) return {success: false, error: 'containerName is required'};
   try {
