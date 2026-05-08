@@ -134,9 +134,11 @@ async (req, res) => {
     // a user with a role for `userA@example.com` can create forwarders like
     // `info@example.com -> userA@example.com` even though `info@` isn't a
     // pre-existing role. The "they could create postmaster@example.com ->
-    // self" risk is accepted: giving a user a role for a domain implies
-    // they manage that domain's aliases. If you don't trust them to manage
-    // postmaster@/abuse@ etc., don't give them the role.
+    // self" risk is accepted: granting a user a role for a destination
+    // mailbox in that domain implies you trust them to redirect any
+    // local-part of that domain to themselves. If you don't want them
+    // capturing postmaster@/abuse@ etc., don't grant a role whose
+    // destination is in that domain.
     //
     let result;
     if (req.user.isAdmin) {

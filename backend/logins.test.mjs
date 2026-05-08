@@ -26,7 +26,9 @@ vi.mock('./db.mjs', () => ({
   verifyPassword: vi.fn(async () => true),
   sql: {
     logins: {
-      id: 'mailbox',
+      // Match production: the primary-key column for the logins table
+      // is named 'id', and the bind-by-id statement uses @id.
+      id: 'id',
       insert: { login: 'INSERT INTO logins ...' },
       select: {
         login: 'SELECT * FROM logins WHERE id = @id',
@@ -130,7 +132,7 @@ describe('getLogin — key validation', () => {
     await getLogin('user@example.com');
     expect(dbGet).toHaveBeenCalledWith(
       expect.any(String),
-      { mailbox: 'user@example.com' },
+      { id: 'user@example.com' },
     );
   });
 });

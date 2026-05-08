@@ -217,6 +217,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
               """
               lex = shlex.shlex(cmd, posix=True, punctuation_chars='|<>')
               lex.whitespace_split = True
+              # shlex.shlex defaults commenters='#' (unlike shlex.split). DMS
+              # commands legitimately contain '#' (header filters, doveadm
+              # queries), so disable comment parsing to avoid silent
+              # truncation of arguments at an unquoted '#'.
+              lex.commenters = ''
               tokens = list(lex)
 
               # Split tokens into stages on '|' operators; pull out a
@@ -230,10 +235,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                 if tok == '|':
                   stages.append([])
                 elif tok in ('>', '>>'):
+                  if i + 1 >= len(tokens):
+                    return 1, '', f"redirect operator '{tok}' requires a filename"
                   redir_mode = 'a' if tok == '>>' else 'w'
-                  if i + 1 < len(tokens):
-                    redir_file = tokens[i + 1]
-                    i += 1  # consume filename token
+                  redir_file = tokens[i + 1]
+                  i += 1  # consume filename token
                 else:
                   stages[-1].append(tok)
                 i += 1
