@@ -194,7 +194,23 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
   def do_POST(self):
     api_key = self.headers.get('Authorization', 'missing')
-    content_length = int(self.headers.get('Content-Length', 0))
+
+    # Parse Content-Length defensively. A malformed header (non-integer
+    # or negative) is a client error, not a server crash, so reject
+    # with 400 before doing anything else.
+    raw_cl = self.headers.get('Content-Length', '0')
+    try:
+      content_length = int(raw_cl)
+      if content_length < 0:
+        raise ValueError('negative')
+    except (TypeError, ValueError):
+      response_message = {"status": "error", "error": "invalid Content-Length header"}
+      logger(response_message['error'])
+      self.send_response(400)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
 
     # Reject oversized requests BEFORE reading the body. Previously
     # the read happened first and the size check came after, so a
@@ -211,9 +227,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       self.wfile.write(json.dumps(response_message).encode('utf-8'))
       return
 
-    # Defence in depth: cap the read at DMS_API_SIZE bytes even if
-    # Content-Length is missing or under-reports.
-    post_data = self.rfile.read(min(content_length, DMS_API_SIZE))
+    # We've already enforced content_length <= DMS_API_SIZE above, so
+    # rfile.read(content_length) is bounded. (BaseHTTPRequestHandler's
+    # rfile is a socketreader; .read(N) returns at most N bytes.)
+    post_data = self.rfile.read(content_length)
 
     try:
       json_data = json.loads(post_data.decode('utf-8'))

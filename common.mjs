@@ -56,6 +56,21 @@ export const redactKey = (key) => {
   return `${key.slice(0, 4)}...${key.slice(-4)}`;
 };
 
+// redactSensitiveSettings replaces the value of any [{name, value}, ...]
+// row whose name looks secret-shaped with the redactKey form. Used
+// before logging a full settings payload so a debug-level dump cannot
+// leak credentials (DMS_API_KEY, AES_SECRET, JWT_SECRET, etc.) into
+// shared log aggregators.
+const SENSITIVE_NAME_RE = /SECRET|KEY|PASSWORD|TOKEN/i;
+export const redactSensitiveSettings = (rows) => {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) =>
+    row && typeof row.name === 'string' && SENSITIVE_NAME_RE.test(row.name)
+      ? { ...row, value: redactKey(row.value) }
+      : row
+  );
+};
+
 // import {
 //   regexColors,
 //   regexPrintOnly,

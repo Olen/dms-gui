@@ -6,6 +6,7 @@ import {
   obj2ArrayOfObj,
   pluck,
   redactKey,
+  redactSensitiveSettings,
   reduxArrayOfObjByValue,
   reduxPropertiesOfObj,
 } from '../common.mjs';
@@ -129,7 +130,9 @@ export const getSettings = (
       // we could read DB_Logins and it is valid
       if (result.message.length) {
         infoLog(`Found ${result.message.length} entries in settings`);
-        debugLog('settings', result.message);
+        // Redact sensitive values (DMS_API_KEY, AES_SECRET, etc.) before
+        // dumping the full payload to debug logs.
+        debugLog('settings', redactSensitiveSettings(result.message));
 
         // decryption where needed
         if (encrypted) {
@@ -1341,8 +1344,10 @@ export const initAPI = async (
   containerName = null,
   dms_api_key_param = null
 ) => {
+  // dms_api_key_param can be the literal sentinels 'regen' / 'inject' OR
+  // a real key the caller wants to install — redact unconditionally.
   debugLog(
-    `(plugin:${plugin}, schema:${schema}, containerName:${containerName}, dms_api_key_param:${dms_api_key_param})`
+    `(plugin:${plugin}, schema:${schema}, containerName:${containerName}, dms_api_key_param:${redactKey(dms_api_key_param)})`
   );
   if (!containerName)
     return { success: false, error: 'initAPI: containerName is required' };
@@ -1360,7 +1365,7 @@ export const initAPI = async (
     result = await getSetting(plugin, containerName, 'DMS_API_KEY');
     if (result.success) dms_api_key_db = result.message;
     debugLog(
-      `success: ${result.success}, dms_api_key_db: ${dms_api_key_db}, error:`,
+      `success: ${result.success}, dms_api_key_db: ${redactKey(dms_api_key_db)}, error:`,
       result?.error
     );
 
@@ -1369,7 +1374,7 @@ export const initAPI = async (
       // regen is passed
       if (dms_api_key_param == 'regen') {
         dms_api_key_new = containerName + '-' + crypto.randomUUID();
-        debugLog(`dms_api_key_new=regen`, dms_api_key_new);
+        debugLog(`dms_api_key_new=regen`, redactKey(dms_api_key_new));
 
         // inject API was passed
       } else if (dms_api_key_param == 'inject') {
@@ -1379,7 +1384,7 @@ export const initAPI = async (
         // use key vparam passed
       } else {
         dms_api_key_new = dms_api_key_param;
-        debugLog(`dms_api_key_new=param`, dms_api_key_new);
+        debugLog(`dms_api_key_new=param`, redactKey(dms_api_key_new));
       }
     }
 
@@ -1388,7 +1393,10 @@ export const initAPI = async (
       // but key exist in db
       if (dms_api_key_db) {
         dms_api_key_new = dms_api_key_db;
-        debugLog(`regen dms_api_key_new=dms_api_key_db`, dms_api_key_new);
+        debugLog(
+          `regen dms_api_key_new=dms_api_key_db`,
+          redactKey(dms_api_key_new)
+        );
 
         // and key is not in db: generate
       } else {
