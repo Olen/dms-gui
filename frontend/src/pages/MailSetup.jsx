@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
-import {
-  errorLog,
-} from '../../frontend.mjs';
-import {
-  getUserSettings,
-} from '../services/api.mjs';
+import { errorLog } from '../../frontend.mjs';
+import { getUserSettings } from '../services/api.mjs';
+
+import { safeUrl } from '../../../common.mjs';
 
 import {
   AlertMessage,
@@ -23,7 +21,7 @@ import Col from 'react-bootstrap/Col';
 const MailSetup = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [containerName] = useLocalStorage("containerName", '');
+  const [containerName] = useLocalStorage('containerName', '');
 
   const [settings, setSettings] = useState(null);
   const [isLoading, setLoading] = useState(true);
@@ -60,6 +58,7 @@ const MailSetup = () => {
   if (isLoading) return <LoadingSpinner />;
 
   const hasSettings = settings && (settings.IMAP_HOST || settings.SMTP_HOST);
+  const webmailUrl = safeUrl(settings?.WEBMAIL_URL);
 
   return (
     <div>
@@ -77,49 +76,119 @@ const MailSetup = () => {
                 <table className="table table-sm mb-0">
                   <tbody>
                     <tr>
-                      <td className="text-muted fw-bold" style={{width:'120px'}}>{t('mailSetup.username')}</td>
-                      <td><code>{user.mailbox || t('dashboard.user.yourEmail')}</code></td>
+                      <td
+                        className="text-muted fw-bold"
+                        style={{ width: '120px' }}
+                      >
+                        {t('mailSetup.username')}
+                      </td>
+                      <td>
+                        <code>
+                          {user.mailbox || t('dashboard.user.yourEmail')}
+                        </code>
+                      </td>
                     </tr>
-                    {settings.IMAP_HOST && (<>
-                      <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                      <tr>
-                        <td className="text-muted fw-bold">IMAP {t('mailSetup.server')}</td>
-                        <td><code>{settings.IMAP_HOST}</code></td>
-                      </tr>
-                      <tr>
-                        <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                        <td><code>{settings.IMAP_PORT || '993'}</code> (SSL/TLS)</td>
-                      </tr>
-                    </>)}
-                    {settings.SMTP_HOST && (<>
-                      <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                      <tr>
-                        <td className="text-muted fw-bold">SMTP {t('mailSetup.server')}</td>
-                        <td><code>{settings.SMTP_HOST}</code></td>
-                      </tr>
-                      <tr>
-                        <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                        <td><code>{settings.SMTP_PORT || '587'}</code> (STARTTLS)</td>
-                      </tr>
-                    </>)}
-                    {settings.POP3_HOST && (<>
-                      <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                      <tr>
-                        <td className="text-muted fw-bold">POP3 {t('mailSetup.server')}</td>
-                        <td><code>{settings.POP3_HOST}</code></td>
-                      </tr>
-                      <tr>
-                        <td className="text-muted fw-bold">{t('mailSetup.port')}</td>
-                        <td><code>{settings.POP3_PORT || '995'}</code> (SSL/TLS)</td>
-                      </tr>
-                    </>)}
-                    {settings.WEBMAIL_URL && (<>
-                      <tr><td colSpan="2" className="border-0">&nbsp;</td></tr>
-                      <tr>
-                        <td className="text-muted fw-bold">Webmail</td>
-                        <td><a href={settings.WEBMAIL_URL} target="_blank" rel="noopener noreferrer"><code>{settings.WEBMAIL_URL}</code></a></td>
-                      </tr>
-                    </>)}
+                    {settings.IMAP_HOST && (
+                      <>
+                        <tr>
+                          <td colSpan="2" className="border-0">
+                            &nbsp;
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            IMAP {t('mailSetup.server')}
+                          </td>
+                          <td>
+                            <code>{settings.IMAP_HOST}</code>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            {t('mailSetup.port')}
+                          </td>
+                          <td>
+                            <code>{settings.IMAP_PORT || '993'}</code> (SSL/TLS)
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                    {settings.SMTP_HOST && (
+                      <>
+                        <tr>
+                          <td colSpan="2" className="border-0">
+                            &nbsp;
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            SMTP {t('mailSetup.server')}
+                          </td>
+                          <td>
+                            <code>{settings.SMTP_HOST}</code>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            {t('mailSetup.port')}
+                          </td>
+                          <td>
+                            <code>{settings.SMTP_PORT || '587'}</code>{' '}
+                            (STARTTLS)
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                    {settings.POP3_HOST && (
+                      <>
+                        <tr>
+                          <td colSpan="2" className="border-0">
+                            &nbsp;
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            POP3 {t('mailSetup.server')}
+                          </td>
+                          <td>
+                            <code>{settings.POP3_HOST}</code>
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">
+                            {t('mailSetup.port')}
+                          </td>
+                          <td>
+                            <code>{settings.POP3_PORT || '995'}</code> (SSL/TLS)
+                          </td>
+                        </tr>
+                      </>
+                    )}
+                    {settings.WEBMAIL_URL && (
+                      <>
+                        <tr>
+                          <td colSpan="2" className="border-0">
+                            &nbsp;
+                          </td>
+                        </tr>
+                        <tr>
+                          <td className="text-muted fw-bold">Webmail</td>
+                          <td>
+                            {webmailUrl ? (
+                              <a
+                                href={webmailUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                              >
+                                <code>{settings.WEBMAIL_URL}</code>
+                              </a>
+                            ) : (
+                              <code>{settings.WEBMAIL_URL}</code>
+                            )}
+                          </td>
+                        </tr>
+                      </>
+                    )}
                   </tbody>
                 </table>
               </Card>
@@ -137,7 +206,9 @@ const MailSetup = () => {
           <Row>
             <Col md={4} className="mb-3">
               <Card title="mailSetup.downloadThunderbird" icon="pc-display">
-                <p className="text-muted small mb-3">{t('mailSetup.thunderbirdDesc')}</p>
+                <p className="text-muted small mb-3">
+                  {t('mailSetup.thunderbirdDesc')}
+                </p>
                 <button
                   className="btn btn-primary w-100"
                   onClick={() => handleDownload('autoconfig')}
@@ -149,7 +220,9 @@ const MailSetup = () => {
             </Col>
             <Col md={4} className="mb-3">
               <Card title="mailSetup.downloadApple" icon="phone">
-                <p className="text-muted small mb-3">{t('mailSetup.appleDesc')}</p>
+                <p className="text-muted small mb-3">
+                  {t('mailSetup.appleDesc')}
+                </p>
                 <button
                   className="btn btn-dark w-100"
                   onClick={() => handleDownload('mobileconfig')}

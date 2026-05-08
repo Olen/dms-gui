@@ -1,17 +1,50 @@
 // not const so they are exported and we don't have to mention them
+// eslint-disable-next-line no-control-regex -- intentional: ANSI ESC stripper
 export const regexColors = /\x1b\[[0-9;]*[mGKHF]/g;
 // regexPrintOnly = /[\x00-\x1F\x7F-\x9F\x20-\x7E]/;
 export const regexPrintOnly = /[^\S]/;
 
 export const regexFindEmailRegex = /\/[\S]+@[\S]+\//;
-export const regexFindEmailStrict = /([\w\.\-_]+)@([\w\.\-_]+)/;
+export const regexFindEmailStrict = /([\w.\-_]+)@([\w.\-_]+)/;
 export const regexFindEmailLax = /([\S]+)@([\S]+)/;
 export const regexEmailRegex = /^\/[\S]+@[\S]+\/$/;
-export const regexEmailStrict = /^([\w\.\-_]+)@([\w\.\-_]+)$/;
+export const regexEmailStrict = /^([\w.\-_]+)@([\w.\-_]+)$/;
 export const regexEmailLax = /^([\S]+)@([\S]+)$/;
 
-export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w\.\-_]+@[\w\.\-_]+)/;
+export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w.\-_]+@[\w.\-_]+)/;
 export const regexUsername = /^[^\s]+$/;
+
+// safeUrl returns the input URL only if its scheme is in the allowlist
+// (default: http/https). Returns null otherwise.
+//
+// Used at every <a href={...}> / window.open(...) site that takes an
+// admin- or branding-supplied URL (WEBMAIL_URL, branding.webmailUrl,
+// rspamd external URL). Without this guard a malicious admin can plant
+// a 'javascript:' URL that runs in any non-admin user's session on
+// click — the rest=noopener attribute on <a target="_blank"> does not
+// block javascript: schemes, only opener access.
+//
+// Returns null (not '#' or '') so callers can use the truthy check to
+// drive both the href and the conditional rendering of the link itself.
+export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
+  if (typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    // We parse the trimmed value (not `url`) so that the value we
+    // return matches the value we validated. `new URL()` already
+    // tolerates surrounding whitespace, so the trim here is a
+    // canonicalisation step, not a security-critical defence.
+    const parsed = new URL(trimmed);
+    // Both sides of the scheme comparison are lowercased so a caller can
+    // pass either ['HTTPS:'] or ['https:'] and get the same result.
+    const allowed = allowedSchemes.map((s) => s.toLowerCase());
+    return allowed.includes(parsed.protocol.toLowerCase()) ? trimmed : null;
+  } catch {
+    // Malformed URL or relative path with no base — treat as unsafe.
+    return null;
+  }
+};
 
 // import {
 //   regexColors,
@@ -40,8 +73,7 @@ export const regexUsername = /^[^\s]+$/;
 //   moveKeyToLast,
 // } from '../common.mjs'
 
-
-export const funcName = (parent=4, onlyParent=false) => {
+export const funcName = (parent = 4, onlyParent = false) => {
   const error = new Error();
   let match, funcName;
 
@@ -61,17 +93,16 @@ export const funcName = (parent=4, onlyParent=false) => {
 
     // append indentation to parent function until we reach
     if (match) {
-      funcName = (funcName) ? "  " + funcName : match[1];
+      funcName = funcName ? '  ' + funcName : match[1];
       if (onlyParent) break;
 
-    // either we reached the end or it was anonymous == root from the main script
+      // either we reached the end or it was anonymous == root from the main script
     } else {
-      funcName = (funcName) ? funcName : '<anonymous>';
+      funcName = funcName ? funcName : '<anonymous>';
       break;
     }
-      
   }
-  
+
   return funcName;
 };
 // error Error
@@ -85,7 +116,6 @@ export const funcName = (parent=4, onlyParent=false) => {
 //     at Server.f (/app/backend/node_modules/once/once.js:25:25)
 //     at Object.onceWrapper (node:events:622:28)
 //     at Server.emit (node:events:520:35)
-
 
 // Parse a JWT-style expiry string (e.g. "15m", "1h", "7d", "30s") to
 // milliseconds. Accepts an integer prefix and a unit char from {s,m,h,d}.
@@ -104,16 +134,15 @@ export const parseExpiryToMs = (expiry, fallback = 0) => {
   return n * multiplier;
 };
 
-export const fixStringType = string => {
+export const fixStringType = (string) => {
   // Convert numeric strings to numbers; preserves '0' and '0.0' as numeric (the
   // previous `Number(s) ? Number(s) : s` form fell back to the string for any
   // value that coerced to a falsy number).
   const n = Number(string);
-  return (string !== '' && string != null && !Number.isNaN(n)) ? n : string;
+  return string !== '' && string != null && !Number.isNaN(n) ? n : string;
 };
 
-
-export const jsonFixTrailingCommas = (jsonString, returnJson=false) => {
+export const jsonFixTrailingCommas = (jsonString, returnJson = false) => {
   // Strip trailing commas before ] or } (with optional whitespace)
   const cleaned = jsonString.replace(/,\s*([}\]])/g, '$1');
   const jsonObj = JSON.parse(cleaned);
@@ -121,17 +150,16 @@ export const jsonFixTrailingCommas = (jsonString, returnJson=false) => {
   else return JSON.stringify(jsonObj);
 };
 
-
-export const arrayOfStringToDict = (array=[], separator=',') => {
+export const arrayOfStringToDict = (array = [], separator = ',') => {
   // transform ["a=1", "b=2", ..] => {a:1, b:2, ..}
-  
+
   if (!array.length) return [];
-  let dict={};
-  
-  if (typeof array == "string") {
+  let dict = {};
+
+  if (typeof array == 'string') {
     array = array.split(/\r?\n/);
   }
-  
+
   array.map((item) => {
     let split = item.split(separator);
     if (split.length == 2) {
@@ -139,83 +167,94 @@ export const arrayOfStringToDict = (array=[], separator=',') => {
     }
   });
   return dict;
-  
+
   // dict = array.map((item) => ({ [item.split('=')[0]]: item.split('=')[1] }));
-    // dict = [{ ENABLE_RSPAMD: "1" },{ ENABLE_XAPIAN: "1" },{ ENABLE_MTA_STS: "0" },{ PERMIT_DOCKER: "none" },{ DOVECOT_MAILBOX_FORMAT: "mailbox" }]
+  // dict = [{ ENABLE_RSPAMD: "1" },{ ENABLE_XAPIAN: "1" },{ ENABLE_MTA_STS: "0" },{ PERMIT_DOCKER: "none" },{ DOVECOT_MAILBOX_FORMAT: "mailbox" }]
 
   // array.map((item) => (dict[item.split('=')[0]] = item.split('=')[1] ));
-    // dict = { ENABLE_RSPAMD: "1", ENABLE_XAPIAN: "1", ENABLE_MTA_STS: "0", PERMIT_DOCKER: "none", DOVECOT_MAILBOX_FORMAT: "mailbox" }
-
+  // dict = { ENABLE_RSPAMD: "1", ENABLE_XAPIAN: "1", ENABLE_MTA_STS: "0", PERMIT_DOCKER: "none", DOVECOT_MAILBOX_FORMAT: "mailbox" }
 };
 
+export const obj2ArrayOfObj = (
+  obj = {},
+  stringify = false,
+  props = ['name', 'value']
+) => {
+  return stringify
+    ? Object.keys(obj).map((key) => ({
+        [props[0]]: key,
+        [props[1]]: String(obj[key]),
+      }))
+    : Object.keys(obj).map((key) => ({
+        [props[0]]: key,
+        [props[1]]: obj[key],
+      }));
 
-export const obj2ArrayOfObj = (obj={}, stringify=false, props=['name','value']) => {
-  return (stringify) ? Object.keys(obj).map(key => ({[props[0]]: key, [props[1]]: String(obj[key])})) : Object.keys(obj).map(key => ({[props[0]]: key, [props[1]]: obj[key]}));
-  
   // transform this: { a:1, b:2, .. }
   // to this:        [ {name:"a",value:1}, {name:"b",value:2}, .. ]
 };
 
-
-export const reduxArrayOfObjByKey = (array=[], keys2Keep=[]) => {
-// this will reduce:
+export const reduxArrayOfObjByKey = (array = [], keys2Keep = []) => {
+  // this will reduce:
   // data = [
   // {name: 'John', city: 'London', age: 42},
   // {name: 'Mike', city: 'Warsaw', age: 18},
   // ]
-// keeping:
+  // keeping:
   // keys2Keep = ['name']
-// to:
+  // to:
   // data = [
   // {name: 'John'},
   // {name: 'Mike'},
   // ]
 
   if (!array.length) return [];
-  if (typeof keys2Keep == "string") keys2Keep = [keys2Keep];
-  const redux = array => array.map(o => keys2Keep.reduce((acc, curr) => {
-    acc[curr] = o[curr];
-    return acc;
-  }, {}));
-  
+  if (typeof keys2Keep == 'string') keys2Keep = [keys2Keep];
+  const redux = (array) =>
+    array.map((o) =>
+      keys2Keep.reduce((acc, curr) => {
+        acc[curr] = o[curr];
+        return acc;
+      }, {})
+    );
+
   return redux(array);
 };
 
-export const reduxArrayOfObjByValue = (array=[], key, values2Keep=[]) => {
-// this will reduce:
+export const reduxArrayOfObjByValue = (array = [], key, values2Keep = []) => {
+  // this will reduce:
   // data = [
   // {name: 'John', city: 'London', age: 42},
   // {name: 'Mike', city: 'Warsaw', age: 18},
   // ]
-// keeping:
+  // keeping:
   // key = "city"
   // values2Keep = ['London']
-// to:
+  // to:
   // data = [
   // {name: 'John', city: 'London', age: 42},
   // ]
 
   if (!array.length) return [];
-  if (typeof values2Keep == "string") values2Keep = [values2Keep];
-  return array.filter(item => values2Keep.includes(item[key]));
-  
+  if (typeof values2Keep == 'string') values2Keep = [values2Keep];
+  return array.filter((item) => values2Keep.includes(item[key]));
 };
 
-export const reduxPropertiesOfObj = (obj={}, keys2Keep=[]) => {
-// this will reduce:
+export const reduxPropertiesOfObj = (obj = {}, keys2Keep = []) => {
+  // this will reduce:
   // const person = {
-        // firstName: 'firstName',
-        // lastName:  'lastName',
-        // email:     'fake@email.tld',
-        // }
-// keeping:
+  // firstName: 'firstName',
+  // lastName:  'lastName',
+  // email:     'fake@email.tld',
+  // }
+  // keeping:
   // keys2Keep = ['firstName']
-// to:
+  // to:
   // person = {
   // firstName: 'firstName',
   // }
 
-  if (typeof keys2Keep == "string") keys2Keep = [keys2Keep];
+  if (typeof keys2Keep == 'string') keys2Keep = [keys2Keep];
   const allKeys = Object.keys(obj);
   return allKeys.reduce((next, key) => {
     if (keys2Keep.includes(key)) {
@@ -224,7 +263,6 @@ export const reduxPropertiesOfObj = (obj={}, keys2Keep=[]) => {
       return next;
     }
   }, {});
-  
 };
 
 /*
@@ -245,52 +283,70 @@ return reduced.concat(b);}
 */
 
 // ES6 arrow functions
-export const mergeArrayOfObj = (a=[], b=[], prop='name') => {
+export const mergeArrayOfObj = (a = [], b = [], prop = 'name') => {
   // this will merge:
-    // a =      [{name: 1,value: "orig"}]
-    // b =      [{name: 1,value: "new"}, {name: 2,value: "new"}]
+  // a =      [{name: 1,value: "orig"}]
+  // b =      [{name: 1,value: "new"}, {name: 2,value: "new"}]
   // into:
-    // output = [{name: 1,value: "new"}, {name: 2,value: "new"}]
+  // output = [{name: 1,value: "new"}, {name: 2,value: "new"}]
   if (!a || !b) return [];
-  
+
   if (!Array.isArray(a)) a = [a];
   if (!Array.isArray(b)) b = [b];
-  const reduced = (a.length) ? a.filter(aitem => !b.find(bitem => aitem[prop] === bitem[prop])) : [];
+  const reduced = a.length
+    ? a.filter((aitem) => !b.find((bitem) => aitem[prop] === bitem[prop]))
+    : [];
   return reduced.concat(b);
 };
 
 // this will return the FIRST value found in a list of props, from an array of objects like:
 // array = [ {name: propValue, value: value1}, {name: prop2, value: value2}, .. ] => "value1"
-export const getValueFromArrayOfObj = (array, propValues, keyName='name', keyValue='value') => {
+export const getValueFromArrayOfObj = (
+  array,
+  propValues,
+  keyName = 'name',
+  keyValue = 'value'
+) => {
   if (!Array.isArray(array)) return null;
   if (!Array.isArray(propValues)) propValues = [propValues];
-  return (array.find(item => propValues.includes(item[keyName]) )) ? array.find(item => propValues.includes(item[keyName]))[keyValue] : null;
+  return array.find((item) => propValues.includes(item[keyName]))
+    ? array.find((item) => propValues.includes(item[keyName]))[keyValue]
+    : null;
 };
-
 
 // this will return ALL the value found in a list of props, from an array of objects like:
 // array = [ {name: propValue, value: value1}, {name: prop2, value: value2}, .. ] => ["value1"]
-export const getValuesFromArrayOfObj = (array, propValues, keyName='name', keyValue='value') => {
+export const getValuesFromArrayOfObj = (
+  array,
+  propValues,
+  keyName = 'name',
+  keyValue = 'value'
+) => {
   let output = [];
   if (!Array.isArray(array)) return output;
   if (!Array.isArray(propValues)) propValues = [propValues];
-  for (const item of array.filter(item => propValues.includes(item[keyName]) )) {
+  for (const item of array.filter((item) =>
+    propValues.includes(item[keyName])
+  )) {
     output.push(item[keyValue]);
   }
   return output;
 };
 
-
 // this will return the (uniq) and/or (sorted) values from an array of objects like [ {keyName: propName, keyValue: value1}, .. ] => [value1, ..]
-export const pluck = (array, keyValue='value', uniq=true, sorted=true) => {
+export const pluck = (
+  array,
+  keyValue = 'value',
+  uniq = true,
+  sorted = true
+) => {
   if (!Array.isArray(array)) return null;
-  let values = array.map(item => item[keyValue]);
-  let uniqValues = (uniq) ? [... new Set(values)] : values;
-  return (sorted) ? uniqValues.sort() : uniqValues;
+  let values = array.map((item) => item[keyValue]);
+  let uniqValues = uniq ? [...new Set(values)] : values;
+  return sorted ? uniqValues.sort() : uniqValues;
 };
 
-
-export const byteSize2HumanSize = bytes => {
+export const byteSize2HumanSize = (bytes) => {
   if (bytes === 0) return '0B';
 
   const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
@@ -299,9 +355,15 @@ export const byteSize2HumanSize = bytes => {
   return parseFloat((bytes / Math.pow(1024, i)).toFixed()) + sizes[i];
 };
 
-
-export const humanSize2ByteSize = humanBytes => {
-  const sizes = [/(\S+)B/i, /(\S+)KB?/i, /(\S+)MB?/i, /(\S+)GB?/i, /(\S+)TB?/i, /(\S+)PB?/i, ];
+export const humanSize2ByteSize = (humanBytes) => {
+  const sizes = [
+    /(\S+)B/i,
+    /(\S+)KB?/i,
+    /(\S+)MB?/i,
+    /(\S+)GB?/i,
+    /(\S+)TB?/i,
+    /(\S+)PB?/i,
+  ];
   for (const [power, regex] of Object.entries(sizes).reverse()) {
     // cannot use split as sometimes the B is missing
     // let split = humanBytes.split(regex);
@@ -312,7 +374,6 @@ export const humanSize2ByteSize = humanBytes => {
   return 0;
 };
 
-
 // Escape a string for safe use as a shell argument by wrapping in single quotes
 // and escaping any embedded single quotes. Handles empty strings too.
 export const escapeShellArg = (arg) => {
@@ -320,7 +381,6 @@ export const escapeShellArg = (arg) => {
   const str = String(arg);
   return "'" + str.replace(/'/g, "'\\''") + "'";
 };
-
 
 export const moveKeyToLast = (obj, keyToMove) => {
   // Check if the key exists in the object
@@ -331,7 +391,6 @@ export const moveKeyToLast = (obj, keyToMove) => {
   }
   return obj;
 };
-
 
 // module.exports = {
 //   funcName,
