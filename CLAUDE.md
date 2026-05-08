@@ -77,6 +77,26 @@ git push origin deploy
 
 Watch the run at https://github.com/Olen/dms-gui/actions. Typical end-to-end time is ~5–7 minutes.
 
+### Build process (CI internals)
+
+The workflow at `.github/workflows/release.yml` runs three jobs in sequence:
+
+1. **`check-version`** — checks out the repo with full history (`fetch-depth: 0` is required so all tags are visible), reads `.version` from root `package.json`, validates it against a strict semver regex (defense-in-depth against shell-metacharacter injection through the version field), and checks whether a git tag with that name already exists. Sets `should_release=true|false` for downstream jobs.
+
+2. **`test`** — guarded by `if: needs.check-version.outputs.should_release == 'true'`. Runs `npm ci && npx vitest run` in both `backend/` and `frontend/`. Fails the workflow if any test fails — no image is built or pushed when tests are red.
+
+3. **`build-and-publish`** — depends on `test`. Logs into GHCR using the workflow's auto-provisioned `GITHUB_TOKEN` (no PAT needed — that's why the workflow declares `permissions: { packages: write }`), uses `docker/build-push-action@v5` to build with `--build-arg DMSGUI_VERSION=<version>`, and pushes both `ghcr.io/olen/dms-gui:<version>` and `ghcr.io/olen/dms-gui:latest`. After the push succeeds, the same job creates an annotated git tag matching the version and pushes it to origin (requires `permissions: { contents: write }`).
+
+The workflow also runs on `workflow_dispatch` for manual rebuilds — same idempotency logic, so triggering it on a version that already has a tag is a no-op.
+
+#### Required one-time GHCR setup
+
+The repo's `GITHUB_TOKEN` can only push to packages it owns. If a `ghcr.io/olen/dms-gui` package was created earlier under a personal PAT (e.g. from manual `docker push` runs), CI's first push will fail with `permission_denied: write_package`. Fix once at https://github.com/users/Olen/packages/container/dms-gui/settings → "Manage Actions access" → add `Olen/dms-gui` with role "Write". After that, the package inherits the repo's CI access.
+
+#### Dependency-update notifications
+
+`.github/dependabot.yml` watches root/backend/frontend npm dependencies, GitHub Actions versions used in the workflow, and the Dockerfile base image. Updates are opened as PRs against `deploy` (not `main`, which is frozen per the branch model). The Node.js 20 deprecation warnings on `actions/checkout`/`docker/*-action` will surface as Dependabot PRs once those upstream actions cut Node-24-compatible releases.
+
 ### Pulling the new image into production
 
 After CI completes, on apollo:
@@ -98,6 +118,21 @@ cd /home/docker && docker compose -f dms-gui.yaml -p dms-gui up -d --force-recre
 ```
 
 Note this uses `up -d --force-recreate` directly, not `make dms-gui-recreate`, because the latter would `docker compose pull` and overwrite the local build. Use sparingly — the canonical path is bump-and-push, let CI build.
+
+### Rolling back a release
+
+Every released version stays on GHCR as an immutable versioned tag (`ghcr.io/olen/dms-gui:<version>`). To revert production to a known-good earlier version:
+
+```bash
+# on apollo
+docker pull ghcr.io/olen/dms-gui:<earlier-version>
+docker tag ghcr.io/olen/dms-gui:<earlier-version> ghcr.io/olen/dms-gui:latest
+cd /home/docker && docker compose -f dms-gui.yaml -p dms-gui up -d --force-recreate
+```
+
+Note: do NOT use `make dms-gui-recreate` for rollback — its `pull` step would re-fetch `:latest` from GHCR (i.e., the broken release). The direct `up -d --force-recreate` uses the locally-retagged image.
+
+To restore the forward path afterwards, fix on `deploy`, bump the patch version, and let CI publish the fix.
 
 ### Image registry note
 The compose file `/home/docker/dms-gui.yaml` references `ghcr.io/olen/dms-gui:latest`. CI is the only writer to that tag (apollo's `~/.docker/config.json` PAT is kept for the local-build fallback above). This deviates from the global `~/CLAUDE.md` rule that prescribes `git.olen.net` as the registry; dms-gui follows upstream's GHCR convention instead.

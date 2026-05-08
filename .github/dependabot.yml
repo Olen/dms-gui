@@ -1,0 +1,68 @@
+version: 2
+
+# Dependabot opens PRs against `deploy` (the dev branch per CLAUDE.md
+# branch model). `main` is the frozen upstream snapshot and must never
+# receive automated commits.
+
+updates:
+  # Root npm — devDependencies (eslint, husky, lint-staged)
+  - package-ecosystem: "npm"
+    directory: "/"
+    target-branch: "deploy"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "npm"
+    directory: "/backend"
+    target-branch: "deploy"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(backend)"
+    labels:
+      - "dependencies"
+      - "backend"
+
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    target-branch: "deploy"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: "deps(frontend)"
+    labels:
+      - "dependencies"
+      - "frontend"
+
+  # GitHub Actions in .github/workflows — catches the Node 20 → 24
+  # action upgrades (actions/checkout, docker/*-action, etc.) once
+  # those upstream actions release Node-24-compatible versions.
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    target-branch: "deploy"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(ci)"
+    labels:
+      - "dependencies"
+      - "ci"
+
+  # Dockerfile base image (currently node:24.14.0-alpine).
+  - package-ecosystem: "docker"
+    directory: "/"
+    target-branch: "deploy"
+    schedule:
+      interval: "weekly"
+    commit-message:
+      prefix: "deps(docker)"
+    labels:
+      - "dependencies"
+      - "docker"
