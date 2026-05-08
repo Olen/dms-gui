@@ -896,7 +896,10 @@ export const dbInit = async (reset=false) => {
           result = dbRun(actions.init);
 
           if (result.success) {
-            infoLog(`${table}: ${result.message}`, result);
+            // result.message can be a Database handle for DDL ops (CREATE TABLE)
+            // — interpolating it produces the noisy "[object Object]" log line.
+            // Just record that the table was created.
+            infoLog(`${table}: created`);
 
           } else if (result.error && result.error.match(/already exists/i)) {
             infoLog(`${table}: exist`);

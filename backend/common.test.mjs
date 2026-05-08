@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   escapeShellArg,
   fixStringType,
+  funcName,
   jsonFixTrailingCommas,
   arrayOfStringToDict,
   obj2ArrayOfObj,
@@ -138,6 +139,37 @@ describe('fixStringType', () => {
   it('returns null/undefined unchanged (no NaN coercion)', () => {
     expect(fixStringType(null)).toBe(null);
     expect(fixStringType(undefined)).toBe(undefined);
+  });
+});
+
+
+describe('funcName', () => {
+  it('returns the caller name from a regular named function', () => {
+    function namedCaller() { return funcName(2, true); }
+    expect(namedCaller()).toBe('namedCaller');
+  });
+
+  it('returns the dotted call site for anonymous Server.<...> contexts', () => {
+    // Simulate a stack frame as if from app.listen's anonymous callback
+    // by calling funcName from a method-shaped invocation.
+    const obj = {
+      'methodWithDots.<anonymous>': function () { return funcName(2, true); },
+    };
+    // Caller frame appears as something like "at Object.methodWithDots.<anonymous>".
+    // Either way we must not return a raw multi-token stack line.
+    const result = obj['methodWithDots.<anonymous>']();
+    expect(typeof result).toBe('string');
+    expect(result.startsWith('at ')).toBe(false);    // not raw stack line
+    expect(result.includes(' (')).toBe(false);       // no file:line trailing
+  });
+
+  it('falls back to <anonymous> rather than dumping a raw stack line', () => {
+    // Call from the very top — parent index larger than the stack depth.
+    const result = funcName(999, true);
+    // The previous implementation returned the literal "errorLines[i]" string
+    // which contained "    at Server.<anonymous> (file:///...)". The new
+    // fallback returns the static label.
+    expect(result === '<anonymous>' || /^[\w.<>$_]+$/.test(result)).toBe(true);
   });
 });
 
