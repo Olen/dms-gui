@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
+import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
 import { addAlias, deleteAlias, getAliases, updateAlias } from '../aliases.mjs';
 import { dbGet } from '../db.mjs';
 
@@ -61,7 +61,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index /api/aliases', error);
+    serverError(res, 'GET /api/aliases', error);
   }
 });
 
@@ -133,12 +133,15 @@ async (req, res) => {
         return res.status(400).json({ success: false, error: 'Source and destination must contain a valid @domain' });
       }
       let domainsMatch = (domainSource.length === 2 && domainDest.length === 2 && domainSource[1].toLowerCase() === domainDest[1].toLowerCase()) ? true : false;
-      result = (req.user.roles.includes(destination) && domainsMatch) ? await addAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
+      if (!req.user.roles.includes(destination) || !domainsMatch) {
+        return denyPermission(res);
+      }
+      result = await addAlias(containerName, source, destination);
     }
-    res.status(201).json(result);
+    res.status(result.success ? 201 : 500).json(result);
 
   } catch (error) {
-    serverError(res, 'index /api/aliases', error);
+    serverError(res, 'POST /api/aliases', error);
   }
 });
 
@@ -201,7 +204,10 @@ async (req, res) => {
         return res.status(403).json({ success: false, error: 'Alias management is disabled for non-admin users' });
       }
 
-      result = (req.user.roles.includes(destination)) ? await deleteAlias(containerName, source, destination) : {success:false, message: 'Permission denied'};
+      if (!req.user.roles.includes(destination)) {
+        return denyPermission(res);
+      }
+      result = await deleteAlias(containerName, source, destination);
     }
     res.json(result);
 

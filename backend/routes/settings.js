@@ -2,7 +2,7 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
+import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
 import { getConfigs, getSettings, saveSettings } from '../settings.mjs';
 import { dbAll, dbGet } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
@@ -188,7 +188,8 @@ async (req, res) => {
     const name = ('name' in req.query) ? req.query.name : null;
     const encrypted = ('encrypted' in req.query) ? req.query.encrypted : false;
 
-    const settings = (req.user.isAdmin || String(req.user.id) === scope) ? getSettings(plugin, containerName, name, encrypted) : {success:false, message:'Permission denied'};    // fails silently
+    if (!req.user.isAdmin && String(req.user.id) !== scope) return denyPermission(res);
+    const settings = getSettings(plugin, containerName, name, encrypted);
     res.json(settings);
 
   } catch (error) {
@@ -377,7 +378,7 @@ async (req, res) => {
     res.status(201).json(result);
 
   } catch (error) {
-    serverError(res, 'index POST /api/settings', error);
+    serverError(res, 'POST /api/settings', error);
   }
 });
 
