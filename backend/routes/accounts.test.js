@@ -201,7 +201,11 @@ describe('PATCH /api/accounts/:schema/:containerName/:mailbox', () => {
       .set('Cookie', [`accessToken=${userToken}`])
       .send({ password: 'newpass' });
 
-    expect(res.status).toBe(200);
+    // Permission denials are HTTP 403 with {success:false, error:...} since
+    // the response-shape standardisation. Pre-Sprint-3 this returned 200
+    // which let frontend code that only checks status silently treat the
+    // failure as success.
+    expect(res.status).toBe(403);
     expect(res.body.success).toBe(false);
     expect(res.body.error).toMatch(/Permission denied/i);
   });

@@ -87,6 +87,23 @@ export const funcName = (parent=4, onlyParent=false) => {
 //     at Server.emit (node:events:520:35)
 
 
+// Parse a JWT-style expiry string (e.g. "15m", "1h", "7d", "30s") to
+// milliseconds. Accepts an integer prefix and a unit char from {s,m,h,d}.
+// Returns the fallback (default 0) for unrecognised input.
+//
+// Used by both the JWT signer (jsonwebtoken accepts the same string syntax
+// natively) and by the cookie maxAge config so the two can never drift.
+export const parseExpiryToMs = (expiry, fallback = 0) => {
+  if (typeof expiry === 'number' && Number.isFinite(expiry)) return expiry;
+  if (typeof expiry !== 'string') return fallback;
+  const m = expiry.trim().match(/^(\d+)\s*([smhd])$/i);
+  if (!m) return fallback;
+  const n = Number(m[1]);
+  const unit = m[2].toLowerCase();
+  const multiplier = { s: 1000, m: 60_000, h: 3_600_000, d: 86_400_000 }[unit];
+  return n * multiplier;
+};
+
 export const fixStringType = string => {
   // Convert numeric strings to numbers; preserves '0' and '0.0' as numeric (the
   // previous `Number(s) ? Number(s) : s` form fell back to the string for any

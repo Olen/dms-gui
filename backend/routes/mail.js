@@ -173,7 +173,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index GET /api/rspamd/stat', error);
+    serverError(res, 'GET /api/rspamd/stat', error);
   }
 });
 
@@ -210,7 +210,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index GET /api/rspamd/counters', error);
+    serverError(res, 'GET /api/rspamd/counters', error);
   }
 });
 

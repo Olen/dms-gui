@@ -63,7 +63,7 @@ async (req, res) => {
     res.json(status);
 
   } catch (error) {
-    serverError(res, 'index /api/status', error);
+    serverError(res, 'POST /api/status', error);
   }
 });
 
@@ -87,7 +87,7 @@ async (req, res) => {
     const infos = await getNodeInfos();
     res.json(infos);
   } catch (error) {
-    serverError(res, 'index /api/infos', error);
+    serverError(res, 'GET /api/infos', error);
   }
 });
 
@@ -148,7 +148,7 @@ async (req, res) => {
     res.json(envs);
 
   } catch (error) {
-    serverError(res, 'index /api/envs', error);
+    serverError(res, 'GET /api/envs', error);
   }
 });
 
@@ -298,7 +298,7 @@ async (req, res) => {
     res.json(count);
 
   } catch (error) {
-    serverError(res, 'index GET /api/getCount', error);
+    serverError(res, 'GET /api/getCount', error);
   }
 });
 
@@ -360,7 +360,7 @@ async (req, res) => {
     res.json(dms_api_key_response);
 
   } catch (error) {
-    serverError(res, 'index /api/accounts', error);
+    serverError(res, 'POST /api/initAPI', error);
   }
 });
 
@@ -410,7 +410,7 @@ async (req, res) => {
     res.json({success:true, message: result?.message});
 
   } catch (error) {
-    serverError(res, 'index /api/killContainer', error);
+    serverError(res, 'POST /api/killContainer', error);
   }
 });
 

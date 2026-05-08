@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
+import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
 import { addAccount, deleteAccount, doveadm, getAccounts, setQuota } from '../accounts.mjs';
 import { getSieveRules, saveSieveRules, deleteSieveRules } from '../sieve.mjs';
 import { updateDB } from '../db.mjs';
@@ -54,7 +54,7 @@ async (req, res) => {
     res.json(accounts);
 
   } catch (error) {
-    serverError(res, 'index /api/accounts', error);
+    serverError(res, 'GET /api/accounts', error);
   }
 });
 
@@ -119,7 +119,7 @@ async (req, res) => {
     res.status(201).json(result);
 
   } catch (error) {
-    serverError(res, 'index /api/accounts', error);
+    serverError(res, 'POST /api/accounts', error);
   }
 });
 
@@ -177,7 +177,8 @@ async (req, res) => {
       result = await doveadm(schema, containerName, command, mailbox, req.body);
 
     } else {
-      result = (req.user.roles.includes(mailbox)) ? await doveadm(schema, containerName, command, mailbox, req.body) : {success: false, error: 'Permission denied'};
+      if (!req.user.roles.includes(mailbox)) return denyPermission(res);
+      result = await doveadm(schema, containerName, command, mailbox, req.body);
     }
     res.json(result);
 
@@ -234,7 +235,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index /api/accounts', error);
+    serverError(res, 'DELETE /api/accounts', error);
   }
 });
 
@@ -292,7 +293,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index PUT /api/accounts/quota', error);
+    serverError(res, 'PUT /api/accounts/quota', error);
   }
 });
 
@@ -359,12 +360,13 @@ async (req, res) => {
       result = await updateDB('accounts', mailbox,jsonDict, containerName);
 
     } else {
-      result = (req.user.roles.includes(mailbox)) ? await updateDB('accounts', mailbox, jsonDict, containerName) : {success: false, error: 'Permission denied'};
+      if (!req.user.roles.includes(mailbox)) return denyPermission(res);
+      result = await updateDB('accounts', mailbox, jsonDict, containerName);
     }
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index PATCH /api/accounts', error);
+    serverError(res, 'PATCH /api/accounts', error);
   }
 });
 

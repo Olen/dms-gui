@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { authenticateToken, requireActive, requireAdmin, serverError } from '../middleware.js';
+import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError } from '../middleware.js';
 import { addLogin, getLogins, getRoles } from '../logins.mjs';
 import { deleteEntry, updateDB } from '../db.mjs';
 import { debugLog, errorLog } from '../backend.mjs';
@@ -40,7 +40,8 @@ async (req, res) => {
       result = await getRoles(credential);
 
     } else {
-      result = (credential === req.user.mailbox) ? await getRoles(credential) : {success:false, message: 'Permission denied'};
+      if (credential !== req.user.mailbox) return denyPermission(res);
+      result = await getRoles(credential);
     }
     res.json(result);
 
@@ -85,7 +86,7 @@ async (req, res) => {
     res.json(logins);
 
   } catch (error) {
-    serverError(res, 'index POST /api/getLogins', error);
+    serverError(res, 'POST /api/getLogins', error);
   }
 });
 
@@ -158,7 +159,7 @@ async (req, res) => {
     res.status(201).json(result);
 
   } catch (error) {
-    serverError(res, 'index PUT /api/logins', error);
+    serverError(res, 'PUT /api/logins', error);
   }
 });
 
@@ -229,15 +230,16 @@ async (req, res) => {
       result = await updateDB('logins', id, req.body);
 
     } else {
+      if (Number(id) !== req.user.id) return denyPermission(res);
       // Non-admins: strip privilege fields to prevent escalation
       const { isAdmin, isActive, roles, ...safeBody } = req.body;
-      result = (Number(id) === req.user.id) ? await updateDB('logins', id, safeBody) : {success:false, message: 'Permission denied'};
+      result = await updateDB('logins', id, safeBody);
     }
-    debugLog(`index PATCH /api/logins/${id}`, result)
+    debugLog(`PATCH /api/logins/${id}`, result)
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index PATCH /api/logins', error);
+    serverError(res, 'PATCH /api/logins', error);
   }
 });
 
@@ -281,7 +283,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index /api/login', error);
+    serverError(res, 'DELETE /api/logins', error);
   }
 });
 

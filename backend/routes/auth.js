@@ -5,7 +5,14 @@ import { sql, dbGet, updateDB } from '../db.mjs';
 import { requestPasswordReset, validateResetToken, executePasswordReset } from '../passwordReset.mjs';
 import { env } from '../env.mjs';
 import { errorLog } from '../backend.mjs';
+import { parseExpiryToMs } from '../../common.mjs';
 import jwt from 'jsonwebtoken';
+
+// Cookie maxAge derived from the same env vars the JWT signer uses, so
+// the cookie can never expire before (or long after) the JWT inside it.
+// Falls back to 1h / 7d if the env value can't be parsed.
+const ACCESS_COOKIE_MAX_AGE = parseExpiryToMs(env.ACCESS_TOKEN_EXPIRY, 3_600_000);
+const REFRESH_COOKIE_MAX_AGE = parseExpiryToMs(env.REFRESH_TOKEN_EXPIRY, 7 * 86_400_000);
 
 const router = Router();
 
@@ -140,19 +147,21 @@ router.post('/loginUser', authLimiter, async (req, res, next) => {
         // Store refresh token in database
         updateDB('logins', user.message.id, {refreshToken:refreshToken});
 
-        // HTTP-Only Cookies (for Refresh Tokens):
+        // HTTP-Only Cookies. maxAge is derived from the same env vars the
+        // JWT signer uses (ACCESS_TOKEN_EXPIRY / REFRESH_TOKEN_EXPIRY) so
+        // the cookie expires in lockstep with the token inside it.
         res.cookie('accessToken', accessToken, {
           httpOnly: true,
-          secure: env.NODE_ENV === 'production',        // Use secure in production
-          sameSite: 'Strict',                           // 'None' or 'Lax' or 'Strict' (for CSRF protection)
-          maxAge: 3600000                               // 1h
+          secure: env.NODE_ENV === 'production',
+          sameSite: 'Strict',
+          maxAge: ACCESS_COOKIE_MAX_AGE,
         });
 
         res.cookie('refreshToken', refreshToken, {
           httpOnly: true,
           secure: env.NODE_ENV === 'production',
           sameSite: 'Strict',
-          maxAge: 7 * 24 * 60 * 60 * 1000               // 7 days
+          maxAge: REFRESH_COOKIE_MAX_AGE,
         });
 
         // and we indeed send user's information with isAdmin, roles etc
@@ -164,7 +173,7 @@ router.post('/loginUser', authLimiter, async (req, res, next) => {
     }
 
   } catch (error) {
-    serverError(res, 'index POST /api/loginUser', error);
+    serverError(res, 'POST /api/loginUser', error);
   }
 });
 
@@ -211,12 +220,14 @@ router.post('/refresh', authLimiter, async (req, res) => {
     // Generate new access token
     const newAccessToken = generateAccessToken(user);
 
-    // Set new access token cookie
+    // Set new access token cookie. Use the same derived maxAge as /loginUser
+    // so the cookie's lifetime matches the JWT's expiresIn — previously this
+    // was hardcoded to 15 minutes regardless of ACCESS_TOKEN_EXPIRY.
     res.cookie('accessToken', newAccessToken, {
       httpOnly: true,
       secure: env.NODE_ENV === 'production',
       sameSite: 'Strict',
-      maxAge: 15 * 60 * 1000 // 15 minutes
+      maxAge: ACCESS_COOKIE_MAX_AGE,
     });
 
     res.json({

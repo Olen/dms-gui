@@ -99,3 +99,11 @@ export const serverError = (res, context, error) => {
   errorLog(`${context}: ${error.message}`);
   res.status(500).json({ error: 'Internal server error' });
 };
+
+// Standard "permission denied" reply: HTTP 403 with the canonical
+// {success:false, error:...} body shape. Use this from route handlers
+// instead of returning a {success:false, message:'Permission denied'}
+// payload (which gets forwarded with HTTP 200 and is silently treated
+// as success by frontend code that only checks the status code).
+export const denyPermission = (res, message = 'Permission denied') =>
+  res.status(403).json({ success: false, error: message });
