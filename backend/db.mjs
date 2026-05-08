@@ -1363,9 +1363,13 @@ export const deleteEntry = async (table, id, key, scope) => {
       
       // check if delete should be tested
       if (sql[table].delete[key][id] || sql[table].delete[key][null]) {
-        
+
         // fix the value2test as we may have tests for any values
-        let value2test = (sql[table].delete[key][id]) ? value : null;
+        // Note: was `... ? value : null` where `value` is undeclared in this
+        // scope (it lives in updateDB's loop). Today only the `null` branch
+        // is exercised; the corrected form selects the per-id sub-spec when
+        // one exists, falling back to the null/default sub-spec.
+        let value2test = (sql[table].delete[key][id]) ? id : null;
         
         // there is a test for THAT value and now we check with id in mind
         testResult = dbGet(sql[table].delete[key][value2test].test, scopedValues, id);
