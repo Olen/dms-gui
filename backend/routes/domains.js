@@ -129,7 +129,7 @@ async (req, res) => {
     const result = await getDkimSelector('mailserver', containerName);
     res.json(result);
   } catch (error) {
-    serverError(res, 'index GET /api/domains/dkim-selector', error);
+    serverError(res, 'GET /api/domains/dkim-selector', error);
   }
 });
 
@@ -231,7 +231,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index PATCH /api/domains', error);
+    serverError(res, 'PATCH /api/domains', error);
   }
 });
 
@@ -285,7 +285,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index GET /api/dns', error);
+    serverError(res, 'GET /api/dns', error);
   }
 });
 
@@ -351,7 +351,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index POST /api/domains/dkim', error);
+    serverError(res, 'POST /api/domains/dkim', error);
   }
 });
 
@@ -397,7 +397,7 @@ async (req, res) => {
     res.json(result);
 
   } catch (error) {
-    serverError(res, 'index GET /api/dnsbl', error);
+    serverError(res, 'GET /api/dnsbl', error);
   }
 });
 
