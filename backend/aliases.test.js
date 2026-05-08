@@ -132,4 +132,40 @@ describe('updateAlias', () => {
     expect(execSetup.mock.calls[0][0]).toMatch(/^alias del 'info@example\.com' 'a@example\.com'$/);
     expect(execSetup.mock.calls[1][0]).toMatch(/^alias add 'info@example\.com' 'c@example\.com'$/);
   });
+
+  it('rejects regex aliases without calling DMS', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: '/^info.*/', destination: 'a@example.com', regex: 1 }],
+    });
+
+    const result = await updateAlias('mailserver', '/^info.*/', 'b@example.com');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/regex aliases is not supported/i);
+    expect(execSetup).not.toHaveBeenCalled();
+    expect(mockDbRun).not.toHaveBeenCalled();
+  });
+
+  it('rejects when the alias does not exist in the DB', async () => {
+    mockDbAll.mockReturnValue({ success: true, message: [] });
+
+    const result = await updateAlias('mailserver', 'gone@example.com', 'a@example.com');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/not found/i);
+    expect(execSetup).not.toHaveBeenCalled();
+  });
+
+  it('rejects empty newDestination', async () => {
+    mockDbAll.mockReturnValue({
+      success: true,
+      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+    });
+
+    const result = await updateAlias('mailserver', 'info@example.com', '');
+
+    expect(result.success).toBe(false);
+    expect(execSetup).not.toHaveBeenCalled();
+  });
 });
