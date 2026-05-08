@@ -438,6 +438,47 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
   }
 };
 
+// Function to update an alias by diffing destination sets.
+// Source stays read-only; we add new destinations and remove gone ones.
+// Regex aliases (regex=1) are not supported.
+export const updateAlias = async (containerName=null, source=null, newDestination=null) => {
+  if (!containerName) return {success: false, error: 'containerName is null'};
+  if (!source) return {success: false, error: 'source is null'};
+  if (!newDestination) return {success: false, error: 'destination is null'};
+
+  const demo = demoWriteResponse(`Alias updated: ${source}`);
+  if (demo) return demo;
+
+  // Look up existing alias from the DB cache. We read all aliases for the
+  // container and find by source, mirroring how getAliases reads.
+  const allRes = dbAll(sql.aliases.select.aliases, {}, containerName);
+  if (!allRes.success) return allRes;
+  const existing = (allRes.message || []).find(a => a.source === source);
+  if (!existing) return {success: false, error: 'Alias not found'};
+  if (existing.regex) return {success: false, error: 'Editing regex aliases is not supported'};
+
+  // Split, trim, drop empties.
+  const splitTrim = (s) => String(s).split(',').map(d => d.trim()).filter(Boolean);
+  const oldList = splitTrim(existing.destination);
+  const newList = splitTrim(newDestination);
+
+  if (newList.length === 0) return {success: false, error: 'destination is null'};
+
+  // Case-insensitive set diff. Track lowercase-keyed lookup but preserve
+  // original-case strings when issuing alias add/del to DMS.
+  const lowerSet = (list) => new Set(list.map(d => d.toLowerCase()));
+  const oldLower = lowerSet(oldList);
+  const newLower = lowerSet(newList);
+  const added = newList.filter(d => !oldLower.has(d.toLowerCase()));
+  const removed = oldList.filter(d => !newLower.has(d.toLowerCase()));
+
+  if (added.length === 0 && removed.length === 0) {
+    return {success: true, message: 'No changes'};
+  }
+
+  // Future tasks expand this function. For now, no-op success only.
+  return {success: false, error: 'not implemented yet'};
+};
 
 // module.exports = {
 //   getAliases,
