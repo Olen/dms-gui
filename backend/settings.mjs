@@ -542,94 +542,6 @@ export const getServerStatus = async (plugin='mailserver', containerName=null, t
 };
 
 
-/*
-// Function to get server status from a docker container - deprecated
-async function getServerStatusFromDocker(containerName) {
-containerName = (containerName) ? containerName : live.DMS_CONTAINER;
-debugLog(`for ${containerName}`);
-
-var status = {
-  status: {
-    status: 'loading',
-    error: null,
-  },
-  resources: {
-    cpuUsage: 0,
-    memoryUsage: 0,
-    diskUsage: 0,
-  },
-};
-
-try {
-  
-  // Get container info
-  let container = getContainer(containerName);
-  let containerInfo = await container.inspect();
-
-  // Check if container exist
-  status.status.status = (containerInfo.Id) ? "stopped" : "missing";
-  
-  if ( status.status.status != "missing") {
-    
-    // Check if container is running
-    const isRunning = containerInfo.State.Running === true;
-    // debugLog(`Container running: ${isRunning} status.status=`, status.status);
-
-    // get also errors and stuff
-    status.status.Error = containerInfo.State.Error;
-    status.status.StartedAt = containerInfo.State.StartedAt;
-    status.status.FinishedAt = containerInfo.State.FinishedAt;
-    status.status.Health = containerInfo.State.Health.Status;
-
-    // pull cpu stats if isRunning
-    if (isRunning) {
-      status.status.status = 'running';
-      
-      // Get container stats
-      // debugLog(`Getting container stats`);
-      const stats = await container.stats({ stream: false });
-      // debugLog('stats:',stats);
-      
-      // Calculate CPU usage percentage
-      const cpuDelta =
-          stats.cpu_stats.cpu_usage.total_usage
-        - stats.precpu_stats.cpu_usage.total_usage;
-      const systemCpuDelta =
-        stats.cpu_stats.system_cpu_usage - stats.precpu_stats.system_cpu_usage;
-      const cpuPercent =
-        (cpuDelta / systemCpuDelta) * stats.cpu_stats.online_cpus;
-        // (cpuDelta / systemCpuDelta) * stats.cpu_stats.online_cpus * 100;
-      // status.resources.cpuUsage = `${cpuPercent.toFixed(2)}%`;
-      status.resources.cpuUsage = cpuPercent;
-
-      // Calculate memory usage
-      const memoryUsageBytes = stats.memory_stats.usage;
-      // status.resources.memoryUsage = byteSize2HumanSize(memoryUsageBytes);
-      status.resources.memoryUsage = memoryUsageBytes;
-
-      // debugLog(`Resources:`, status.resources);
-
-      // For disk usage, we would need to run a command inside the container
-      // This could be a more complex operation involving checking specific directories
-    }
-  }
-
-  // debugLog(`Server pull status result:`, status);
-  successLog(`Server pull status`);
-  return status;
-  
-} catch (error) {
-  let backendError = `${error.message}`;
-  errorLog(`${backendError}`);
-  throw new Error(backendError);
-  // TODO: we should return smth to theindex API instead of throwing an error
-  // return {
-    // status: 'unknown',
-    // error: error.message,
-  // };
-}
-}
-*/
 
 
 // function readDovecotConfFile will convert dovecot conf file syntax to JSON
@@ -871,46 +783,6 @@ export const pullDoveConf = async (targetDict={}) => {
 };
 
 
-/*
-// pulls FTS info from detecting fts named mounts in docker - deprecated
-async function pullFTSFromDocker(containerName, containerInfo) {
-let ftsMount = '';
-let envs = {};
-
-try {
-  const targetDict = getTargetDict(plugin, containerName);
-
-  containerInfo.Mounts.forEach( async (mount) => {
-    debugLog(`found mount ${mount.Destination}`);
-    if (mount.Destination.match(/fts.*\.conf$/i)) {
-      // we get the DMS internal mount as we cannot say if we have access to that file on the host system
-      ftsMount = mount.Destination;
-    }
-  });
-
-  // if we found fts override plugin, let's load it
-  if (ftsMount) {
-    const results = await execCommand(`cat ${ftsMount}`, targetDict);
-    if (!results.returncode) {
-      debugLog(`dovecot file content:`, results.stdout);
-      const ftsConfig = await readDovecotConfFile(results.stdout);
-      debugLog(`dovecot json:`, ftsConfig);
-      
-      if (ftsConfig?.plugin?.fts) {
-        envs.DOVECOT_FTS_PLUGIN = ftsConfig.plugin.fts;
-        envs.DOVECOT_FTS_AUTOINDEX = ftsConfig.plugin.fts_autoindex;
-
-      }
-    } else errorLog(results.stderr);
-  
-  }
-  
-} catch (error) {
-  errorLog(`execCommand failed with error:`,error);
-}
-return envs;
-}
-*/
 
 
 export const pullDOVECOT = async (targetDict={}) => {
@@ -935,31 +807,6 @@ export const pullDOVECOT = async (targetDict={}) => {
 };
 
 
-/*
-// deprecated
-async function pullMailPluginsOLD(containerName) {
-debugLog(`start`);
-let envs = {};
-
-try {
-  const targetDict = getTargetDict(plugin, containerName);
-
-  const results = await execCommand(`doveconf mail_plugins`, targetDict);   // results.stdout = "mail_plugins = quota fts fts_xapian zlib"
-  if (!results.returncode) {
-    // [ "mail_plugins", "quota", "fts", "fts_xapian", "zlib" ]
-    // the bellow will add those items: envs.DOVECOT_QUOTA, DOVECOT_FTS, DOVECOT_FTP_XAPIAN and DOVECOT_ZLIB
-    for (const PLUGIN of results.stdout.split(/[=\s]+/)) {
-      if (PLUGIN && PLUGIN.toUpperCase() != 'MAIL_PLUGINS') envs[`DOVECOT_${PLUGIN.toUpperCase()}`] = 1;
-    }
-
-  } else errorLog(results.stderr);
-
-} catch (error) {
-  errorLog(`execCommand failed with error:`,error);
-}
-return envs;
-}
-*/
 
 
 export const pullDkimRspamd = async (targetDict={}) => {
@@ -1094,63 +941,10 @@ export const pullServerEnvs = async (targetDict={}) => {
   
 };
 
-/*
-// Function to pull server environment - deprecated
-async function pullServerEnvsFromDocker(containerName) {
-containerName = (containerName) ? containerName : live.DMS_CONTAINER;
-debugLog(`for ${containerName}`);
 
-var envs = {DKIM_SELECTOR_DEFAULT: env.DKIM_SELECTOR_DEFAULT };
-try {
-  
-  // Get container instance
-  let container = getContainer(containerName);
-  let containerInfo = await container.inspect();
-
-  if (containerInfo.Id) {
-    
-    debugLog(`containerInfo found, Id=`, containerInfo.Id);
-    
-    // get and conver DMS environment to dict ------------------------------------------ envs
-    dictEnvDMS = await arrayOfStringToDict(containerInfo.Config?.Env, '=');
-    // debugLog(`dictEnvDMS:`,dictEnvDMS);
-    
-    // we keep only some options not all
-    dictEnvDMSredux = reduxPropertiesOfObj(dictEnvDMS, env.DMS_OPTIONS);
-    debugLog(`dictEnvDMSredux:`, dictEnvDMSredux);
-
-
-    // look for dovecot mail_plugins -------------------------------------------------- mail_plugins
-    let mail_plugins = await pullMailPlugins(containerName);
-    
-    // TODO: look for quotas -------------------------------------------------- quota
-    
-    // look for dovecot version -------------------------------------------------- dovecot
-    let dovecot = await pullDOVECOT(containerName);
-
-    // look for FTS values -------------------------------------------------- fts
-    let fts = await pullFTSFromDocker(containerName, containerInfo);
-
-    // pull dkim conf ------------------------------------------------------------------ dkim rspamd
-    let dkim = await pullDkimRspamd(containerName);
-    
-    // merge all ------------------------------------------------------------------ merge
-    envs = { ...envs, ...dictEnvDMSredux, ...mail_plugins, ...dovecot, ...fts, ...dkim };
-
-  }
-  
-  debugLog(`Server pull envs result:`, envs);
-  return obj2ArrayOfObj(envs, true);
-  
-} catch (error) {
-  let backendError = `${error.message}`;
-  errorLog(`${backendError}`);
-  throw new Error(backendError);
-}
-}
-*/
-
-export const getServerEnv = async (plugin='mailserver', containerName=null, name=null) => {
+// Internal helper — only called by getServerEnvs() below. Removed the
+// `export` since no other module imports it.
+const getServerEnv = async (plugin='mailserver', containerName=null, name=null) => {
   debugLog(`plugin=${plugin}, containerName=${containerName}, name=${name}`);
   if (!name)                      return {success: false, error: 'name is required'};
   if (!containerName)             return {success: false, error: 'containerName is required'};

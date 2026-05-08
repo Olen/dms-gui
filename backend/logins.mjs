@@ -290,37 +290,6 @@ export const loginUser = async (credential=null, password='') => {
 };
 
 
-// this returns an array of objects // cancelled
-export const getRolesFromRoles = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
-
-  try {
-    
-    let roles = dbAll(sql.roles.select.roles, {scope:containerName});
-    if (roles.success) {
-      debugLog(`pulled ${roles.message.length} roles`);
-      
-      // we could read DB_Logins and it is valid
-      if (roles.message.length) {
-        infoLog(`Found ${roles.message.length} entries in roles`);
-        
-      } else {
-        warnLog(`db roles seems empty:`, roles);
-      }
-    }
-    return roles;
-    // {success: true, message: [ { username: username, mailbox: mailbox }, ..] }
-    
-  } catch (error) {
-    errorLog(error.message);
-    throw new Error(error.message);
-    // TODO: we should return smth to the index API instead of throwing an error
-    // return {
-      // status: 'unknown',
-      // error: error.message,
-    // };
-  }
-};
 
 
 // module.exports = {
