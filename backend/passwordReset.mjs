@@ -15,20 +15,20 @@ let transporter = null;
 // Pure helper exported for test coverage of the TLS hardening (#34).
 // Keeps getTransporter() trivially testable without standing up the
 // whole module's mock graph.
-export const buildSmtpTransportConfig = (e) => ({
-  host: e.SMTP_HOST,
-  port: e.SMTP_PORT,
+export const buildSmtpTransportConfig = (smtpEnv) => ({
+  host: smtpEnv.SMTP_HOST,
+  port: smtpEnv.SMTP_PORT,
   secure: false,
   // requireTLS forces STARTTLS upgrade — without it, an attacker
   // who can MITM the SMTP path could strip the upgrade and trick
   // us into sending the reset link in plaintext.
   requireTLS: true,
-  // rejectUnauthorized defaults to true (proper CA validation).
-  // Override via SMTP_TLS_VERIFY=false in .dms-gui.env when the
-  // SMTP target uses a self-signed cert whose CN doesn't match
-  // the host we connect to (common with internal Docker container
-  // names like 'mailserver').
-  tls: { rejectUnauthorized: e.SMTP_TLS_VERIFY },
+  // rejectUnauthorized: see env.mjs for the SMTP_TLS_VERIFY default
+  // resolution rules. Override via SMTP_TLS_VERIFY=false in
+  // .dms-gui.env when the SMTP target uses a self-signed cert whose
+  // CN doesn't match the host we connect to (common with internal
+  // Docker container names like 'mailserver').
+  tls: { rejectUnauthorized: smtpEnv.SMTP_TLS_VERIFY },
 });
 
 const getTransporter = () => {
