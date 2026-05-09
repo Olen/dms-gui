@@ -32,6 +32,7 @@ vi.mock('../accounts.mjs', () => ({
   deleteAccount: (...args) => mockDeleteAccount(...args),
   doveadm: (...args) => mockDoveadm(...args),
   setQuota: (...args) => mockSetQuota(...args),
+  SUPPORTED_SCHEMAS: new Set(['dms']),
 }));
 
 vi.mock('../db.mjs', () => ({
@@ -168,27 +169,47 @@ describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
   });
 
   it('passes the schema path param through to deleteAccount (not hardcoded "dms")', async () => {
+    // The bug being guarded against here is the *handler* having a
+    // hardcoded `'dms'` literal in the deleteAccount() call. Even
+    // though `'dms'` is currently the only legal schema, this assertion
+    // would catch a regression where someone re-introduces the literal.
     mockDeleteAccount.mockResolvedValue({
       success: true,
       message: 'Account deleted',
     });
 
     await request(app)
-      .delete('/api/accounts/customschema/mailserver/old@test.com')
+      .delete('/api/accounts/dms/mailserver/old@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(mockDeleteAccount).toHaveBeenCalledWith(
-      'customschema',
+      'dms',
       'mailserver',
       'old@test.com'
     );
   });
 
+  it('rejects unknown schemas with 400 instead of crashing deleteAccount()', async () => {
+    // deleteAccount() only initializes `results` when schema==='dms';
+    // any other value would slip through and crash with `results.returncode`
+    // on an undefined access. The route now allowlist-checks first.
+    const res = await request(app)
+      .delete('/api/accounts/customschema/mailserver/old@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsupported schema/i);
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
+  });
+
   it('rejects the legacy 2-segment path (regression guard for issue #38)', async () => {
-    // The old route was `/accounts/:containerName/:mailbox` and the
-    // handler hardcoded schema='dms'. The frontend always sent the
-    // 3-segment shape, so the 2-segment shape would 404 in production.
-    // Lock the new shape: a legacy 2-segment request must not match.
+    // The route used to be registered as `/accounts/:containerName/:mailbox`
+    // (only 2 segments after `/accounts/`). The frontend, the Swagger doc,
+    // and every sibling accounts route used the 3-segment
+    // `/:schema/:containerName/:mailbox` shape, so the frontend's
+    // 3-segment requests 404'd — that was the production bug. After this
+    // PR the route accepts the 3-segment shape and rejects the legacy
+    // 2-segment shape; lock that contract here.
     const res = await request(app)
       .delete('/api/accounts/mailserver/user@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);

@@ -13,6 +13,7 @@ import {
   doveadm,
   getAccounts,
   setQuota,
+  SUPPORTED_SCHEMAS,
 } from '../accounts.mjs';
 import { getSieveRules, saveSieveRules, deleteSieveRules } from '../sieve.mjs';
 import { updateDB } from '../db.mjs';
@@ -269,6 +270,14 @@ router.delete(
     try {
       const { schema, containerName, mailbox } = req.params;
       if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!SUPPORTED_SCHEMAS.has(schema)) {
+        // Validate against the allowlist so unknown schemas don't slip
+        // into deleteAccount() — it only initializes its `results` for
+        // schema==='dms' and would crash on any other value.
+        return res
+          .status(400)
+          .json({ error: `unsupported schema '${schema}'` });
+      }
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
       if (!mailbox) {
