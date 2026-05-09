@@ -168,6 +168,27 @@ describe('execAction', () => {
     expect(body.timeout).toBe(60);
   });
 
+  it('falls back to env.timeout when opts.timeout is invalid (NaN, 0, negative, Infinity, non-numeric string)', async () => {
+    for (const bad of [NaN, 0, -1, Infinity, 'not a number']) {
+      fetchSpy.mockClear();
+      socketSetTimeoutSpy.mockClear();
+      await execAction('setup_email_list', {}, validTarget, { timeout: bad });
+      const [, init] = fetchSpy.mock.calls[0];
+      const body = JSON.parse(init.body);
+      expect(body.timeout).toBe(4); // env.timeout fallback
+    }
+  });
+
+  it('falls back to env.timeout when targetDict.timeout is invalid, ignoring opts.timeout', async () => {
+    // If opts.timeout is absent but targetDict.timeout is invalid, should
+    // fall through to env.timeout (4) rather than passing the bad value.
+    const targetWithBadTimeout = { ...validTarget, timeout: -5 };
+    await execAction('setup_email_list', {}, targetWithBadTimeout);
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.timeout).toBe(4); // env.timeout fallback
+  });
+
   it('passes explicit null args through to the body without coercion', async () => {
     // Contract: an explicit `null` from the caller is a programming error
     // that should surface as the rest-api interpreter's 400 ('args must

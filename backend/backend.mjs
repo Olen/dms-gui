@@ -428,9 +428,21 @@ export const execAction = async (
     // checkPort still used targetDict.timeout (or default ~0.3s) — a
     // long-running action could fail the pre-flight TCP probe long
     // before its own timeout kicked in.
-    const effectiveTimeout = Number(
-      opts?.timeout ?? targetDict?.timeout ?? env.timeout
-    );
+    //
+    // Validation: a non-numeric / NaN / non-positive value would silently
+    // flow through Number(...) and confuse both checkPort (setTimeout(NaN)
+    // is undefined behaviour) and the rest-api (it rejects non-positive
+    // timeouts with HTTP 400). Fall back to env.timeout, then a hardcoded
+    // 4s, on invalid input.
+    const resolveTimeout = (raw) => {
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const effectiveTimeout =
+      resolveTimeout(opts?.timeout) ??
+      resolveTimeout(targetDict?.timeout) ??
+      resolveTimeout(env.timeout) ??
+      4;
     result = await checkPort({ ...targetDict, timeout: effectiveTimeout });
     if (result.success) {
       const jsonData = {

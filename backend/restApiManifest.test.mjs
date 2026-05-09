@@ -57,6 +57,48 @@ function actionPlaceholders(action) {
   return all;
 }
 
+describe('SETUP_PATH_VALIDATOR (Sprint B round-9)', () => {
+  // Find the action that uses setup_path and grab its validator regex.
+  const action = REST_API_MANIFEST.find((a) => a.id === 'setup_email_list');
+  const re = new RegExp(action.validate.setup_path.regex);
+
+  it('accepts the standard /usr/local/bin/setup', () => {
+    expect(re.test('/usr/local/bin/setup')).toBe(true);
+  });
+
+  it('accepts /usr/local/bin/setup.sh (with extension)', () => {
+    expect(re.test('/usr/local/bin/setup.sh')).toBe(true);
+  });
+
+  it('accepts /setup (single segment, no extension)', () => {
+    expect(re.test('/setup')).toBe(true);
+  });
+
+  it('accepts /foo.bar.baz (multiple extensions)', () => {
+    expect(re.test('/foo.bar.baz')).toBe(true);
+  });
+
+  it('rejects path traversal via ..', () => {
+    expect(re.test('/tmp/../../usr/bin/foo')).toBe(false);
+  });
+
+  it('rejects double-dot in a single segment', () => {
+    expect(re.test('/foo..bar/setup')).toBe(false);
+  });
+
+  it('rejects relative paths', () => {
+    expect(re.test('setup')).toBe(false);
+  });
+
+  it('rejects empty path', () => {
+    expect(re.test('')).toBe(false);
+  });
+
+  it('rejects path consisting of only a slash', () => {
+    expect(re.test('/')).toBe(false);
+  });
+});
+
 describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
   it('all action ids are unique', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);

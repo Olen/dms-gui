@@ -35,8 +35,14 @@ const MAILBOX_VALIDATOR = {
   regex: '^[\\w.\\-_]+@[\\w.\\-_]+$',
   maxlen: 254,
 };
+// setup.sh path. Absolute path; no consecutive dots (no `..` traversal,
+// no `foo..bar` shapes). Path segments are alphanumeric+_-, optionally
+// with `.ext` suffixes (e.g. setup.sh) — the structure positively
+// matches "valid path" rather than negatively rejecting `..`, which
+// closes lookahead-bypass corner cases.
 const SETUP_PATH_VALIDATOR = {
-  regex: '^/[A-Za-z0-9./_-]+$',
+  regex:
+    '^/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)*$',
   maxlen: 256,
 };
 // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash + space + glob chars (* % ?).
