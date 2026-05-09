@@ -28,6 +28,7 @@ import serverRoutes from './routes/server.js';
 import mailRoutes from './routes/mail.js';
 
 import {
+  apiLimiter,
   authenticateToken,
   requireActive,
   requireAdmin,
@@ -80,6 +81,7 @@ if (env.ENABLE_SWAGGER) {
   });
   app.use(
     '/docs',
+    apiLimiter,
     authenticateToken,
     requireActive,
     requireAdmin,
@@ -114,14 +116,19 @@ app.set('query parser', function (str) {
 // (skipped on login/refresh/password-reset, applied on logout) since
 // session-establishing routes don't authenticate via the existing
 // cookie and thus aren't a CSRF surface.
+//
+// apiLimiter (#59) layers on top: every authenticated router enforces
+// a per-IP rate limit so a leaked session cookie can't be pumped at
+// arbitrary speed. Auth routes keep their own (stricter) authLimiter
+// applied per-route inside routes/auth.js.
 app.use('/api', authRoutes);
-app.use('/api', requireCsrf, loginRoutes);
-app.use('/api', requireCsrf, accountRoutes);
-app.use('/api', requireCsrf, aliasRoutes);
-app.use('/api', requireCsrf, settingRoutes);
-app.use('/api', requireCsrf, domainRoutes);
-app.use('/api', requireCsrf, serverRoutes);
-app.use('/api', requireCsrf, mailRoutes);
+app.use('/api', requireCsrf, apiLimiter, loginRoutes);
+app.use('/api', requireCsrf, apiLimiter, accountRoutes);
+app.use('/api', requireCsrf, apiLimiter, aliasRoutes);
+app.use('/api', requireCsrf, apiLimiter, settingRoutes);
+app.use('/api', requireCsrf, apiLimiter, domainRoutes);
+app.use('/api', requireCsrf, apiLimiter, serverRoutes);
+app.use('/api', requireCsrf, apiLimiter, mailRoutes);
 
 // ============================================
 // MULTER ERROR HANDLER

@@ -24,6 +24,11 @@ vi.mock('./env.mjs', () => ({
 
 import jwt from 'jsonwebtoken';
 import {
+  API_LIMITER_MAX,
+  API_LIMITER_WINDOW_MS,
+  AUTH_LIMITER_MAX,
+  apiLimiter,
+  authLimiter,
   authenticateToken,
   requireAdmin,
   requireActive,
@@ -548,5 +553,28 @@ describe('generateCsrfToken (#40)', () => {
     const a = generateCsrfToken();
     const b = generateCsrfToken();
     expect(a).not.toBe(b);
+  });
+});
+
+describe('rate limiters (#59)', () => {
+  it('authLimiter and apiLimiter are both middleware functions', () => {
+    expect(typeof authLimiter).toBe('function');
+    expect(typeof apiLimiter).toBe('function');
+  });
+
+  it('apiLimiter is more permissive than authLimiter', () => {
+    // Truthy invariant: an apiLimiter that accidentally inherits the
+    // auth tier's strict 15/window cap would brick the dashboard
+    // auto-refresh. Asserting the ordering keeps the test resilient
+    // to future re-tuning of either tier.
+    expect(API_LIMITER_MAX).toBeGreaterThan(AUTH_LIMITER_MAX);
+  });
+
+  it('apiLimiter caps requests at the documented level', () => {
+    // Hard-coded check on the chosen number so a casual edit
+    // (e.g. "let's make it 60 to be safe") doesn't quietly throttle
+    // legitimate users below the dashboard's auto-refresh rate.
+    expect(API_LIMITER_MAX).toBe(600);
+    expect(API_LIMITER_WINDOW_MS).toBe(15 * 60 * 1000);
   });
 });

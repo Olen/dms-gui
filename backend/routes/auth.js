@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import {
+  apiLimiter,
   authenticateToken,
   authLimiter,
   generateAccessToken,
@@ -109,16 +110,14 @@ router.post('/validate-reset-token', authLimiter, async (req, res) => {
   }
 });
 
-router.post('/reset-password', async (req, res) => {
+router.post('/reset-password', authLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!password || password.length < 8) {
-      return res
-        .status(400)
-        .json({
-          success: false,
-          error: 'Password must be at least 8 characters',
-        });
+      return res.status(400).json({
+        success: false,
+        error: 'Password must be at least 8 characters',
+      });
     }
     const result = await executePasswordReset(token, password);
     res.json(result);
@@ -327,27 +326,33 @@ router.post('/refresh', authLimiter, async (req, res) => {
 // via the existing session cookie, so the CSRF threat shape doesn't
 // apply to them. Order matters: authenticateToken runs first so
 // anonymous requests still get a 401 (not a 403 about CSRF).
-router.post('/logout', authenticateToken, requireCsrf, async (req, res) => {
-  try {
-    // Remove refresh token from database
-    updateDB('logins', req.user.id, { refreshToken: 'null' });
+router.post(
+  '/logout',
+  apiLimiter,
+  authenticateToken,
+  requireCsrf,
+  async (req, res) => {
+    try {
+      // Remove refresh token from database
+      updateDB('logins', req.user.id, { refreshToken: 'null' });
 
-    // Clear cookies
-    res.clearCookie('accessToken');
-    res.clearCookie('refreshToken');
-    res.clearCookie('xsrfToken');
+      // Clear cookies
+      res.clearCookie('accessToken');
+      res.clearCookie('refreshToken');
+      res.clearCookie('xsrfToken');
 
-    res.json({
-      success: true,
-      message: 'Logged out successfully',
-    });
-  } catch (error) {
-    errorLog(`POST /api/logout: ${error.message}`);
-    res.status(500).json({
-      error: 'Logout failed',
-      code: 'LOGOUT_ERROR',
-    });
+      res.json({
+        success: true,
+        message: 'Logged out successfully',
+      });
+    } catch (error) {
+      errorLog(`POST /api/logout: ${error.message}`);
+      res.status(500).json({
+        error: 'Logout failed',
+        code: 'LOGOUT_ERROR',
+      });
+    }
   }
-});
+);
 
 export default router;

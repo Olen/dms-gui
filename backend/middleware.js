@@ -135,15 +135,41 @@ export const validateContainerName = (req, res, next, value) => {
   next();
 };
 
+// Rate-limiter tuning lives next to the limiters themselves, exported
+// so the values can be unit-tested without poking at express-rate-limit's
+// internals (which it doesn't expose on the returned middleware).
+export const AUTH_LIMITER_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+export const AUTH_LIMITER_MAX = 15;
+export const API_LIMITER_WINDOW_MS = 15 * 60 * 1000; // 15 minutes
+export const API_LIMITER_MAX = 600;
+
 // Rate limiter for auth endpoints (login + refresh)
 export const authLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15, // limit each IP to 15 requests per window
+  windowMs: AUTH_LIMITER_WINDOW_MS,
+  max: AUTH_LIMITER_MAX,
   standardHeaders: true,
   legacyHeaders: false,
   message: {
     error: 'Too many authentication attempts, please try again later',
   },
+});
+
+// Rate limiter for authenticated API traffic (#59). Looser than
+// authLimiter — applied at the router level for every authenticated
+// router so both existing and future routes inherit it. Sized for the
+// dashboard auto-refresh pattern (~5 req per 30s × 15 min ≈ 150
+// req/window from a single user just sitting on the dashboard, plus
+// browsing bursts) with comfortable headroom for multi-user NAT'd
+// deployments. The threat model is "leaked session cookie pumped
+// against the API" — at 600/15min ≈ 40/min sustained, an attacker is
+// throttled below useful enumeration speed while normal usage stays
+// well under the cap.
+export const apiLimiter = rateLimit({
+  windowMs: API_LIMITER_WINDOW_MS,
+  max: API_LIMITER_MAX,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { error: 'Too many requests, please slow down' },
 });
 
 // Log full error details server-side but return only a generic message to clients
