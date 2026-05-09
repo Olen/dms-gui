@@ -170,8 +170,14 @@ export const REST_API_MANIFEST = [
     ],
     validate: {
       mailbox: MAILBOX_VALIDATOR,
-      // Single field name (e.g. 'all', 'messages') OR a space-separated list.
-      field: { regex: '^[a-z_]+(?: [a-z_]+)*$', maxlen: 128 },
+      // Single field name only (e.g. 'all', 'messages', 'vsize'). The
+      // action protocol substitutes {field} as ONE argv token; a
+      // space-separated list (`'messages recent'`) would arrive at
+      // doveadm as a single argument with an embedded space rather
+      // than multiple positional args. If multi-field support is ever
+      // needed, model it as a distinct action with a multi-stage argv
+      // template (or extend the protocol to support array placeholders).
+      field: { regex: '^[a-z_]+$', maxlen: 64 },
       // Leading '-' / space disallowed to prevent the value from being parsed
       // as an option flag by doveadm when positional (defense in depth — even
       // though shell=False is in effect, doveadm's own getopt sees the token).

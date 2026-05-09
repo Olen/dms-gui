@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { readFileSync, existsSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
@@ -58,9 +58,21 @@ function actionPlaceholders(action) {
 }
 
 describe('SETUP_PATH_VALIDATOR (Sprint B round-9)', () => {
-  // Find the action that uses setup_path and grab its validator regex.
-  const action = REST_API_MANIFEST.find((a) => a.id === 'setup_email_list');
-  const re = new RegExp(action.validate.setup_path.regex);
+  // Look up the action and regex inside a beforeAll, not at describe-
+  // definition time. If the manifest entry or validator is missing/
+  // renamed, this surfaces as a normal test failure with a clear
+  // assertion message rather than a TypeError that crashes the entire
+  // file's module evaluation and skips every other test.
+  let re;
+  beforeAll(() => {
+    const action = REST_API_MANIFEST.find((a) => a.id === 'setup_email_list');
+    expect(action, 'manifest must contain setup_email_list').toBeDefined();
+    expect(
+      action.validate?.setup_path?.regex,
+      'setup_email_list must validate setup_path'
+    ).toBeDefined();
+    re = new RegExp(action.validate.setup_path.regex);
+  });
 
   it('accepts the standard /usr/local/bin/setup', () => {
     expect(re.test('/usr/local/bin/setup')).toBe(true);
