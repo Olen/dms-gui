@@ -24,11 +24,10 @@
 //   humanSize2ByteSize,
 //   moveKeyToLast,
 // } from '../common.mjs'
-import { escapeShellArg } from '../common.mjs';
 import {
   debugLog,
   errorLog,
-  execCommand,
+  execAction,
   infoLog,
   successLog,
   warnLog,
@@ -295,8 +294,11 @@ export const loginUser = async (credential = null, password = '') => {
               login.message.mailserver
             );
             targetDict.timeout = 5;
-            let command = `doveadm auth test ${escapeShellArg(login.message.mailbox)} ${escapeShellArg(password)}`;
-            results = await execCommand(command, targetDict);
+            results = await execAction(
+              'doveadm_auth_test',
+              { mailbox: login.message.mailbox, password },
+              targetDict
+            );
             if (!results.returncode) {
               successLog(`${credential} logged in successfully`);
             } else {

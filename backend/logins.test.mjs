@@ -6,7 +6,7 @@ const mockErrorLog = vi.fn();
 const mockSuccessLog = vi.fn();
 const mockWarnLog = vi.fn();
 const mockInfoLog = vi.fn();
-const mockExecCommand = vi.fn();
+const mockExecAction = vi.fn();
 
 vi.mock('./backend.mjs', () => ({
   debugLog: (...args) => mockDebugLog(...args),
@@ -14,7 +14,7 @@ vi.mock('./backend.mjs', () => ({
   successLog: (...args) => mockSuccessLog(...args),
   warnLog: (...args) => mockWarnLog(...args),
   infoLog: (...args) => mockInfoLog(...args),
-  execCommand: (...args) => mockExecCommand(...args),
+  execAction: (...args) => mockExecAction(...args),
 }));
 
 vi.mock('./db.mjs', () => ({
