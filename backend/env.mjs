@@ -240,6 +240,12 @@ def redact(s):
   if len(s) < 12: return '***'
   return f"{s[:4]}...{s[-4:]}"
 
+def safe_id(s):
+  # Sanitize an action id (or any short user-supplied string) for log
+  # output: truncate, strip CR/LF/other control characters that would
+  # otherwise let a caller (with a valid API key) inject log lines.
+  return str(s)[:64].replace(chr(10), ' ').replace(chr(13), ' ')
+
 # ---- Manifest load + freeze at startup ----
 def load_manifest(path):
   with open(path) as f:
@@ -297,14 +303,27 @@ def load_manifest(path):
             f"one of 'enum', 'regex', 'int', 'string'; got keys "
             f"{sorted(spec.keys())}"
           )
-        # Reject unknown top-level keys; allow {validator-type, maxlen, optional}.
-        allowed_keys = {'enum', 'regex', 'int', 'string', 'maxlen', 'optional'}
+        vtype = next(iter(type_keys))
+        # Top-level keys allowed for each validator type. maxlen is
+        # ONLY used by the regex validator (validate() reads
+        # spec.get('maxlen') only in the regex branch). For string,
+        # length is read from spec['string'].maxlen (nested). For
+        # int/enum, top-level maxlen is silently ignored -- reject it
+        # at load time so manifest authoring mistakes fail fast.
+        if vtype == 'regex':
+          allowed_keys = {'regex', 'maxlen', 'optional'}
+        elif vtype == 'enum':
+          allowed_keys = {'enum', 'optional'}
+        elif vtype == 'int':
+          allowed_keys = {'int', 'optional'}
+        elif vtype == 'string':
+          allowed_keys = {'string', 'optional'}
         unknown = set(spec.keys()) - allowed_keys
         if unknown:
           raise ValueError(
-            f"action {e['id']}: validate['{arg_name}'] has unknown keys: {sorted(unknown)}"
+            f"action {e['id']}: validate['{arg_name}'] (type {vtype!r}) "
+            f"has unknown/disallowed keys: {sorted(unknown)}"
           )
-        vtype = next(iter(type_keys))
         # Type-check the validator-type's payload.
         if vtype == 'enum' and not isinstance(spec['enum'], list):
           raise ValueError(
@@ -671,7 +690,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if action_id is not None:
           # New action protocol path.
           if action_id not in ACTIONS:
-            logger(f"Rejected: unknown action '{action_id[:64].replace(chr(10), ' ').replace(chr(13), ' ')}'")
+            logger(f"Rejected: unknown action '{safe_id(action_id)}'")
             response_message = {"status": "error", "error": f"unknown action: {action_id}"}
             self.send_response(403)
             self.send_header('Content-type', 'application/json')
@@ -679,7 +698,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             self.wfile.write(json.dumps(response_message).encode('utf-8'))
             return
 
-          logger(f"Executing action: {action_id}")
+          logger(f"Executing action: {safe_id(action_id)}")
           try:
             returncode, stdout, stderr = execute_action(ACTIONS[action_id], args, timeout)
             response_message = {
