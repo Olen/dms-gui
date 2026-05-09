@@ -28,6 +28,7 @@ import serverRoutes from './routes/server.js';
 import mailRoutes from './routes/mail.js';
 
 import {
+  apiLimiter,
   authenticateToken,
   requireActive,
   requireAdmin,
@@ -35,6 +36,26 @@ import {
 } from './middleware.js';
 
 const app = express();
+
+// Trust proxy headers (X-Forwarded-For/Proto/Host) when running behind
+// a reverse proxy. Required for express-rate-limit (#59) and req.ip to
+// see the real client IP, not the proxy's. Configurable via TRUST_PROXY
+// env (true | false | <hop-count> | <CIDR>); default false because the
+// header is forgeable when the app is reachable directly.
+const trustProxy = process.env.TRUST_PROXY;
+if (trustProxy !== undefined) {
+  // Coerce numeric strings (hop count) to numbers; leave 'true'/'false'/
+  // CIDR strings alone for express to interpret.
+  const value = /^\d+$/.test(trustProxy)
+    ? Number(trustProxy)
+    : trustProxy === 'true'
+      ? true
+      : trustProxy === 'false'
+        ? false
+        : trustProxy;
+  app.set('trust proxy', value);
+  debugLog('trust proxy =', value);
+}
 
 // CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
 debugLog('env.API_URL', env.API_URL);
@@ -80,6 +101,7 @@ if (env.ENABLE_SWAGGER) {
   });
   app.use(
     '/docs',
+    apiLimiter,
     authenticateToken,
     requireActive,
     requireAdmin,
@@ -114,14 +136,24 @@ app.set('query parser', function (str) {
 // (skipped on login/refresh/password-reset, applied on logout) since
 // session-establishing routes don't authenticate via the existing
 // cookie and thus aren't a CSRF surface.
+//
+// Middleware ordering invariants for authenticated routes:
+//   apiLimiter  — runs FIRST so rate limiting applies to all requests,
+//                 including those that will later fail CSRF validation.
+//                 Without this ordering, an attacker could flood the
+//                 API with malformed-CSRF requests at unlimited rate.
+//   requireCsrf — runs after apiLimiter; rejects requests with an
+//                 invalid or missing CSRF token.
+// Auth routes keep their own (stricter) authLimiter applied per-route
+// inside routes/auth.js.
 app.use('/api', authRoutes);
-app.use('/api', requireCsrf, loginRoutes);
-app.use('/api', requireCsrf, accountRoutes);
-app.use('/api', requireCsrf, aliasRoutes);
-app.use('/api', requireCsrf, settingRoutes);
-app.use('/api', requireCsrf, domainRoutes);
-app.use('/api', requireCsrf, serverRoutes);
-app.use('/api', requireCsrf, mailRoutes);
+app.use('/api', apiLimiter, requireCsrf, loginRoutes);
+app.use('/api', apiLimiter, requireCsrf, accountRoutes);
+app.use('/api', apiLimiter, requireCsrf, aliasRoutes);
+app.use('/api', apiLimiter, requireCsrf, settingRoutes);
+app.use('/api', apiLimiter, requireCsrf, domainRoutes);
+app.use('/api', apiLimiter, requireCsrf, serverRoutes);
+app.use('/api', apiLimiter, requireCsrf, mailRoutes);
 
 // ============================================
 // MULTER ERROR HANDLER

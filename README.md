@@ -234,6 +234,7 @@ docker compose up -d
 | `LOG_COLORS` | `true` | Colored backend logs |
 | `isDEMO` | `false` | Demo mode — shows anonymized fake data, all write operations are no-ops |
 | `ENABLE_SWAGGER` | `false` | Mount the OpenAPI / Swagger UI at `/docs`. Off by default — the docs disclose every endpoint and shape, useful in dev/staging but unnecessary reconnaissance surface in prod. When set to `true`, `/docs` is also gated behind `authenticateToken + requireActive + requireAdmin` (anonymous → 401, inactive account → 403, active non-admin → 403, active admin → 200). |
+| `TRUST_PROXY` | — | Controls Express's `trust proxy` setting, required for accurate per-client IP rate limiting and `req.ip` when running behind a reverse proxy such as Traefik. Unset (default) means Express does not trust forwarded headers — correct when the app is directly reachable. Set to `1` for a single proxy hop (most Traefik setups), `2` for two hops, or a CIDR string (e.g. `loopback,linklocal,uniquelocal`) for specific trusted ranges. Without this, express-rate-limit sees all clients as the same proxy IP, collapsing them into one shared limiter bucket. |
 
 #### Why `RESET_BASE_URL` is required
 
