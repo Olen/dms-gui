@@ -27,25 +27,13 @@ import domainRoutes from './routes/domains.js';
 import serverRoutes from './routes/server.js';
 import mailRoutes from './routes/mail.js';
 
-import { authenticateToken, requireAdmin } from './middleware.js';
+import {
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+} from './middleware.js';
 
 const app = express();
-
-const swaggerDefinition = {
-  openapi: '3.0.0',
-  info: {
-    version: env.DMSGUI_VERSION,
-    title: 'dms-gui-backend',
-    description: env.DMSGUI_DESCRIPTION,
-  },
-};
-
-const options = {
-  swaggerDefinition,
-  // Paths to files containing OpenAPI definitions
-  apis: ['./*.js', './routes/*.js'],
-};
-const oasDefinition = swaggerJsdoc(options);
 
 // CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
 debugLog('env.API_URL', env.API_URL);
@@ -66,13 +54,28 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Swagger UI: gated behind ENABLE_SWAGGER + admin auth (#35). When
+// Swagger UI: gated behind ENABLE_SWAGGER + auth chain (#35). When
 // disabled, there is no /docs route at all — anonymous probes get
 // 404 from Express's default catch-all rather than the index page.
+// The OpenAPI spec is also built lazily inside this branch so the
+// disabled path doesn't pay the swaggerJsdoc cost (and won't crash
+// at startup if a future swagger-jsdoc upgrade has parsing issues).
 if (env.ENABLE_SWAGGER) {
+  const oasDefinition = swaggerJsdoc({
+    swaggerDefinition: {
+      openapi: '3.0.0',
+      info: {
+        version: env.DMSGUI_VERSION,
+        title: 'dms-gui-backend',
+        description: env.DMSGUI_DESCRIPTION,
+      },
+    },
+    apis: ['./*.js', './routes/*.js'],
+  });
   app.use(
     '/docs',
     authenticateToken,
+    requireActive,
     requireAdmin,
     swaggerUi.serve,
     swaggerUi.setup(oasDefinition)

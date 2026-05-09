@@ -25,8 +25,12 @@ vi.mock('./env.mjs', () => ({
   },
 }));
 
-import { authenticateToken, requireAdmin } from './middleware.js';
-import { adminToken, userToken } from './test/routeHelper.mjs';
+import {
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+} from './middleware.js';
+import { adminToken, userToken, inactiveToken } from './test/routeHelper.mjs';
 
 // Build the app with the same gate the real index.js uses, but
 // substitute a stub handler for the swagger UI so we don't need
@@ -37,7 +41,13 @@ const buildApp = ({ enableSwagger }) => {
   if (enableSwagger) {
     const stubHandler = (_req, res) =>
       res.status(200).send('<html>swagger UI</html>');
-    app.use('/docs', authenticateToken, requireAdmin, stubHandler);
+    app.use(
+      '/docs',
+      authenticateToken,
+      requireActive,
+      requireAdmin,
+      stubHandler
+    );
   }
   return app;
 };
@@ -71,6 +81,13 @@ describe('Swagger /docs guard (#35)', () => {
       const res = await request(app)
         .get('/docs')
         .set('Cookie', [`accessToken=${userToken}`]);
+      expect(res.status).toBe(403);
+    });
+
+    it('returns 403 for inactive accounts (deactivated but token still valid)', async () => {
+      const res = await request(app)
+        .get('/docs')
+        .set('Cookie', [`accessToken=${inactiveToken}`]);
       expect(res.status).toBe(403);
     });
 
