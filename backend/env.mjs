@@ -193,12 +193,28 @@ def redact(s):
 class APIHandler(http.server.BaseHTTPRequestHandler):
 
   def do_POST(self):
+    # Defence in depth: even though the server runs HTTP/1.0 (no
+    # keep-alive by default), explicitly close the connection after
+    # this request so that under-reported Content-Length cannot leave
+    # bytes buffered on the socket where a future HTTP/1.1 upgrade
+    # would let them be interpreted as a smuggled request.
+    self.close_connection = True
+
     api_key = self.headers.get('Authorization', 'missing')
 
-    # Parse Content-Length defensively. A malformed header (non-integer
-    # or negative) is a client error, not a server crash, so reject
-    # with 400 before doing anything else.
-    raw_cl = self.headers.get('Content-Length', '0')
+    # Require an explicit Content-Length on POST. Missing or malformed
+    # values are rejected with 4xx instead of falling through to a
+    # 0-byte read + JSON parse error, so the response code accurately
+    # communicates which client-side mistake was made.
+    raw_cl = self.headers.get('Content-Length')
+    if raw_cl is None:
+      response_message = {"status": "error", "error": "Content-Length header required"}
+      logger(response_message['error'])
+      self.send_response(411)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
     try:
       content_length = int(raw_cl)
       if content_length < 0:
