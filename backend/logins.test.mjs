@@ -131,10 +131,13 @@ describe('getLogin — key validation', () => {
   });
 
   it('treats a string credential as a mailbox (issue #39)', async () => {
-    // Per the GET /api/roles/:credential and login-flow contracts, a
-    // string credential is a mailbox. Pre-#39 the lookup keyed by the
-    // primary-key id column instead, silently returning 0 rows for any
-    // mailbox-shape input.
+    // The fix is specifically for the guess=false branch: a bare
+    // getLogin(string) — i.e., the GET /api/roles/:credential and
+    // similar contracts where the input is contractually a mailbox.
+    // The login flow still uses guess=true (loginGuess, mailbox-OR-
+    // username) and is unaffected by this test. Pre-#39 the
+    // guess=false branch keyed by the primary-key id column and
+    // silently returned 0 rows for any mailbox-shape input.
     dbGet.mockReturnValueOnce({ success: false });
     await getLogin('user@example.com');
     // Assert the *exact* prepared statement, not a substring — a column
