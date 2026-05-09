@@ -436,6 +436,15 @@ export const deleteAlias = async (
       }
 
       // this is regex, must stringify
+      // KNOWN BUG (carried verbatim from the legacy implementation): this
+      // JSON.stringify wraps the source in JSON quotes, so the line we
+      // search for is `"<src>" <dst>`. But addAlias's `postfix_regexp_append`
+      // writes the raw source — `<src> <dst>` — to the file. The grep -Fv
+      // never matches, mv runs unchanged, the DB row is removed, and the
+      // postfix-regexp.cf line stays. Phantom deletion. Sprint C's scope is
+      // "preserve behaviour, change protocol", so the bug is migrated as-is;
+      // a follow-up bug-fix PR should drop the JSON.stringify here AND match
+      // however the route layer passes `source` (raw vs. DB-stored).
     } else {
       source = JSON.stringify(source);
       debugLog(`Deleting alias regex: ${source}`);
