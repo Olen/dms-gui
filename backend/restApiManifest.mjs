@@ -17,45 +17,53 @@
 //
 // Sprint A ships an empty manifest. Sprints B–E populate it as
 // individual call sites migrate from the legacy {command:} protocol.
-// Resolved at startup from DMS_SETUP_SCRIPT env var (default /usr/local/bin/setup).
-// Operators using a non-default path (e.g. /usr/local/bin/setup.sh) set that env
-// var and the manifest written to disk will contain the correct concrete path.
-// NOTE: env.mjs imports this module, so we read process.env directly to avoid a
-// circular import.
-const SETUP_SCRIPT = process.env.DMS_SETUP_SCRIPT || '/usr/local/bin/setup';
+// setup_path is supplied per-call from targetDict.setupPath (populated by
+// getTargetDict() from the per-container settings DB, defaulting to
+// env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
+// settings UI that a hardcoded constant would silently ignore.
 
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
   {
     id: 'setup_email_list',
-    argv: [SETUP_SCRIPT, 'email', 'list'],
+    argv: ['{setup_path}', 'email', 'list'],
+    validate: {
+      // setup_path is supplied by execAction callers from targetDict.setupPath,
+      // which is the same source the legacy execSetup helper used. This keeps
+      // per-container overrides via the settings UI working.
+      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
+    },
   },
   {
     id: 'setup_email_add',
-    argv: [SETUP_SCRIPT, 'email', 'add', '{mailbox}', '{password}'],
+    argv: ['{setup_path}', 'email', 'add', '{mailbox}', '{password}'],
     validate: {
+      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       password: { string: { minlen: 1, maxlen: 256 } },
     },
   },
   {
     id: 'setup_email_del',
-    argv: [SETUP_SCRIPT, 'email', 'del', '-y', '{mailbox}'],
+    argv: ['{setup_path}', 'email', 'del', '-y', '{mailbox}'],
     validate: {
+      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
     },
   },
   {
     id: 'setup_quota_del',
-    argv: [SETUP_SCRIPT, 'quota', 'del', '{mailbox}'],
+    argv: ['{setup_path}', 'quota', 'del', '{mailbox}'],
     validate: {
+      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
     },
   },
   {
     id: 'setup_quota_set',
-    argv: [SETUP_SCRIPT, 'quota', 'set', '{mailbox}', '{quota}'],
+    argv: ['{setup_path}', 'quota', 'set', '{mailbox}', '{quota}'],
     validate: {
+      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       // setup quota set accepts strings like '1G', '500M', or 'unlimited'.
       quota: { regex: '^(?:[0-9]+[BKMGT]?|unlimited)$', maxlen: 16 },
@@ -101,7 +109,10 @@ export const REST_API_MANIFEST = [
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash for hierarchy + space + glob chars (* % ?).
-      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
+      // Leading '-' / space disallowed to prevent the value from being parsed
+      // as an option flag by doveadm when positional (defense in depth — even
+      // though shell=False is in effect, doveadm's own getopt sees the token).
+      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
     },
   },
   {
@@ -119,7 +130,10 @@ export const REST_API_MANIFEST = [
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       // Single field name (e.g. 'all', 'messages') OR a space-separated list.
       field: { regex: '^[a-z_]+(?: [a-z_]+)*$', maxlen: 128 },
-      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
+      // Leading '-' / space disallowed to prevent the value from being parsed
+      // as an option flag by doveadm when positional (defense in depth — even
+      // though shell=False is in effect, doveadm's own getopt sees the token).
+      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
     },
   },
   {
@@ -134,7 +148,10 @@ export const REST_API_MANIFEST = [
     ],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
-      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
+      // Leading '-' / space disallowed to prevent the value from being parsed
+      // as an option flag by doveadm when positional (defense in depth — even
+      // though shell=False is in effect, doveadm's own getopt sees the token).
+      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
     },
   },
   {
