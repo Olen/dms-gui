@@ -481,7 +481,10 @@ def substitute(token, args):
   def repl(m):
     name = m.group(1)
     if name not in args:
-      raise KeyError(f"missing arg '{name}' in '{token}'")
+      # ValueError (not KeyError) so the do_POST 400 response body is a
+      # plain string. KeyError's str() wraps the message in quotes, which
+      # leaks into the JSON error payload as a doubly-quoted string.
+      raise ValueError(f"missing arg '{name}' in '{token}'")
     return str(args[name])
   return PLACEHOLDER.sub(repl, token)
 
