@@ -29,11 +29,7 @@ import {
   reduxArrayOfObjByValue,
   humanSize2ByteSize,
 } from '../common.mjs';
-import {
-  addAlias,
-  deleteAlias,
-  getAliases,
-} from './aliases.mjs';
+import { addAlias, deleteAlias, getAliases } from './aliases.mjs';
 import {
   debugLog,
   errorLog,
@@ -44,9 +40,7 @@ import {
   successLog,
   warnLog,
 } from './backend.mjs';
-import {
-  env
-} from './env.mjs';
+import { env } from './env.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
 import {
@@ -55,29 +49,32 @@ import {
   deleteEntry,
   getTargetDict,
   hashPassword,
-  sql
+  sql,
 } from './db.mjs';
 import { addLogin } from './logins.mjs';
 import { getConfigs } from './settings.mjs';
 
-
-export const getAccounts = async (containerName=null, refresh=false, roles=[]) => {
+export const getAccounts = async (
+  containerName = null,
+  refresh = false,
+  roles = []
+) => {
   debugLog(containerName, refresh, roles);
-  if (!containerName) return {success: false, error: 'containerName is needed'};
+  if (!containerName)
+    return { success: false, error: 'containerName is needed' };
 
   const demo = demoResponse('accounts');
   if (demo) {
-    if (roles.length) demo.message = reduxArrayOfObjByValue(demo.message, 'mailbox', roles);
+    if (roles.length)
+      demo.message = reduxArrayOfObjByValue(demo.message, 'mailbox', roles);
     return demo;
   }
 
   let result, config;
   let accounts = [];
   try {
-    
     // refresh
     if (refresh) {
-
       // get schema
       // getConfigs(plugin, roles=[], name=undefined)
       result = await getConfigs('mailserver', undefined, containerName);
@@ -102,31 +99,37 @@ export const getAccounts = async (containerName=null, refresh=false, roles=[]) =
 
         if (result.success) {
           // [{ mailbox: 'a@b.com', storage: {} }, .. ]
-          infoLog(`got ${result.message.length} accounts from pullAccountsFromDMS(${containerName})`);
+          infoLog(
+            `got ${result.message.length} accounts from pullAccountsFromDMS(${containerName})`
+          );
 
           // create a dupe with stringified storage and scope for saving in db
-          let accounts2save = result.message.map(account => { return {
-            ...account, 
-            domain: account.mailbox.split('@')[1],
-            storage: JSON.stringify(account?.storage), 
-            }; 
+          let accounts2save = result.message.map((account) => {
+            return {
+              ...account,
+              domain: account.mailbox.split('@')[1],
+              storage: JSON.stringify(account?.storage),
+            };
           });
           debugLog('ddebug accounts2save', accounts2save);
 
           // now save accounts in db
           // fromDMS:  `REPLACE INTO accounts (mailbox, domain, storage, configID)     VALUES (@mailbox, @domain, @storage, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
-          result = dbRun(sql.accounts.insert.fromDMS, accounts2save, containerName);
+          result = dbRun(
+            sql.accounts.insert.fromDMS,
+            accounts2save,
+            containerName
+          );
           if (result.success) {
-            
             // also create matching linked logins with extra fields, exclude isAdmin and isActive, in case it already exists
             // let logins2create = result.message.map(account => { return {
-            //   mailbox:account.mailbox, 
-            //   username:account.mailbox, 
-            //   email:account.mailbox, 
-            //   isAccount:1, 
-            //   mailserver:containerName, 
-            //   roles:JSON.stringify([account.mailbox]), 
-            //   }; 
+            //   mailbox:account.mailbox,
+            //   username:account.mailbox,
+            //   email:account.mailbox,
+            //   isAccount:1,
+            //   mailserver:containerName,
+            //   roles:JSON.stringify([account.mailbox]),
+            //   };
             // });
 
             // now save those linked logins in db / deprecated: let's use addLogin instead
@@ -134,115 +137,124 @@ export const getAccounts = async (containerName=null, refresh=false, roles=[]) =
             // result = dbRun(sql.logins.insert.fromDMS, logins2create);
 
             for (const account of accounts2save) {
-              result = await addLogin(account.mailbox, account.mailbox, '', account.mailbox, 0, 1, 1, containerName, [account.mailbox]);
+              result = await addLogin(
+                account.mailbox,
+                account.mailbox,
+                '',
+                account.mailbox,
+                0,
+                1,
+                1,
+                containerName,
+                [account.mailbox]
+              );
               if (!result.success) errorLog('addLogin:', result?.error);
             }
-            
           } else errorLog('sql.accounts.insert.fromDMS:', result?.error);
 
           // Note: no filter here — the refresh path falls through to the
           // DB read below and applies the role filter on that result.
-
         } else errorLog('pullAccountsFromDMS:', result?.error);
-
       } else errorLog(`getConfigs: ${containerName} not found`);
     }
-    
+
     // now pull accounts from the db as we need associated logins for the DataTable
-    // accounts: `SELECT a.mailbox, a.domain, a.storage, l.username 
-    //            FROM accounts a 
-    //            LEFT JOIN config c ON c.id = a.configID 
-    //            LEFT JOIN logins l ON l.mailbox = a.mailbox 
-    //            WHERE 1=1 
-    //            AND c.plugin = 'mailserver' 
-    //            AND c.name = ? 
+    // accounts: `SELECT a.mailbox, a.domain, a.storage, l.username
+    //            FROM accounts a
+    //            LEFT JOIN config c ON c.id = a.configID
+    //            LEFT JOIN logins l ON l.mailbox = a.mailbox
+    //            WHERE 1=1
+    //            AND c.plugin = 'mailserver'
+    //            AND c.name = ?
     //            ORDER BY a.domain, a.mailbox`,
     result = dbAll(sql.accounts.select.accounts, {}, containerName);
     if (result.success) {
-      
       // we could read DB_Logins and it is valid
       if (result.message.length) {
         infoLog(`Found ${result.message.length} entries in accounts`);
-        
+
         // now JSON.parse storage as it's stored stringified in the db
-        accounts = result.message.map(account => { return { 
-          ...account, 
-          storage: JSON.parse(account?.storage) 
-          }; 
+        accounts = result.message.map((account) => {
+          return {
+            ...account,
+            storage: JSON.parse(account?.storage),
+          };
         });
-        
       } else warnLog(`db accounts seems empty:`, result.message);
 
-      if (roles.length) accounts = reduxArrayOfObjByValue(accounts, 'mailbox', roles);
-      return {success: true, message: accounts};
+      if (roles.length)
+        accounts = reduxArrayOfObjByValue(accounts, 'mailbox', roles);
+      return { success: true, message: accounts };
       // [ { mailbox: 'a@b.com', domain:'b.com', storage: {} }, .. ]
-
     } else errorLog(result?.error);
-    
+
     return result;
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to the index API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
-
 // Function to retrieve mailbox accounts from DMS
-export const pullAccountsFromDMS = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const pullAccountsFromDMS = async (containerName = null) => {
+  if (!containerName) return { success: false, error: 'containerName is null' };
   const command = 'email list';
   let accounts = [];
-  
+
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`execSetup(${command})`, targetDict);
     const results = await execSetup(command, targetDict);
     if (!results.returncode) {
-    
       // Parse multiline output with regex to extract email and size information
       // const emailLineValidChars = /[\x00-\x1F\x7F-\x9F\x20-\x7E]/g;
-      const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%]/g;
+      const emailLineValidChars = /[^\w.~\-_@\s*%]/g;
       // const accountLineRegexQuotaON  = /(\*\s+)(\S+)@(\S+\.\S+)\s+\(\s+([\w\.\~]+)\s+\/\s+([\w\.\~]+)\s+\)\s+\[(\d+)%\]/;
-      const accountLineRegexQuotaON  = /(\*\s+)(\S+)@(\S+\S+)\s+([\w\.\~]+)\s+([\w\.\~]+)\s+(\d+)%/;
+      const accountLineRegexQuotaON =
+        /(\*\s+)(\S+)@(\S+\S+)\s+([\w.~]+)\s+([\w.~]+)\s+(\d+)%/;
       const accountLineRegexQuotaOFF = /(\*\s+)(\S+)@(\S+\S+)/;
 
       // Process each line individually
-      const lines = results.stdout.split('\n').filter((line) => line.trim().length > 0);
+      const lines = results.stdout
+        .split('\n')
+        .filter((line) => line.trim().length > 0);
       // debugLog(`email list RAW response:`, lines);
 
       for (let i = 0; i < lines.length; i++) {
         debugLog(`email list line RAW  :`, lines[i]);
-        
+
         // Clean the line from binary control characters
         const line = lines[i].replace(emailLineValidChars, '').trim();
         debugLog(`email list line CLEAN:`, line);
 
         // Check if line contains * which indicates an account entry
         if (line.includes('*')) {
-          const matchQuotaON  = line.match(accountLineRegexQuotaON);
+          const matchQuotaON = line.match(accountLineRegexQuotaON);
           const matchQuotaOFF = line.match(accountLineRegexQuotaOFF);
 
           if (matchQuotaON) {
             // matchQuotaON = [ "* user@domain.com ( 2.5G / 30G ) [8%]", "* ", "user", "domain.com", "2.5G", "30G", "8" ]
             // matchQuotaON = [ "* user@domain.com 2.5G 30G 8%", "* ", "user", "domain.com", "2.5G", "30G", "8" ]
             const mailbox = `${matchQuotaON[2]}@${matchQuotaON[3]}`;
-            
+
             // this works only if Dovecot ENABLE_QUOTAS=1
             const usedSpace = matchQuotaON[4];
-            const totalSpace = matchQuotaON[5] === '~' ? 'unlimited' : matchQuotaON[5];
+            const totalSpace =
+              matchQuotaON[5] === '~' ? 'unlimited' : matchQuotaON[5];
             const usagePercent = matchQuotaON[6];
 
-            debugLog(`Parsed account: ${mailbox}, Storage: ${usedSpace}/${totalSpace} [${usagePercent}%]`);
+            debugLog(
+              `Parsed account: ${mailbox}, Storage: ${usedSpace}/${totalSpace} [${usagePercent}%]`
+            );
 
             accounts.push({
-              mailbox:mailbox,
+              mailbox: mailbox,
               storage: {
                 used: usedSpace,
                 usedBytes: Number(humanSize2ByteSize(usedSpace)),
@@ -250,12 +262,12 @@ export const pullAccountsFromDMS = async (containerName=null) => {
                 percent: usagePercent,
               },
             });
-          } else if  (matchQuotaOFF) {
+          } else if (matchQuotaOFF) {
             // matchQuotaOFF = [ "* user@domain.com", "* ", "user", "domain.com" ]
             const mailbox = `${matchQuotaOFF[2]}@${matchQuotaOFF[3]}`;
 
             accounts.push({
-              mailbox:mailbox,
+              mailbox: mailbox,
               storage: {},
             });
           } else {
@@ -263,7 +275,6 @@ export const pullAccountsFromDMS = async (containerName=null) => {
           }
         }
       }
-      
     } else {
       let ErrorMsg = await formatDMSError('execSetup', results.stderr);
       errorLog(ErrorMsg);
@@ -272,7 +283,6 @@ export const pullAccountsFromDMS = async (containerName=null) => {
 
     debugLog(`Found ${accounts.length} accounts`, accounts);
     return { success: true, message: accounts };
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
@@ -282,10 +292,16 @@ export const pullAccountsFromDMS = async (containerName=null) => {
 // Function to add a new mailbox account
 // it create both an account and a login with password in the db, but for isAccout linked users, will never be used
 // TODO: do we want to save passwords also in accounts table? for what purpose?
-export const addAccount = async (schema='dms', containerName=null, mailbox=null, password=null, createLogin=1) => {
-  if (!password) return {success: false, error: 'password is null'};
-  if (!mailbox) return {success: false, error: 'mailbox is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const addAccount = async (
+  schema = 'dms',
+  containerName = null,
+  mailbox = null,
+  password = null,
+  createLogin = 1
+) => {
+  if (!password) return { success: false, error: 'password is null' };
+  if (!mailbox) return { success: false, error: 'mailbox is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Account created: ${mailbox}`);
   if (demo) return demo;
@@ -296,48 +312,68 @@ export const addAccount = async (schema='dms', containerName=null, mailbox=null,
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`Adding new mailbox account for ${containerName}: ${mailbox}`);
-    if (schema === 'dms') results = await execSetup(`email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`, targetDict);
+    if (schema === 'dms')
+      results = await execSetup(
+        `email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`,
+        targetDict
+      );
 
     if (!results.returncode) {
-      
       const { salt, hash } = await hashPassword(password ?? '');
-      result = dbRun(sql.accounts.insert.fromGUI, { mailbox:mailbox, domain:mailbox.split('@')[1], salt:salt, hash:hash}, containerName);
+      result = dbRun(
+        sql.accounts.insert.fromGUI,
+        {
+          mailbox: mailbox,
+          domain: mailbox.split('@')[1],
+          salt: salt,
+          hash: hash,
+        },
+        containerName
+      );
       if (result.success) {
-        
         if (createLogin) {
           // result = dbRun(sql.logins.insert.login, { email:mailbox, username:mailbox, salt:salt, hash:hash, isAdmin:0, isAccount:1, isActive:1, roles:JSON.stringify([mailbox]), scope:containerName});
-          result = await addLogin(mailbox, mailbox, password ?? '', mailbox, 0, 1, 1, containerName, [mailbox]);
+          result = await addLogin(
+            mailbox,
+            mailbox,
+            password ?? '',
+            mailbox,
+            0,
+            1,
+            1,
+            containerName,
+            [mailbox]
+          );
           if (result.success) {
             successLog(`Account created: ${mailbox}`);
           } // login created
-        
         } // also create login
-        
       } // account created
       return result;
-      
     } else {
       let ErrorMsg = await formatDMSError('addAccount', results.stderr);
       errorLog(ErrorMsg);
-      return { success: false, error: ErrorMsg};
+      return { success: false, error: ErrorMsg };
     }
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to theindex API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
-
 // Function to delete an mailbox account; shema is needed because of the remote command involved
-export const deleteAccount = async (schema='dms', containerName=null, mailbox=null) => {
-  if (!mailbox) return {success: false, error: 'containerName is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const deleteAccount = async (
+  schema = 'dms',
+  containerName = null,
+  mailbox = null
+) => {
+  if (!mailbox) return { success: false, error: 'containerName is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Account deleted: ${mailbox}`);
   if (demo) return demo;
@@ -348,84 +384,120 @@ export const deleteAccount = async (schema='dms', containerName=null, mailbox=nu
 
     // dms setup could take who know how long when mailbox is large
     targetDict.timeout = 60;
-    if (schema === 'dms') results = await execSetup(`email del -y ${escapeShellArg(mailbox)}`, targetDict);
-    debugLog('ddebug execSetup', results)
+    if (schema === 'dms')
+      results = await execSetup(
+        `email del -y ${escapeShellArg(mailbox)}`,
+        targetDict
+      );
+    debugLog('ddebug execSetup', results);
 
     if (!results.returncode) {
       successLog(`Mailbox Account deleted: ${mailbox}`);
-      
+
       result = await deleteEntry('accounts', mailbox, 'mailbox', containerName);
-      debugLog('ddebug deleteEntry',result)
+      debugLog('ddebug deleteEntry', result);
       if (result.success) {
         successLog(`db entry deleted: ${mailbox}`);
 
         // now clean up aliases where this mailbox is source or destination
         result = await getAliases(containerName, false);
-        debugLog('ddebug getAliases',result)
+        debugLog('ddebug getAliases', result);
         if (result.success && result.message.length) {
           for (const alias of result.message) {
-            const destinations = alias.destination?.split(',').map(d => d.trim()) || [];
+            const destinations =
+              alias.destination?.split(',').map((d) => d.trim()) || [];
 
             if (alias.source === mailbox) {
               // Source is the deleted user — delete entire alias
-              result = await deleteAlias(containerName, alias.source, alias.destination);
-              debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
+              result = await deleteAlias(
+                containerName,
+                alias.source,
+                alias.destination
+              );
+              debugLog(`ddebug deleteAlias=${result.success}`, alias.source);
               if (result.success) {
-                successLog(`alias deleted: ${alias.source} -> ${alias.destination}`);
-              } else warnLog(`alias delete failed: ${alias.source} -> ${alias.destination}`);
-
+                successLog(
+                  `alias deleted: ${alias.source} -> ${alias.destination}`
+                );
+              } else
+                warnLog(
+                  `alias delete failed: ${alias.source} -> ${alias.destination}`
+                );
             } else if (destinations.includes(mailbox)) {
-              const remaining = destinations.filter(d => d !== mailbox);
+              const remaining = destinations.filter((d) => d !== mailbox);
               if (remaining.length === 0) {
                 // Deleted user was the only destination — delete entire alias
-                result = await deleteAlias(containerName, alias.source, alias.destination);
-                debugLog(`ddebug deleteAlias=${result.success}`,alias.source)
+                result = await deleteAlias(
+                  containerName,
+                  alias.source,
+                  alias.destination
+                );
+                debugLog(`ddebug deleteAlias=${result.success}`, alias.source);
                 if (result.success) {
-                  successLog(`alias deleted: ${alias.source} -> ${alias.destination}`);
-                } else warnLog(`alias delete failed: ${alias.source} -> ${alias.destination}`);
+                  successLog(
+                    `alias deleted: ${alias.source} -> ${alias.destination}`
+                  );
+                } else
+                  warnLog(
+                    `alias delete failed: ${alias.source} -> ${alias.destination}`
+                  );
               } else {
                 // Multi-destination: remove just this user, keep the rest
                 // Delete old alias and re-add with remaining destinations
-                result = await deleteAlias(containerName, alias.source, alias.destination);
+                result = await deleteAlias(
+                  containerName,
+                  alias.source,
+                  alias.destination
+                );
                 if (result.success) {
                   const newDest = remaining.join(',');
                   result = await addAlias(containerName, alias.source, newDest);
                   if (result.success) {
-                    successLog(`alias updated: ${alias.source} -> ${newDest} (removed ${mailbox})`);
-                  } else warnLog(`alias re-add failed: ${alias.source} -> ${newDest}`);
-                } else warnLog(`alias delete failed for update: ${alias.source}`);
+                    successLog(
+                      `alias updated: ${alias.source} -> ${newDest} (removed ${mailbox})`
+                    );
+                  } else
+                    warnLog(
+                      `alias re-add failed: ${alias.source} -> ${newDest}`
+                    );
+                } else
+                  warnLog(`alias delete failed for update: ${alias.source}`);
               }
             }
           }
         }
-        
       } else warnLog(`Failed to delete Account: ${mailbox}`, result.message);
 
       return result;
-      
     } else {
       let ErrorMsg = await formatDMSError('execSetup', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to theindex API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
 // doveadm function for mailboxes
 // https://doc.dovecot.org/2.4.1/core/admin/doveadm.html
-export const doveadm = async (schema='dms', containerName=null, command=null, mailbox=null, jsonDict={}) => {   // jsonDict = {field:"messages unseen vsize", box:"INBOX Junk"}
-  if (!mailbox) return {success: false, error: 'mailbox is null'};
-  if (!command) return {success: false, error: 'command is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const doveadm = async (
+  schema = 'dms',
+  containerName = null,
+  command = null,
+  mailbox = null,
+  jsonDict = {}
+) => {
+  // jsonDict = {field:"messages unseen vsize", box:"INBOX Junk"}
+  if (!mailbox) return { success: false, error: 'mailbox is null' };
+  if (!command) return { success: false, error: 'command is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`doveadm ${command} ${mailbox}`);
   if (demo) return demo;
@@ -433,25 +505,34 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
   debugLog(`for ${containerName}: ${command} ${mailbox}`, jsonDict);
 
   const doveadm = {
-    index: {    // https://doc.dovecot.org/main/core/summaries/doveadm.html#index
+    index: {
+      // https://doc.dovecot.org/main/core/summaries/doveadm.html#index
       mailbox: true,
       cmd: 'doveadm index -u {mailbox} -q \\*',
-      api: [["index", {"mailboxMask": "{box}", "allUsers": false, "user": "{mailbox}"}, "dms-gui"]],
+      api: [
+        [
+          'index',
+          { mailboxMask: '{box}', allUsers: false, user: '{mailbox}' },
+          'dms-gui',
+        ],
+      ],
       stdout: false,
       messages: {
         pass: 'Reindexing started for {mailbox}',
       },
     },
-    indexerList: {    // https://doc.dovecot.org/main/core/summaries/doveadm.html#indexer%20list
+    indexerList: {
+      // https://doc.dovecot.org/main/core/summaries/doveadm.html#indexer%20list
       mailbox: true,
       cmd: 'doveadm index -u {mailbox} -q \\*',
-      api: [["index", {"userMask": "{mailbox}"}, "dms-gui"]],
+      api: [['index', { userMask: '{mailbox}' }, 'dms-gui']],
       stdout: true,
       messages: {
         pass: 'Reindexing started for {mailbox}',
       },
     },
-    list: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
+    list: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
       mailbox: true,
       cmd: 'doveadm mailbox list -u {mailbox}',
       stdout: true,
@@ -464,7 +545,8 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       // Sent
       // INBOX
     },
-    subscribed: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
+    subscribed: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
       mailbox: true,
       cmd: 'doveadm mailbox list -u {mailbox} -s',
       stdout: true,
@@ -476,7 +558,8 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       // Trash
       // Sent
     },
-    metaGet: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20metadata%20list https://manpages.ubuntu.com/manpages/jammy/man1/doveadm-mailbox.1.html
+    metaGet: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20metadata%20list https://manpages.ubuntu.com/manpages/jammy/man1/doveadm-mailbox.1.html
       mailbox: true,
       cmd: 'doveadm mailbox metadata list -p -u {mailbox} {box}',
       defaults: {
@@ -490,10 +573,17 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       // /shared/vendor/vendor.dovecot/pvt/server/admin
       // /shared/vendor/vendor.dovecot/pvt/server/comment
     },
-    mailboxStatus: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
+    mailboxStatus: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
       mailbox: true,
       cmd: 'doveadm mailbox status -u {mailbox} {field} {box}',
-    api: [["mailboxStatus", {"field": ["{field}"], "user": "{mailbox}", "mailboxMask": ["{box}"]}, "dms-gui"]],
+      api: [
+        [
+          'mailboxStatus',
+          { field: ['{field}'], user: '{mailbox}', mailboxMask: ['{box}'] },
+          'dms-gui',
+        ],
+      ],
       defaults: {
         field: 'all',
         box: 'INBOX',
@@ -504,10 +594,17 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       },
       // INBOX messages=5119 recent=0 uidnext=5125 uidvalidity=1759246520 unseen=703 highestmodseq=356 vsize=459768297 guid=68e18d2db8f8db68550f00008e1fe135 firstsaved=1759247564
     },
-    forceResync: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
+    forceResync: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
       mailbox: true,
       cmd: 'doveadm force-resync -u {mailbox} --mailbox-mask {box}',
-      api: [["forceResync", {"allUsers": false, "user": "{mailbox}", "mailboxMask": "{box}"}, "dms-gui"]],
+      api: [
+        [
+          'forceResync',
+          { allUsers: false, user: '{mailbox}', mailboxMask: '{box}' },
+          'dms-gui',
+        ],
+      ],
       defaults: {
         box: 'INBOX',
       },
@@ -518,7 +615,8 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
       // doveadm(user@domain.com): Info: FTS Xapian: Optimize (1) : Checking expunges from db_6076763531fadb68571400008e1fe135_exp.db
       // doveadm(user@domain.com): Info: FTS Xapian: Optimize (1) : Checking expunges from db_e170c41cf00be3687d3400008e1fe135_exp.db
     },
-    quota: {   // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#quota%20get
+    quota: {
+      // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#quota%20get
       mailbox: true,
       cmd: 'doveadm quota get -u {mailbox}',
       stdout: true,
@@ -526,51 +624,65 @@ export const doveadm = async (schema='dms', containerName=null, command=null, ma
         pass: 'Quota for {mailbox}:',
       },
     },
-  }
+  };
 
   try {
     if (!doveadm[command]) throw new Error(`unknown command: ${command}`);
     const targetDict = getTargetDict('mailserver', containerName);
-    
-    let formattedCommand = doveadm[command].cmd.replace(/{mailbox}/g, escapeShellArg(mailbox));
-    let formattedPass    = doveadm[command].messages.pass.replace(/{mailbox}/g, mailbox);
+
+    let formattedCommand = doveadm[command].cmd.replace(
+      /{mailbox}/g,
+      escapeShellArg(mailbox)
+    );
+    let formattedPass = doveadm[command].messages.pass.replace(
+      /{mailbox}/g,
+      mailbox
+    );
     // also apply whatever is in the jsonDict if anything like fields or mailboxes... and also apply defaults if any
     // by parsing the defaults instead of the jsonDict, we also ensure only valid keys are replaced
     if (doveadm[command]?.defaults) {
-      for (const [key, defaultValue] of Object.entries(doveadm[command].defaults)) {
+      for (const [key, defaultValue] of Object.entries(
+        doveadm[command].defaults
+      )) {
         const value = jsonDict[key] || defaultValue;
-        formattedCommand = formattedCommand.replace(`{${key}}`, escapeShellArg(value));
-        formattedPass = formattedPass.replace(`{${key}}`, jsonDict[key] || defaultValue);
+        formattedCommand = formattedCommand.replace(
+          `{${key}}`,
+          escapeShellArg(value)
+        );
+        formattedPass = formattedPass.replace(
+          `{${key}}`,
+          jsonDict[key] || defaultValue
+        );
       }
     }
-    
+
     const results = await execCommand(formattedCommand, targetDict);
     if (!results.returncode) {
-      
       successLog(formattedPass, results.stdout);
       return { success: true, message: results.stdout };
-      
     } else {
       errorLog(results.stderr);
       return { success: false, error: results.stderr };
     }
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to theindex API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
-
 // Set or remove quota for a mailbox account
-export const setQuota = async (containerName=null, mailbox=null, quota=null) => {
-  if (!mailbox) return {success: false, error: 'mailbox is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const setQuota = async (
+  containerName = null,
+  mailbox = null,
+  quota = null
+) => {
+  if (!mailbox) return { success: false, error: 'mailbox is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Quota updated for ${mailbox}`);
   if (demo) return demo;
@@ -581,10 +693,16 @@ export const setQuota = async (containerName=null, mailbox=null, quota=null) => 
 
     if (!quota || quota === '0') {
       debugLog(`Removing quota for ${mailbox}`);
-      results = await execSetup(`quota del ${escapeShellArg(mailbox)}`, targetDict);
+      results = await execSetup(
+        `quota del ${escapeShellArg(mailbox)}`,
+        targetDict
+      );
     } else {
       debugLog(`Setting quota for ${mailbox} to ${quota}`);
-      results = await execSetup(`quota set ${escapeShellArg(mailbox)} ${escapeShellArg(quota)}`, targetDict);
+      results = await execSetup(
+        `quota set ${escapeShellArg(mailbox)} ${escapeShellArg(quota)}`,
+        targetDict
+      );
     }
 
     if (!results.returncode) {
@@ -595,13 +713,11 @@ export const setQuota = async (containerName=null, mailbox=null, quota=null) => 
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
-
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
   }
 };
-
 
 // was used for testing, we will likely never implement doveadm API
 /*
@@ -696,12 +812,9 @@ export const doveadmAPIforTesting = async (containerName=null, command=null, mai
 };
 */
 
-
 // module.exports = {
 //   getAccounts,
 //   addAccount,
 //   deleteAccount,
 //   doveadm,
 // };
-
-
