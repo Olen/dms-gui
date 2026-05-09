@@ -17,14 +17,19 @@ vi.mock('./db.mjs', () => ({
   dbGet: vi.fn(),
   dbRun: vi.fn(),
   // Match the real shape: passwordReset.mjs reads sql.password_resets.*
-  // (insert.token, select.{countRecent,byTokenHash}, update.markUsed).
-  // These tests don't exercise those paths but using the right key
+  //   insert.token       — requestPasswordReset
+  //   select.countRecent — requestPasswordReset (rate-limit lookup)
+  //   select.byTokenHash — validateResetToken / executePasswordReset
+  //   update.markUsed    — executePasswordReset
+  //   delete.expired     — cleanupExpiredTokens
+  // These tests don't exercise those paths but using the right keys
   // prevents a mock-vs-real drift if a future test does.
   sql: {
     password_resets: {
       insert: { token: '' },
       select: { countRecent: '', byTokenHash: '' },
       update: { markUsed: '' },
+      delete: { expired: '' },
     },
   },
 }));
