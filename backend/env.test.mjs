@@ -8,7 +8,7 @@ vi.hoisted(() => {
 });
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
-import { resolveSmtpTlsVerify, mailserverRESTAPI } from './env.mjs';
+import { resolveSmtpTlsVerify, mailserverRESTAPI, env } from './env.mjs';
 
 describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
   it('explicit "false" overrides everything else', () => {
@@ -70,11 +70,10 @@ describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
 
 describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
   it('exposes a manifest config entry alongside api and cron', () => {
-    // Same shape as the existing api/cron entries: {desc, path, content}.
     expect(mailserverRESTAPI.dms).toHaveProperty('manifest');
     expect(mailserverRESTAPI.dms.manifest).toMatchObject({
       desc: expect.any(String),
-      path: expect.stringMatching(/rest-api-manifest\.json$/),
+      path: expect.any(String),
       content: expect.any(String),
     });
   });
@@ -82,13 +81,15 @@ describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
   it('manifest content is valid JSON matching REST_API_MANIFEST', () => {
     const parsed = JSON.parse(mailserverRESTAPI.dms.manifest.content);
     expect(Array.isArray(parsed)).toBe(true);
-    // Sprint A: empty.
     expect(parsed).toEqual([]);
   });
 
-  it('manifest path lives under DMSGUI_CONFIG_PATH', () => {
-    // It must end up on the DMS-mounted volume the same way rest-api.py does
-    // — that's what createAPIfiles iterates and writes.
-    expect(mailserverRESTAPI.dms.manifest.path).toContain('/app/config');
+  it('manifest path is exactly DMSGUI_CONFIG_PATH + filename', () => {
+    // Asserts the contract end-to-end: prefix derives from env (not a
+    // hardcoded literal that drifts) and filename is the one rest-api.py
+    // reads at startup.
+    expect(mailserverRESTAPI.dms.manifest.path).toBe(
+      env.DMSGUI_CONFIG_PATH + '/rest-api-manifest.json'
+    );
   });
 });
