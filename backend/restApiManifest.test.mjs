@@ -161,6 +161,10 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
     const ids = new Set(REST_API_MANIFEST.map((a) => a.id));
     const here = fileURLToPath(import.meta.url);
     const backendDir = dirname(here);
+    // Scan both backend/*.mjs (where the migration call sites live) AND
+    // backend/routes/*.js (where future migrations may add direct calls
+    // from the Express handlers). If a file doesn't exist on this branch,
+    // existsSync skips it gracefully.
     const files = [
       'accounts.mjs',
       'aliases.mjs',
@@ -168,6 +172,14 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
       'logins.mjs',
       'settings.mjs',
       'db.mjs',
+      'routes/accounts.js',
+      'routes/aliases.js',
+      'routes/auth.js',
+      'routes/domains.js',
+      'routes/logins.js',
+      'routes/mail.js',
+      'routes/server.js',
+      'routes/settings.js',
     ];
     // (a) Direct calls: execAction('foo', ...)
     const callRe = /execAction\(\s*['"]([a-z][a-z0-9_]*)['"]/g;

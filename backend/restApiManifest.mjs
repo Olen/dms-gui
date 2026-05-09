@@ -48,10 +48,21 @@ const SETUP_PATH_VALIDATOR = {
 // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash + space + glob chars (* % ?).
 // Leading '-' / space disallowed to prevent the value from being parsed
 // as an option flag by doveadm when positional.
+//
+// Note: this regex DOES allow '..' sequences (e.g. 'INBOX/../Private').
+// Unlike SETUP_PATH_VALIDATOR — which guards a filesystem path —
+// dovecot mailbox names are flat strings interpreted by the namespace
+// mapping, NOT by the filesystem. '..' has no special meaning to
+// doveadm; it's just two dots. doveadm will reject invalid mailbox
+// references at the dovecot layer if the mailbox doesn't exist.
 const BOX_VALIDATOR = {
   regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$',
   maxlen: 256,
 };
+// Generic password validator (currently only setup_email_add uses it,
+// but extracted as a preset for parity with the other validators and
+// to make Sprint C's doveadm_auth_test reuse trivial).
+const PASSWORD_VALIDATOR = { string: { minlen: 1, maxlen: 256 } };
 
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
@@ -71,7 +82,7 @@ export const REST_API_MANIFEST = [
     validate: {
       setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
-      password: { string: { minlen: 1, maxlen: 256 } },
+      password: PASSWORD_VALIDATOR,
     },
   },
   {
