@@ -6,8 +6,7 @@ const mockErrorLog = vi.fn();
 const mockSuccessLog = vi.fn();
 const mockWarnLog = vi.fn();
 const mockInfoLog = vi.fn();
-const mockExecSetup = vi.fn();
-const mockExecCommand = vi.fn();
+const mockExecAction = vi.fn();
 const mockFormatDMSError = vi.fn();
 const mockDeleteEntry = vi.fn();
 const mockGetAliases = vi.fn();
@@ -19,8 +18,7 @@ vi.mock('./backend.mjs', () => ({
   successLog: (...args) => mockSuccessLog(...args),
   warnLog: (...args) => mockWarnLog(...args),
   infoLog: (...args) => mockInfoLog(...args),
-  execSetup: (...args) => mockExecSetup(...args),
-  execCommand: (...args) => mockExecCommand(...args),
+  execAction: (...args) => mockExecAction(...args),
   formatDMSError: (...args) => mockFormatDMSError(...args),
 }));
 
@@ -28,7 +26,11 @@ vi.mock('./db.mjs', () => ({
   dbAll: vi.fn(),
   dbRun: vi.fn(() => ({ success: true })),
   deleteEntry: (...args) => mockDeleteEntry(...args),
-  getTargetDict: vi.fn(() => ({ host: 'localhost', timeout: 10 })),
+  getTargetDict: vi.fn(() => ({
+    host: 'localhost',
+    timeout: 10,
+    setupPath: '/usr/local/bin/setup',
+  })),
   hashPassword: vi.fn(async () => ({ salt: 'x', hash: 'y' })),
   sql: {
     accounts: {
@@ -45,11 +47,14 @@ vi.mock('./aliases.mjs', () => ({
   deleteAlias: (...args) => mockDeleteAlias(...args),
 }));
 
-vi.mock('../common.mjs', () => ({
-  escapeShellArg: (arg) => `'${arg}'`,
-  reduxArrayOfObjByValue: (array, key, values) =>
-    array.filter((item) => values.includes(item[key])),
-}));
+vi.mock('../common.mjs', async () => {
+  const actual = await vi.importActual('../common.mjs');
+  return {
+    ...actual,
+    reduxArrayOfObjByValue: (array, key, values) =>
+      array.filter((item) => values.includes(item[key])),
+  };
+});
 
 vi.mock('./env.mjs', () => ({
   env: { DMS_CONFIG_PATH: '/tmp/docker-mailserver' },
@@ -72,7 +77,7 @@ describe('deleteAccount — alias cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: DMS email del succeeds
-    mockExecSetup.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockExecAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     // Default: DB delete succeeds
     mockDeleteEntry.mockReturnValue({ success: true, message: 'deleted' });
     // Default: deleteAlias succeeds
@@ -105,6 +110,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('deletes aliases where the mailbox is the source', async () => {
@@ -132,6 +143,12 @@ describe('deleteAccount — alias cleanup', () => {
       'test-mailserver',
       'user@example.com',
       'other@example.com'
+    );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
     );
   });
 
@@ -171,6 +188,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('handles comma-separated destinations when matching', async () => {
@@ -199,6 +222,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'alice@example.com,user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('does not delete unrelated aliases', async () => {
@@ -221,6 +250,12 @@ describe('deleteAccount — alias cleanup', () => {
     await deleteAccount('dms', 'test-mailserver', 'user@example.com');
 
     expect(mockDeleteAlias).not.toHaveBeenCalled();
+    // Positive assertion on execAction call shape (even when no aliases match)
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('handles empty alias list gracefully', async () => {
@@ -237,6 +272,42 @@ describe('deleteAccount — alias cleanup', () => {
 
     expect(mockDeleteAlias).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
+  });
+});
+
+describe('addAccount — happy path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: DMS email add succeeds
+    mockExecAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+  });
+
+  it('adds an account with execAction call shape verification', async () => {
+    const result = await addAccount(
+      'dms',
+      'test-mailserver',
+      'newuser@example.com',
+      'testpassword'
+    );
+
+    // Should succeed
+    expect(result.success).toBe(true);
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_add',
+      {
+        setup_path: '/usr/local/bin/setup',
+        mailbox: 'newuser@example.com',
+        password: 'testpassword',
+      },
+      expect.any(Object)
+    );
   });
 });
 
@@ -256,9 +327,9 @@ describe('addAccount / deleteAccount — schema allowlist (defence in depth)', (
       success: false,
       error: "unsupported schema 'mailcow'",
     });
-    // Crucially, the function returned cleanly — no execSetup invoked,
+    // Crucially, the function returned cleanly — no execAction invoked,
     // no exception thrown despite results never being initialised.
-    expect(mockExecSetup).not.toHaveBeenCalled();
+    expect(mockExecAction).not.toHaveBeenCalled();
   });
 
   it('deleteAccount returns a structured error for an unsupported schema (does not crash)', async () => {
@@ -267,6 +338,6 @@ describe('addAccount / deleteAccount — schema allowlist (defence in depth)', (
       success: false,
       error: "unsupported schema 'mailcow'",
     });
-    expect(mockExecSetup).not.toHaveBeenCalled();
+    expect(mockExecAction).not.toHaveBeenCalled();
   });
 });

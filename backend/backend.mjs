@@ -369,6 +369,135 @@ export const execInContainerAPI = async (
 };
 
 /**
+ * Dispatch a manifest-declared action to the rest-api.py interpreter.
+ * Same transport as execCommand/execSetup; the request body sends
+ * {action, args, timeout} instead of {command, timeout}.
+ *
+ * Response shape: always {returncode, stdout, stderr} — including the
+ * demo-mode short-circuit. The legacy execInContainerAPI omits stderr
+ * in demo mode; execAction does not inherit that inconsistency, so
+ * callers can rely on all three keys being present.
+ *
+ * IMPORTANT: action ids must be reachable as string literals from a
+ * static-grep at build time. Two patterns are supported by the
+ * manifest test:
+ *   1. Direct call:        execAction('setup_email_add', ...)
+ *   2. Config-table value: { actionId: 'setup_email_add' } then
+ *                          execAction(table[name].actionId, ...)
+ * Either form is statically discoverable. A computed expression like
+ * execAction(actionFor(kind), ...) is NOT discoverable and breaks
+ * coverage. Use one of the two patterns above.
+ *
+ * @param {string} actionId - Manifest action id (e.g. 'setup_email_add')
+ * @param {object} args - Per-action validated args
+ * @param {object} targetDict - {protocol, host, port, Authorization, timeout?}
+ * @param {object} [opts] - { timeout } override
+ * @return {Promise<{returncode, stdout, stderr}>}
+ */
+export const execAction = async (
+  actionId,
+  args = {},
+  targetDict = {},
+  opts = {}
+) => {
+  if (env.isDEMO) return { returncode: 0, stdout: 'mock response', stderr: '' };
+  let result;
+  try {
+    if (
+      !targetDict ||
+      (targetDict &&
+        Object.keys(
+          reduxPropertiesOfObj(targetDict, [
+            'protocol',
+            'host',
+            'port',
+            'Authorization',
+          ])
+        ).length < 4)
+    ) {
+      return {
+        returncode: 99,
+        stdout: '',
+        stderr: 'targetDict needs 4 keys: protocol, host, port, Authorization',
+      };
+    }
+
+    // Resolve the effective timeout once and use it for BOTH the
+    // socket-connect probe (checkPort) and the request body. Without
+    // this, opts.timeout=60 would set the request timeout but the
+    // checkPort still used targetDict.timeout (or default ~0.3s) — a
+    // long-running action could fail the pre-flight TCP probe long
+    // before its own timeout kicked in.
+    //
+    // Validation: a non-numeric / NaN / non-positive value would silently
+    // flow through Number(...) and confuse both checkPort (setTimeout(NaN)
+    // is undefined behaviour) and the rest-api (it rejects non-positive
+    // timeouts with HTTP 400). Fall back to env.timeout, then a hardcoded
+    // 4s, on invalid input.
+    const resolveTimeout = (raw) => {
+      const n = Number(raw);
+      return Number.isFinite(n) && n > 0 ? n : null;
+    };
+    const effectiveTimeout =
+      resolveTimeout(opts?.timeout) ??
+      resolveTimeout(targetDict?.timeout) ??
+      resolveTimeout(env.timeout) ??
+      4;
+    result = await checkPort({ ...targetDict, timeout: effectiveTimeout });
+    if (result.success) {
+      const jsonData = {
+        action: actionId,
+        // No `args || {}` fallback: the signature default catches a
+        // missing arg, but an explicit `null` from the caller is a
+        // contract violation that should surface as the interpreter's
+        // 400 (args must be an object) rather than be silently fixed up.
+        args,
+        timeout: effectiveTimeout,
+      };
+
+      debugLog(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`
+      );
+      const response = await postJsonToApi(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`,
+        jsonData,
+        targetDict.Authorization
+      );
+
+      if ('error' in response) {
+        errorLog('response:', response);
+        return {
+          returncode: 99,
+          stdout: '',
+          stderr: response.error.toString('utf8'),
+        };
+      } else {
+        successLog('action:', actionId);
+        return {
+          returncode: response.returncode,
+          stdout: response.stdout.toString('utf8'),
+          stderr: response.stderr.toString('utf8'),
+        };
+      }
+    } else {
+      debugLog('error:', result);
+      return {
+        returncode: 99,
+        stdout: '',
+        stderr: result.message,
+      };
+    }
+  } catch (error) {
+    errorLog('error:', error.message);
+    return {
+      returncode: 99,
+      stdout: '',
+      stderr: error.message,
+    };
+  }
+};
+
+/**
  * Generic API function post
  * @param {string} apiUrl API url like http://whatever:8888
  * @return {Promise<string>} stdout from the fetch
