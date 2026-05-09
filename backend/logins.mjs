@@ -52,8 +52,18 @@ export const getLogin = async (credential, guess = false) => {
     message: 'invalid credential: neither string nor object',
   };
   try {
-    // we expect either an object like {id:id}|{mailbox:mailbox}|{username:username}
-    // or a string: mailbox == what's in the id keay of that table
+    // We accept:
+    //   - an object {id|mailbox|username: value} → looked up via the
+    //     matching static-statement (see the dispatch below);
+    //   - a string credential, which is interpreted as a MAILBOX. This
+    //     matches the GET /api/roles/:credential and login-flow contracts:
+    //     non-admins are restricted to req.user.mailbox at the route
+    //     layer, and the password-reset / loginUser flows pass mailbox-
+    //     or-username strings (always with guess=true). Looking up by
+    //     mailbox makes the !guess path actually work for any future
+    //     caller; the previous {[sql.logins.id]: credential} form keyed
+    //     by primary-key id and silently returned 0 rows for any
+    //     mailbox-shape input.
     if (typeof credential === 'string') {
       // loginGuess should only be used for login purposes, and takes a string
       if (guess) {
@@ -62,7 +72,9 @@ export const getLogin = async (credential, guess = false) => {
           username: credential,
         });
       } else {
-        login = dbGet(sql.logins.select.login, { [sql.logins.id]: credential });
+        login = dbGet(sql.logins.select.loginByMailbox, {
+          mailbox: credential,
+        });
       }
     } else if (
       typeof credential === 'object' &&
@@ -171,10 +183,12 @@ export const getLogins = async (credentials = null, guess = false) => {
 export const getRoles = async (credential = null) => {
   let roles = { success: false };
   try {
-    // we expect either an object {id:id} or {id:id}|{mailbox:mailbox}|{username:username}
-    // or a string: mailbox == what's in the id keay of that table
+    // String credential = mailbox. The route GET /api/roles/:credential
+    // restricts non-admins to req.user.mailbox, so the contract here is
+    // mailbox-shaped. The previous form keyed by primary-key id and
+    // silently returned 0 rows for any mailbox input.
     if (typeof credential === 'string') {
-      roles = dbGet(sql.logins.select.roles, { [sql.logins.id]: credential });
+      roles = dbGet(sql.logins.select.rolesByMailbox, { mailbox: credential });
     } else if (
       typeof credential === 'object' &&
       Object.keys(credential).length === 1
