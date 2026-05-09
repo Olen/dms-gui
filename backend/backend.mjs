@@ -369,6 +369,97 @@ export const execInContainerAPI = async (
 };
 
 /**
+ * Dispatch a manifest-declared action to the rest-api.py interpreter.
+ * Same transport and same {returncode, stdout, stderr} response shape
+ * as execCommand/execSetup; only the request body differs (it sends
+ * {action, args, timeout} instead of {command, timeout}).
+ *
+ * IMPORTANT: action ids must be string literals at the call site so
+ * the build-time manifest test (added in Sprint B Task 4) can grep for
+ * them and verify every call has a matching manifest entry. Computed
+ * action ids defeat that coverage check.
+ *
+ * @param {string} actionId - Manifest action id (e.g. 'setup_email_add')
+ * @param {object} args - Per-action validated args
+ * @param {object} targetDict - {protocol, host, port, Authorization, timeout?}
+ * @param {object} [opts] - { timeout } override
+ * @return {Promise<{returncode, stdout, stderr}>}
+ */
+export const execAction = async (
+  actionId,
+  args = {},
+  targetDict = {},
+  opts = {}
+) => {
+  if (env.isDEMO) return { returncode: 0, stdout: 'mock response' };
+  let result;
+  try {
+    if (
+      !targetDict ||
+      (targetDict &&
+        Object.keys(
+          reduxPropertiesOfObj(targetDict, [
+            'protocol',
+            'host',
+            'port',
+            'Authorization',
+          ])
+        ).length < 4)
+    ) {
+      return {
+        returncode: 99,
+        stderr: 'targetDict needs 4 keys: protocol, host, port, Authorization',
+      };
+    }
+
+    result = await checkPort(targetDict);
+    if (result.success) {
+      const jsonData = {
+        action: actionId,
+        args: args || {},
+        timeout: Number(opts?.timeout ?? targetDict?.timeout ?? env.timeout),
+      };
+
+      debugLog(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`
+      );
+      const response = await postJsonToApi(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`,
+        jsonData,
+        targetDict.Authorization
+      );
+
+      if ('error' in response) {
+        errorLog('response:', response);
+        return {
+          returncode: 99,
+          stderr: response.error.toString('utf8'),
+        };
+      } else {
+        successLog('action:', actionId);
+        return {
+          returncode: response.returncode,
+          stdout: response.stdout.toString('utf8'),
+          stderr: response.stderr.toString('utf8'),
+        };
+      }
+    } else {
+      debugLog('error:', result);
+      return {
+        returncode: 99,
+        stderr: result.message,
+      };
+    }
+  } catch (error) {
+    errorLog('error:', error.message);
+    return {
+      returncode: 99,
+      stderr: error.message,
+    };
+  }
+};
+
+/**
  * Generic API function post
  * @param {string} apiUrl API url like http://whatever:8888
  * @return {Promise<string>} stdout from the fetch
