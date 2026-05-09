@@ -8,7 +8,7 @@ vi.hoisted(() => {
 });
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
-import { resolveSmtpTlsVerify } from './env.mjs';
+import { resolveSmtpTlsVerify, mailserverRESTAPI, env } from './env.mjs';
 
 describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
   it('explicit "false" overrides everything else', () => {
@@ -65,5 +65,92 @@ describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
       resolveSmtpTlsVerify({ SMTP_TLS_VERIFY: 'yes', SMTP_HOST: 'x' })
     ).toBe(true);
     expect(resolveSmtpTlsVerify({ SMTP_TLS_VERIFY: 'yes' })).toBe(false);
+  });
+});
+
+describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
+  it('exposes a manifest config entry alongside api and cron', () => {
+    expect(mailserverRESTAPI.dms).toHaveProperty('manifest');
+    expect(mailserverRESTAPI.dms.manifest).toMatchObject({
+      desc: expect.any(String),
+      path: expect.any(String),
+      content: expect.any(String),
+    });
+  });
+
+  it('manifest content is valid JSON matching REST_API_MANIFEST', () => {
+    const parsed = JSON.parse(mailserverRESTAPI.dms.manifest.content);
+    expect(Array.isArray(parsed)).toBe(true);
+    expect(parsed).toEqual([]);
+  });
+
+  it('manifest path is exactly DMSGUI_CONFIG_PATH + filename', () => {
+    // Asserts the contract end-to-end: prefix derives from env (not a
+    // hardcoded literal that drifts) and filename is the one rest-api.py
+    // reads at startup.
+    expect(mailserverRESTAPI.dms.manifest.path).toBe(
+      env.DMSGUI_CONFIG_PATH + '/rest-api-manifest.json'
+    );
+  });
+});
+
+describe('rest-api.py interpreter wiring (Sprint A)', () => {
+  const py = mailserverRESTAPI.dms.api.content;
+
+  // ---- Manifest loading at startup ----
+  it('loads the manifest from MANIFEST_PATH at module import', () => {
+    expect(py).toContain('MANIFEST_PATH');
+    expect(py).toContain('def load_manifest(');
+    expect(py).toContain('/rest-api-manifest.json');
+    expect(py).toContain('raise ValueError');
+  });
+
+  // ---- Five validator types from the spec ----
+  it('implements all declared validator types', () => {
+    expect(py).toContain("'enum'");
+    expect(py).toContain("'regex'");
+    expect(py).toContain("'int'");
+    expect(py).toContain("'string'");
+    expect(py).toContain("'optional'");
+  });
+
+  it('uses re.fullmatch for regex validators (not re.match)', () => {
+    expect(py).toContain('re.fullmatch');
+    expect(py).not.toContain('re.match(');
+  });
+
+  // ---- Token-level substitution ----
+  it('does token-level template substitution, not string interpolation', () => {
+    expect(py).toMatch(/PLACEHOLDER\s*=\s*re\.compile/);
+    expect(py).toContain('def substitute(');
+  });
+
+  // ---- shell=False everywhere ----
+  it('runs subprocess.Popen with shell=False', () => {
+    expect(py).toContain('subprocess.Popen');
+    expect(py).toContain('shell=False');
+    expect(py).not.toContain('shell=True');
+  });
+
+  // ---- do_POST dispatch order ----
+  it('action branch precedes the legacy command branch', () => {
+    const actionBranch = py.indexOf("json_data.get('action')");
+    const commandBranch = py.indexOf("json_data.get('command')");
+    expect(actionBranch).toBeGreaterThan(0);
+    expect(commandBranch).toBeGreaterThan(0);
+    expect(actionBranch).toBeLessThan(commandBranch);
+  });
+
+  // ---- Unknown action → 403, not 200 ----
+  it('rejects unknown action ids with HTTP 403', () => {
+    const idx = py.indexOf('unknown action');
+    expect(idx).toBeGreaterThan(0);
+    expect(py.slice(Math.max(0, idx - 200), idx + 300)).toMatch(/403/);
+  });
+
+  // ---- Redirect target safety ----
+  it("rejects redirect targets that aren't absolute or contain '..'", () => {
+    expect(py).toMatch(/not target\.startswith\('\/'\)/);
+    expect(py).toMatch(/'\.\.' in target/);
   });
 });
