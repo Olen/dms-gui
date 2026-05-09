@@ -325,23 +325,67 @@ def load_manifest(path):
             f"action {e['id']}: validate['{arg_name}'] (type {vtype!r}) "
             f"has unknown/disallowed keys: {sorted(unknown)}"
           )
-        # Type-check the validator-type's payload.
+        # Type-check the validator-type's payload AND the nested numeric
+        # fields. Without these checks, a malformed manifest can load
+        # cleanly and surface as a TypeError / re.error at request time
+        # (HTTP 500), instead of failing fast at startup with a clear
+        # error.
         if vtype == 'enum' and not isinstance(spec['enum'], list):
           raise ValueError(
             f"action {e['id']}: validate['{arg_name}'].enum must be a list"
           )
-        if vtype == 'regex' and not isinstance(spec['regex'], str):
-          raise ValueError(
-            f"action {e['id']}: validate['{arg_name}'].regex must be a string"
-          )
-        if vtype == 'int' and not isinstance(spec['int'], dict):
-          raise ValueError(
-            f"action {e['id']}: validate['{arg_name}'].int must be an object"
-          )
-        if vtype == 'string' and not isinstance(spec['string'], dict):
-          raise ValueError(
-            f"action {e['id']}: validate['{arg_name}'].string must be an object"
-          )
+        if vtype == 'regex':
+          if not isinstance(spec['regex'], str):
+            raise ValueError(
+              f"action {e['id']}: validate['{arg_name}'].regex must be a string"
+            )
+          # Compile the pattern at load time so an invalid regex (e.g.
+          # unclosed bracket) is rejected here rather than at the first
+          # request that triggers it.
+          try:
+            re.compile(spec['regex'])
+          except re.error as ex:
+            raise ValueError(
+              f"action {e['id']}: validate['{arg_name}'].regex is not a "
+              f"valid regex: {ex}"
+            )
+          if 'maxlen' in spec:
+            if not isinstance(spec['maxlen'], int) or isinstance(spec['maxlen'], bool):
+              raise ValueError(
+                f"action {e['id']}: validate['{arg_name}'].maxlen must be an int"
+              )
+            if spec['maxlen'] < 0:
+              raise ValueError(
+                f"action {e['id']}: validate['{arg_name}'].maxlen must be >= 0"
+              )
+        if vtype == 'int':
+          if not isinstance(spec['int'], dict):
+            raise ValueError(
+              f"action {e['id']}: validate['{arg_name}'].int must be an object"
+            )
+          for k in ('min', 'max'):
+            if k in spec['int']:
+              v_ = spec['int'][k]
+              if isinstance(v_, bool) or not isinstance(v_, int):
+                raise ValueError(
+                  f"action {e['id']}: validate['{arg_name}'].int.{k} must be an int"
+                )
+        if vtype == 'string':
+          if not isinstance(spec['string'], dict):
+            raise ValueError(
+              f"action {e['id']}: validate['{arg_name}'].string must be an object"
+            )
+          for k in ('minlen', 'maxlen'):
+            if k in spec['string']:
+              v_ = spec['string'][k]
+              if isinstance(v_, bool) or not isinstance(v_, int):
+                raise ValueError(
+                  f"action {e['id']}: validate['{arg_name}'].string.{k} must be an int"
+                )
+              if v_ < 0:
+                raise ValueError(
+                  f"action {e['id']}: validate['{arg_name}'].string.{k} must be >= 0"
+                )
         if 'optional' in spec and not isinstance(spec['optional'], bool):
           raise ValueError(
             f"action {e['id']}: validate['{arg_name}'].optional must be a bool"

@@ -103,14 +103,26 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
   }, 15000);
 
   afterAll(async () => {
-    if (serverProc && serverProc.exitCode === null && !serverProc.killed) {
-      // Process is still running — gracefully terminate.
-      const exited = new Promise((resolve) => serverProc.once('exit', resolve));
-      serverProc.kill('SIGTERM');
-      // 2s SIGKILL fallback for the (unlikely) case where SIGTERM is ignored.
-      const timeout = setTimeout(() => serverProc.kill('SIGKILL'), 2000);
-      await exited;
-      clearTimeout(timeout);
+    if (serverProc) {
+      await new Promise((resolve) => {
+        // If the process already exited, resolve immediately. Otherwise
+        // attach listener BEFORE sending the signal so we don't miss the
+        // exit event in the race window between check and listener attach.
+        if (serverProc.exitCode !== null) return resolve();
+        serverProc.once('exit', resolve);
+        // Trigger the exit if not already in progress.
+        if (!serverProc.killed) serverProc.kill('SIGTERM');
+        // Hard ceiling — if SIGTERM is ignored, force-kill and resolve.
+        // Resolve unconditionally on timeout so afterAll never hangs.
+        setTimeout(() => {
+          try {
+            if (serverProc.exitCode === null) serverProc.kill('SIGKILL');
+          } catch {
+            /* process may already be gone */
+          }
+          resolve();
+        }, 2000);
+      });
     }
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
   });
