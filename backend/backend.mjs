@@ -370,9 +370,13 @@ export const execInContainerAPI = async (
 
 /**
  * Dispatch a manifest-declared action to the rest-api.py interpreter.
- * Same transport and same {returncode, stdout, stderr} response shape
- * as execCommand/execSetup; only the request body differs (it sends
- * {action, args, timeout} instead of {command, timeout}).
+ * Same transport as execCommand/execSetup; the request body sends
+ * {action, args, timeout} instead of {command, timeout}.
+ *
+ * Response shape: always {returncode, stdout, stderr} — including the
+ * demo-mode short-circuit. The legacy execInContainerAPI omits stderr
+ * in demo mode; execAction does not inherit that inconsistency, so
+ * callers can rely on all three keys being present.
  *
  * IMPORTANT: action ids must be reachable as string literals from a
  * static-grep at build time. Two patterns are supported by the

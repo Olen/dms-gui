@@ -198,7 +198,6 @@ export const getAccounts = async (
 // Function to retrieve mailbox accounts from DMS
 export const pullAccountsFromDMS = async (containerName = null) => {
   if (!containerName) return { success: false, error: 'containerName is null' };
-  const command = 'email list';
   let accounts = [];
 
   try {
