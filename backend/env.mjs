@@ -252,6 +252,11 @@ def load_manifest(path):
       raise ValueError(f"manifest entry must be an object, got {type(e).__name__}: {e!r}")
     if 'id' not in e:
       raise ValueError(f"manifest entry missing 'id': {e}")
+    if not isinstance(e['id'], str):
+      raise ValueError(
+        f"manifest entry 'id' must be a string, got "
+        f"{type(e['id']).__name__}: {e['id']!r}"
+      )
     if e['id'] in actions:
       raise ValueError(f"duplicate action id: {e['id']}")
     has_argv = 'argv' in e
@@ -275,11 +280,35 @@ def load_manifest(path):
           raise ValueError(f"action {e['id']}: pipeline[{i}].argv must be a non-empty list")
         if not all(isinstance(t, str) for t in s['argv']):
           raise ValueError(f"action {e['id']}: pipeline[{i}].argv tokens must be strings")
+    if 'validate' in e:
+      v = e['validate']
+      if not isinstance(v, dict):
+        raise ValueError(f"action {e['id']}: 'validate' must be an object")
+      for arg_name, spec in v.items():
+        if not isinstance(spec, dict):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'] must be an object"
+          )
+    if 'redirect' in e:
+      r = e['redirect']
+      if not isinstance(r, dict):
+        raise ValueError(f"action {e['id']}: 'redirect' must be an object")
+      if 'file' not in r or not isinstance(r['file'], str):
+        raise ValueError(f"action {e['id']}: redirect.file must be a string")
+      if 'mode' in r and r['mode'] not in ('write', 'append'):
+        raise ValueError(
+          f"action {e['id']}: redirect.mode must be 'write' or 'append'"
+        )
     actions[e['id']] = e
   return types.MappingProxyType(actions)
 
-ACTIONS = load_manifest(MANIFEST_PATH)
-logger(f"Loaded {len(ACTIONS)} actions from {MANIFEST_PATH}")
+try:
+  ACTIONS = load_manifest(MANIFEST_PATH)
+  logger(f"Loaded {len(ACTIONS)} actions from {MANIFEST_PATH}")
+except FileNotFoundError:
+  logger(f"WARNING: manifest file not found at {MANIFEST_PATH}; "
+         f"action protocol disabled, only legacy {{command:}} path will work")
+  ACTIONS = types.MappingProxyType({})
 
 # ---- Declarative validators ----
 def validate(spec, value):

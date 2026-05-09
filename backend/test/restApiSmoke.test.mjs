@@ -97,11 +97,11 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
   }, 15000);
 
   afterAll(async () => {
-    if (serverProc) {
+    if (serverProc && serverProc.exitCode === null && !serverProc.killed) {
+      // Process is still running — gracefully terminate.
       const exited = new Promise((resolve) => serverProc.once('exit', resolve));
       serverProc.kill('SIGTERM');
-      // Give the process up to 2 seconds to exit cleanly; SIGKILL fallback
-      // covers the (unlikely) case where SIGTERM is ignored.
+      // 2s SIGKILL fallback for the (unlikely) case where SIGTERM is ignored.
       const timeout = setTimeout(() => serverProc.kill('SIGKILL'), 2000);
       await exited;
       clearTimeout(timeout);
