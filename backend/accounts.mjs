@@ -366,22 +366,24 @@ export const addAccount = async (
   }
 };
 
-// Schemas the accounts subsystem actually knows how to operate on.
-// `addAccount`, `deleteAccount`, and the doveadm/quota helpers all
-// branch on `schema === 'dms'` and have no behaviour defined for any
-// other value. Routes should validate user-supplied schema against
-// this set before calling any of those functions, otherwise the
-// `if (schema === 'dms') ...` check leaves intermediate results
-// uninitialised and the next access throws.
+// Schemas the schema-dependent accounts functions actually know how
+// to operate on. `addAccount` and `deleteAccount` both branch on
+// `schema === 'dms'` and have no behaviour defined for any other
+// value: the intermediate `results` is left uninitialised and the
+// next access throws. Routes that take `:schema` as a path param
+// must validate user-supplied schema against this set before
+// calling either function. (`doveadm` accepts a schema arg but
+// doesn't branch on it; `setQuota` doesn't take one — so they
+// are not affected by this allowlist.)
 export const SUPPORTED_SCHEMAS = new Set(['dms']);
 
-// Function to delete an mailbox account; shema is needed because of the remote command involved
+// Function to delete an mailbox account; schema is needed because of the remote command involved
 export const deleteAccount = async (
   schema = 'dms',
   containerName = null,
   mailbox = null
 ) => {
-  if (!mailbox) return { success: false, error: 'containerName is null' };
+  if (!mailbox) return { success: false, error: 'mailbox is null' };
   if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Account deleted: ${mailbox}`);

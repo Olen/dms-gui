@@ -26,13 +26,16 @@ const mockDoveadm = vi.fn();
 const mockSetQuota = vi.fn();
 const mockUpdateDB = vi.fn();
 
+// Include a second schema so passthrough tests can use a value other
+// than 'dms' — that way an assertion of `deleteAccount called with
+// 'altschema'` catches a regression where someone hardcodes 'dms'.
 vi.mock('../accounts.mjs', () => ({
   getAccounts: (...args) => mockGetAccounts(...args),
   addAccount: (...args) => mockAddAccount(...args),
   deleteAccount: (...args) => mockDeleteAccount(...args),
   doveadm: (...args) => mockDoveadm(...args),
   setQuota: (...args) => mockSetQuota(...args),
-  SUPPORTED_SCHEMAS: new Set(['dms']),
+  SUPPORTED_SCHEMAS: new Set(['dms', 'altschema']),
 }));
 
 vi.mock('../db.mjs', () => ({
@@ -139,6 +142,20 @@ describe('POST /api/accounts/:schema/:containerName', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
   });
+
+  it('rejects unknown schemas with 400 instead of crashing addAccount()', async () => {
+    // Same allowlist guard as DELETE — addAccount() also branches on
+    // schema==='dms' and would crash with results.returncode on
+    // undefined for any other value.
+    const res = await request(app)
+      .post('/api/accounts/customschema/mailserver')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ mailbox: 'new@test.com', password: 'test123' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsupported schema/i);
+    expect(mockAddAccount).not.toHaveBeenCalled();
+  });
 });
 
 describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
@@ -169,21 +186,21 @@ describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
   });
 
   it('passes the schema path param through to deleteAccount (not hardcoded "dms")', async () => {
-    // The bug being guarded against here is the *handler* having a
-    // hardcoded `'dms'` literal in the deleteAccount() call. Even
-    // though `'dms'` is currently the only legal schema, this assertion
-    // would catch a regression where someone re-introduces the literal.
+    // Send a non-'dms' schema (allowlisted via the mock so the route
+    // doesn't reject it) and assert deleteAccount sees that exact
+    // value. If the handler ever re-introduces a hardcoded `'dms'`
+    // literal in the deleteAccount() call, this assertion fails.
     mockDeleteAccount.mockResolvedValue({
       success: true,
       message: 'Account deleted',
     });
 
     await request(app)
-      .delete('/api/accounts/dms/mailserver/old@test.com')
+      .delete('/api/accounts/altschema/mailserver/old@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(mockDeleteAccount).toHaveBeenCalledWith(
-      'dms',
+      'altschema',
       'mailserver',
       'old@test.com'
     );

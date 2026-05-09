@@ -125,6 +125,15 @@ router.post(
   async (req, res) => {
     try {
       const { schema, containerName } = req.params;
+      if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!SUPPORTED_SCHEMAS.has(schema)) {
+        // Same allowlist guard as DELETE — addAccount() also branches
+        // on schema==='dms' and would crash with `results undefined`
+        // for any other value.
+        return res
+          .status(400)
+          .json({ error: `unsupported schema '${schema}'` });
+      }
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
 
