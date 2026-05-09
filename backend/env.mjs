@@ -191,6 +191,11 @@ nohup /usr/bin/python3 $(dirname $0)/rest-api.py &
 
 export const mailserverRESTAPI = {
   dms: {
+    manifest: {
+      desc: 'Action manifest consumed by rest-api.py at startup. Generated from REST_API_MANIFEST in restApiManifest.mjs; do not hand-edit on the DMS volume.',
+      path: env.DMSGUI_CONFIG_PATH + '/rest-api-manifest.json',
+      content: JSON.stringify(REST_API_MANIFEST, null, 2),
+    },
     api: {
       desc: 'python API server - should be created at /tmp/docker-mailserver/dms-gui/rest-api.py',
       path: env.DMSGUI_CONFIG_PATH + '/rest-api.py',
@@ -207,6 +212,7 @@ import json
 import os
 import datetime
 import re
+import types
 
 DMS_API_HOST = os.environ.get('DMS_API_HOST', '0.0.0.0')          # Listen on all available interfaces
 DMS_API_PORT = int(os.environ.get('DMS_API_PORT', 8888))          # Port to listen on
@@ -247,7 +253,7 @@ def load_manifest(path):
     if 'argv' not in e and 'pipeline' not in e:
       raise ValueError(f"action {e['id']}: needs 'argv' or 'pipeline'")
     actions[e['id']] = e
-  return actions
+  return types.MappingProxyType(actions)
 
 ACTIONS = load_manifest(MANIFEST_PATH)
 logger(f"Loaded {len(ACTIONS)} actions from {MANIFEST_PATH}")
@@ -485,7 +491,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         if action_id:
           # New action protocol path.
           if action_id not in ACTIONS:
-            logger(f"Rejected: unknown action '{action_id}'")
+            logger(f"Rejected: unknown action '{action_id[:64].replace(chr(10), ' ').replace(chr(13), ' ')}'")
             response_message = {"status": "error", "error": f"unknown action: {action_id}"}
             self.send_response(403)
             self.send_header('Content-type', 'application/json')
@@ -676,11 +682,6 @@ with socketserver.TCPServer((DMS_API_HOST, DMS_API_PORT), APIHandler) as httpd:
   logger(f"Serving at port {DMS_API_HOST}:{DMS_API_PORT}")
   httpd.serve_forever()
 `,
-    },
-    manifest: {
-      desc: 'Action manifest consumed by rest-api.py at startup. Generated from REST_API_MANIFEST in restApiManifest.mjs; do not hand-edit on the DMS volume.',
-      path: env.DMSGUI_CONFIG_PATH + '/rest-api-manifest.json',
-      content: JSON.stringify(REST_API_MANIFEST, null, 2),
     },
     cron: {
       desc: 'https://github.com/orgs/docker-mailserver/discussions/2908 - mount this to /etc/supervisor/conf.d/rest-api.conf',

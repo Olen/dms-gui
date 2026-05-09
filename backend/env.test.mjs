@@ -145,7 +145,7 @@ describe('rest-api.py interpreter wiring (Sprint A)', () => {
   it('rejects unknown action ids with HTTP 403', () => {
     const idx = py.indexOf('unknown action');
     expect(idx).toBeGreaterThan(0);
-    expect(py.slice(Math.max(0, idx - 200), idx + 200)).toMatch(/403/);
+    expect(py.slice(Math.max(0, idx - 200), idx + 300)).toMatch(/403/);
   });
 
   // ---- Redirect target safety ----
