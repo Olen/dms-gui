@@ -148,4 +148,24 @@ describe('execAction', () => {
 
     expect(body.timeout).toBe(30);
   });
+
+  it('passes explicit null args through to the body without coercion', async () => {
+    // Contract: an explicit `null` from the caller is a programming error
+    // that should surface as the rest-api interpreter's 400 ('args must
+    // be an object'). The helper does NOT coerce null → {}; that would
+    // mask the bug. This test guards against a future refactor silently
+    // reintroducing the fallback.
+    await execAction('setup_email_list', null, validTarget);
+
+    expect(fetchSpy).toHaveBeenCalledOnce();
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(init.body);
+
+    expect(body.args).toBeNull();
+    expect(body).toEqual({
+      action: 'setup_email_list',
+      args: null,
+      timeout: 4,
+    });
+  });
 });
