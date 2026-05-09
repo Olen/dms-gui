@@ -6,8 +6,7 @@ const mockErrorLog = vi.fn();
 const mockSuccessLog = vi.fn();
 const mockWarnLog = vi.fn();
 const mockInfoLog = vi.fn();
-const mockExecSetup = vi.fn();
-const mockExecCommand = vi.fn();
+const mockExecAction = vi.fn();
 const mockFormatDMSError = vi.fn();
 const mockDeleteEntry = vi.fn();
 const mockGetAliases = vi.fn();
@@ -19,8 +18,7 @@ vi.mock('./backend.mjs', () => ({
   successLog: (...args) => mockSuccessLog(...args),
   warnLog: (...args) => mockWarnLog(...args),
   infoLog: (...args) => mockInfoLog(...args),
-  execSetup: (...args) => mockExecSetup(...args),
-  execCommand: (...args) => mockExecCommand(...args),
+  execAction: (...args) => mockExecAction(...args),
   formatDMSError: (...args) => mockFormatDMSError(...args),
 }));
 
@@ -46,7 +44,6 @@ vi.mock('./aliases.mjs', () => ({
 }));
 
 vi.mock('../common.mjs', () => ({
-  escapeShellArg: (arg) => `'${arg}'`,
   reduxArrayOfObjByValue: (array, key, values) =>
     array.filter((item) => values.includes(item[key])),
 }));
@@ -72,7 +69,7 @@ describe('deleteAccount — alias cleanup', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // Default: DMS email del succeeds
-    mockExecSetup.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockExecAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     // Default: DB delete succeeds
     mockDeleteEntry.mockReturnValue({ success: true, message: 'deleted' });
     // Default: deleteAlias succeeds
@@ -256,9 +253,9 @@ describe('addAccount / deleteAccount — schema allowlist (defence in depth)', (
       success: false,
       error: "unsupported schema 'mailcow'",
     });
-    // Crucially, the function returned cleanly — no execSetup invoked,
+    // Crucially, the function returned cleanly — no execAction invoked,
     // no exception thrown despite results never being initialised.
-    expect(mockExecSetup).not.toHaveBeenCalled();
+    expect(mockExecAction).not.toHaveBeenCalled();
   });
 
   it('deleteAccount returns a structured error for an unsupported schema (does not crash)', async () => {
@@ -267,6 +264,6 @@ describe('addAccount / deleteAccount — schema allowlist (defence in depth)', (
       success: false,
       error: "unsupported schema 'mailcow'",
     });
-    expect(mockExecSetup).not.toHaveBeenCalled();
+    expect(mockExecAction).not.toHaveBeenCalled();
   });
 });

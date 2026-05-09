@@ -24,17 +24,12 @@
 //   humanSize2ByteSize,
 //   moveKeyToLast,
 // } from '../common.mjs'
-import {
-  escapeShellArg,
-  reduxArrayOfObjByValue,
-  humanSize2ByteSize,
-} from '../common.mjs';
+import { reduxArrayOfObjByValue, humanSize2ByteSize } from '../common.mjs';
 import { addAlias, deleteAlias, getAliases } from './aliases.mjs';
 import {
   debugLog,
   errorLog,
-  execCommand,
-  execSetup,
+  execAction,
   formatDMSError,
   infoLog,
   successLog,
@@ -209,8 +204,8 @@ export const pullAccountsFromDMS = async (containerName = null) => {
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
-    debugLog(`execSetup(${command})`, targetDict);
-    const results = await execSetup(command, targetDict);
+    debugLog(`execAction(setup_email_list)`, targetDict);
+    const results = await execAction('setup_email_list', {}, targetDict);
     if (!results.returncode) {
       // Parse multiline output with regex to extract email and size information
       // const emailLineValidChars = /[\x00-\x1F\x7F-\x9F\x20-\x7E]/g;
@@ -276,7 +271,7 @@ export const pullAccountsFromDMS = async (containerName = null) => {
         }
       }
     } else {
-      let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+      let ErrorMsg = await formatDMSError('setup_email_list', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -318,8 +313,9 @@ export const addAccount = async (
 
     debugLog(`Adding new mailbox account for ${containerName}: ${mailbox}`);
     if (schema === 'dms')
-      results = await execSetup(
-        `email add ${escapeShellArg(mailbox)} ${escapeShellArg(password)}`,
+      results = await execAction(
+        'setup_email_add',
+        { mailbox, password },
         targetDict
       );
 
@@ -407,11 +403,8 @@ export const deleteAccount = async (
     // dms setup could take who know how long when mailbox is large
     targetDict.timeout = 60;
     if (schema === 'dms')
-      results = await execSetup(
-        `email del -y ${escapeShellArg(mailbox)}`,
-        targetDict
-      );
-    debugLog('ddebug execSetup', results);
+      results = await execAction('setup_email_del', { mailbox }, targetDict);
+    debugLog('ddebug execAction', results);
 
     if (!results.returncode) {
       successLog(`Mailbox Account deleted: ${mailbox}`);
@@ -492,7 +485,7 @@ export const deleteAccount = async (
 
       return result;
     } else {
-      let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+      let ErrorMsg = await formatDMSError('setup_email_del', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -530,7 +523,7 @@ export const doveadm = async (
     index: {
       // https://doc.dovecot.org/main/core/summaries/doveadm.html#index
       mailbox: true,
-      cmd: 'doveadm index -u {mailbox} -q \\*',
+      actionId: 'doveadm_index',
       api: [
         [
           'index',
@@ -546,7 +539,7 @@ export const doveadm = async (
     indexerList: {
       // https://doc.dovecot.org/main/core/summaries/doveadm.html#indexer%20list
       mailbox: true,
-      cmd: 'doveadm index -u {mailbox} -q \\*',
+      actionId: 'doveadm_index',
       api: [['index', { userMask: '{mailbox}' }, 'dms-gui']],
       stdout: true,
       messages: {
@@ -556,7 +549,7 @@ export const doveadm = async (
     list: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
       mailbox: true,
-      cmd: 'doveadm mailbox list -u {mailbox}',
+      actionId: 'doveadm_mailbox_list',
       stdout: true,
       messages: {
         pass: 'Folder list for {mailbox}:',
@@ -570,7 +563,7 @@ export const doveadm = async (
     subscribed: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20list
       mailbox: true,
-      cmd: 'doveadm mailbox list -u {mailbox} -s',
+      actionId: 'doveadm_mailbox_list_subscribed',
       stdout: true,
       messages: {
         pass: 'Subscribed folder list for {mailbox}:',
@@ -583,7 +576,7 @@ export const doveadm = async (
     metaGet: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20metadata%20list https://manpages.ubuntu.com/manpages/jammy/man1/doveadm-mailbox.1.html
       mailbox: true,
-      cmd: 'doveadm mailbox metadata list -p -u {mailbox} {box}',
+      actionId: 'doveadm_mailbox_metadata_list',
       defaults: {
         box: 'INBOX',
       },
@@ -598,7 +591,7 @@ export const doveadm = async (
     mailboxStatus: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
       mailbox: true,
-      cmd: 'doveadm mailbox status -u {mailbox} {field} {box}',
+      actionId: 'doveadm_mailbox_status',
       api: [
         [
           'mailboxStatus',
@@ -619,7 +612,7 @@ export const doveadm = async (
     forceResync: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#mailbox%20status
       mailbox: true,
-      cmd: 'doveadm force-resync -u {mailbox} --mailbox-mask {box}',
+      actionId: 'doveadm_force_resync',
       api: [
         [
           'forceResync',
@@ -640,7 +633,7 @@ export const doveadm = async (
     quota: {
       // https://doc.dovecot.org/2.4.1/core/summaries/doveadm.html#quota%20get
       mailbox: true,
-      cmd: 'doveadm quota get -u {mailbox}',
+      actionId: 'doveadm_quota_get',
       stdout: true,
       messages: {
         pass: 'Quota for {mailbox}:',
@@ -652,25 +645,14 @@ export const doveadm = async (
     if (!doveadm[command]) throw new Error(`unknown command: ${command}`);
     const targetDict = getTargetDict('mailserver', containerName);
 
-    let formattedCommand = doveadm[command].cmd.replace(
-      /{mailbox}/g,
-      escapeShellArg(mailbox)
-    );
-    let formattedPass = doveadm[command].messages.pass.replace(
-      /{mailbox}/g,
-      mailbox
-    );
+    const action = doveadm[command];
+    const args = { mailbox };
+    let formattedPass = action.messages.pass.replace(/{mailbox}/g, mailbox);
     // also apply whatever is in the jsonDict if anything like fields or mailboxes... and also apply defaults if any
     // by parsing the defaults instead of the jsonDict, we also ensure only valid keys are replaced
-    if (doveadm[command]?.defaults) {
-      for (const [key, defaultValue] of Object.entries(
-        doveadm[command].defaults
-      )) {
-        const value = jsonDict[key] || defaultValue;
-        formattedCommand = formattedCommand.replace(
-          `{${key}}`,
-          escapeShellArg(value)
-        );
+    if (action.defaults) {
+      for (const [key, defaultValue] of Object.entries(action.defaults)) {
+        args[key] = jsonDict[key] || defaultValue;
         formattedPass = formattedPass.replace(
           `{${key}}`,
           jsonDict[key] || defaultValue
@@ -678,7 +660,7 @@ export const doveadm = async (
       }
     }
 
-    const results = await execCommand(formattedCommand, targetDict);
+    const results = await execAction(action.actionId, args, targetDict);
     if (!results.returncode) {
       successLog(formattedPass, results.stdout);
       return { success: true, message: results.stdout };
@@ -715,14 +697,12 @@ export const setQuota = async (
 
     if (!quota || quota === '0') {
       debugLog(`Removing quota for ${mailbox}`);
-      results = await execSetup(
-        `quota del ${escapeShellArg(mailbox)}`,
-        targetDict
-      );
+      results = await execAction('setup_quota_del', { mailbox }, targetDict);
     } else {
       debugLog(`Setting quota for ${mailbox} to ${quota}`);
-      results = await execSetup(
-        `quota set ${escapeShellArg(mailbox)} ${escapeShellArg(quota)}`,
+      results = await execAction(
+        'setup_quota_set',
+        { mailbox, quota },
         targetDict
       );
     }
