@@ -342,7 +342,17 @@ def execute_action(action, args, action_timeout):
     procs.append(proc)
     prev = proc
 
-  out, err = prev.communicate(timeout=action_timeout)
+  try:
+    out, err = prev.communicate(timeout=action_timeout)
+  except subprocess.TimeoutExpired:
+    # Kill all stages and reap them before re-raising. communicate()
+    # does not kill on timeout, and the single-threaded server can't
+    # afford orphaned children accumulating across requests.
+    for p in procs:
+      p.kill()
+    for p in procs:
+      p.wait()
+    raise
   for p in procs[:-1]:
     p.wait()
 
@@ -449,6 +459,28 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       debugg(f"Received command: {command}")
       debugg(f"Received timeout: {timeout}")
 
+      # Reject malformed shapes early with a 400 instead of letting them
+      # raise inside execute_action / dict lookup, which would surface
+      # as a 500. action_id may be absent entirely (legacy command path);
+      # when present it must be a string. args may be absent (defaults
+      # to {}) but if present must be an object.
+      if action_id is not None and not isinstance(action_id, str):
+        response_message = {"status": "error", "error": "'action' must be a string"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+      if not isinstance(args, dict):
+        response_message = {"status": "error", "error": "'args' must be an object"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+
       if api_key == DMS_API_KEY:
         if action_id:
           # New action protocol path.
@@ -551,7 +583,8 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
                                         stdin=stdin_src,
                                         stdout=subprocess.PIPE,
                                         stderr=subprocess.PIPE,
-                                        text=True)
+                                        text=True,
+                                        shell=False)
                 if prev_proc:
                   prev_proc.stdout.close()
                 procs.append(proc)
