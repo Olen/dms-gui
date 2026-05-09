@@ -116,8 +116,9 @@ export const env = {
   // anyway, so the second-layer admin guard below is purely
   // defence-in-depth). Set ENABLE_SWAGGER=true in .dms-gui.env to
   // enable; even when enabled, the route is wrapped in
-  // authenticateToken + requireAdmin so anonymous traffic gets 401
-  // and non-admin users get 403.
+  // authenticateToken + requireActive + requireAdmin, so anonymous
+  // traffic gets 401, inactive accounts are blocked by the active-
+  // account check, and active non-admin users get 403.
   ENABLE_SWAGGER:
     (process.env.ENABLE_SWAGGER || '').toLowerCase() === 'true' ? true : false,
 
