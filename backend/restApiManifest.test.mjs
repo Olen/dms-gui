@@ -1,5 +1,5 @@
 import { describe, it, expect, beforeAll } from 'vitest';
-import { readFileSync, existsSync } from 'fs';
+import { readFileSync, existsSync, readdirSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
@@ -173,26 +173,39 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
     const ids = new Set(REST_API_MANIFEST.map((a) => a.id));
     const here = fileURLToPath(import.meta.url);
     const backendDir = dirname(here);
-    // Scan both backend/*.mjs (where the migration call sites live) AND
-    // backend/routes/*.js (where future migrations may add direct calls
-    // from the Express handlers). If a file doesn't exist on this branch,
-    // existsSync skips it gracefully.
-    const files = [
-      'accounts.mjs',
-      'aliases.mjs',
-      'sieve.mjs',
-      'logins.mjs',
-      'settings.mjs',
-      'db.mjs',
-      'routes/accounts.js',
-      'routes/aliases.js',
-      'routes/auth.js',
-      'routes/domains.js',
-      'routes/logins.js',
-      'routes/mail.js',
-      'routes/server.js',
-      'routes/settings.js',
-    ];
+    // Auto-enumerate every backend source file that could call execAction:
+    //   backend/*.mjs              (business-logic modules)
+    //   backend/routes/*.js        (Express route handlers)
+    // Excludes test files and the test/ helper subdirectory. A new file
+    // added in a future migration is picked up automatically without
+    // updating this list — the previous hardcoded allowlist could
+    // silently drop future call sites out of the coverage check.
+    const collectFiles = () => {
+      const out = [];
+      for (const f of readdirSync(backendDir, { withFileTypes: true })) {
+        if (
+          f.isFile() &&
+          f.name.endsWith('.mjs') &&
+          !f.name.endsWith('.test.mjs')
+        ) {
+          out.push(f.name);
+        }
+      }
+      const routesDir = resolve(backendDir, 'routes');
+      if (existsSync(routesDir)) {
+        for (const f of readdirSync(routesDir, { withFileTypes: true })) {
+          if (
+            f.isFile() &&
+            f.name.endsWith('.js') &&
+            !f.name.endsWith('.test.js')
+          ) {
+            out.push(`routes/${f.name}`);
+          }
+        }
+      }
+      return out;
+    };
+    const files = collectFiles();
     // (a) Direct calls: execAction('foo', ...)
     const callRe = /execAction\(\s*['"]([a-z][a-z0-9_]*)['"]/g;
     // (b) Config-table dispatch: actionId: 'foo' (e.g. accounts.mjs's doveadm map)
