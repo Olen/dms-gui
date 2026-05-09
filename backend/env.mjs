@@ -250,8 +250,27 @@ def load_manifest(path):
       raise ValueError(f"manifest entry missing 'id': {e}")
     if e['id'] in actions:
       raise ValueError(f"duplicate action id: {e['id']}")
-    if 'argv' not in e and 'pipeline' not in e:
-      raise ValueError(f"action {e['id']}: needs 'argv' or 'pipeline'")
+    has_argv = 'argv' in e
+    has_pipeline = 'pipeline' in e
+    if has_argv == has_pipeline:
+      raise ValueError(
+        f"action {e['id']}: must have exactly one of 'argv' or 'pipeline'"
+      )
+    if has_argv:
+      if not isinstance(e['argv'], list) or not e['argv']:
+        raise ValueError(f"action {e['id']}: 'argv' must be a non-empty list")
+      if not all(isinstance(t, str) for t in e['argv']):
+        raise ValueError(f"action {e['id']}: 'argv' tokens must be strings")
+    else:
+      if not isinstance(e['pipeline'], list) or not e['pipeline']:
+        raise ValueError(f"action {e['id']}: 'pipeline' must be a non-empty list")
+      for i, s in enumerate(e['pipeline']):
+        if not isinstance(s, dict) or 'argv' not in s:
+          raise ValueError(f"action {e['id']}: pipeline[{i}] missing 'argv'")
+        if not isinstance(s['argv'], list) or not s['argv']:
+          raise ValueError(f"action {e['id']}: pipeline[{i}].argv must be a non-empty list")
+        if not all(isinstance(t, str) for t in s['argv']):
+          raise ValueError(f"action {e['id']}: pipeline[{i}].argv tokens must be strings")
     actions[e['id']] = e
   return types.MappingProxyType(actions)
 
@@ -334,12 +353,19 @@ def execute_action(action, args, action_timeout):
 
   prev = None
   procs = []
-  for stage in stages:
+  num_stages = len(stages)
+  for i, stage in enumerate(stages):
+    is_last = (i == num_stages - 1)
     proc = subprocess.Popen(
       stage,
       stdin=prev.stdout if prev else None,
       stdout=subprocess.PIPE,
-      stderr=subprocess.PIPE,
+      # Only the last stage's stderr is read via communicate(); piping
+      # earlier stages would deadlock the pipeline once the OS pipe
+      # buffer fills (~64KB on Linux). Intermediate stage diagnostics
+      # are sent to /dev/null — the exit-code propagation through the
+      # pipe still surfaces failures.
+      stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
       text=True,
       shell=False,
     )
@@ -487,8 +513,37 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response_message).encode('utf-8'))
         return
 
+      # timeout must be a positive number (int or float, not bool)
+      # capped at 600s so a runaway client can't pin a single-threaded
+      # request handler indefinitely.
+      try:
+        if isinstance(timeout, bool) or not isinstance(timeout, (int, float)):
+          raise ValueError('not numeric')
+        if timeout <= 0 or timeout > 600:
+          raise ValueError('out of range')
+      except (TypeError, ValueError):
+        response_message = {"status": "error", "error": "'timeout' must be a positive number ≤ 600"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+
+      # Empty / whitespace-only action ids are explicit programming
+      # errors, not "missing action" — reject them rather than silently
+      # falling through to the legacy command path.
+      if isinstance(action_id, str) and not action_id.strip():
+        response_message = {"status": "error", "error": "'action' must be a non-empty string"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+
       if api_key == DMS_API_KEY:
-        if action_id:
+        if action_id is not None:
           # New action protocol path.
           if action_id not in ACTIONS:
             logger(f"Rejected: unknown action '{action_id[:64].replace(chr(10), ' ').replace(chr(13), ' ')}'")
@@ -636,10 +691,14 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             logger(response_message['error'])
 
         else:
-          # Neither action nor command provided.
+          # Neither action nor command provided. Client error → 400.
           response_message = {"status": "error", "error": "no action or command was passed"}
           logger(response_message['error'])
-          raise ValueError(response_message['error'])
+          self.send_response(400)
+          self.send_header('Content-type', 'application/json')
+          self.end_headers()
+          self.wfile.write(json.dumps(response_message).encode('utf-8'))
+          return
 
       else:
         if DMS_API_KEY != 'missing':

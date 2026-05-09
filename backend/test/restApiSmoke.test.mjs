@@ -4,6 +4,7 @@ import { writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import http from 'http';
+import { createServer } from 'net';
 
 import { mailserverRESTAPI } from '../env.mjs';
 
@@ -15,7 +16,7 @@ const describeIfPython = HAS_PYTHON3 ? describe : describe.skip;
 describeIfPython('rest-api.py smoke (Sprint A)', () => {
   let tmpDir;
   let serverProc;
-  const PORT = 18888 + Math.floor(Math.random() * 1000);
+  let port; // assigned in beforeAll once a free port is reserved
   const API_KEY = 'smoke-test-key';
 
   // Two synthetic actions exercising both single argv and pipeline shapes.
@@ -36,6 +37,19 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
   ];
 
   beforeAll(async () => {
+    // Reserve a free port via the OS; close the reservation immediately
+    // and let Python bind to the same port. There's a small TOCTOU race
+    // (~ms) but it's strictly better than a random-pick-and-pray.
+    port = await new Promise((resolve, reject) => {
+      const srv = createServer();
+      srv.unref();
+      srv.on('error', reject);
+      srv.listen(0, '127.0.0.1', () => {
+        const p = srv.address().port;
+        srv.close(() => resolve(p));
+      });
+    });
+
     tmpDir = mkdtempSync(join(tmpdir(), 'dms-gui-rest-api-smoke-'));
     const pyPath = join(tmpDir, 'rest-api.py');
     const manifestPath = join(tmpDir, 'manifest.json');
@@ -51,7 +65,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
       env: {
         ...process.env,
         DMS_API_HOST: '127.0.0.1',
-        DMS_API_PORT: String(PORT),
+        DMS_API_PORT: String(port),
         DMS_API_KEY: API_KEY,
         DMS_API_MANIFEST: manifestPath,
         DMS_API_SIZE: '2048',
@@ -65,7 +79,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
       try {
         await new Promise((resolve, reject) => {
           const r = http.request(
-            { host: '127.0.0.1', port: PORT, method: 'POST', path: '/' },
+            { host: '127.0.0.1', port: port, method: 'POST', path: '/' },
             (res) => {
               res.resume();
               res.on('end', resolve);
@@ -93,7 +107,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
       const req = http.request(
         {
           host: '127.0.0.1',
-          port: PORT,
+          port: port,
           method: 'POST',
           path: '/',
           headers: {
