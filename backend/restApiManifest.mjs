@@ -7,7 +7,7 @@
 // then runs it via subprocess.Popen(shell=False). There is no shell
 // interpretation at any point in the pipeline.
 //
-// Schema (see docs/superpowers/specs/2026-05-09-rest-api-action-protocol-design.md):
+// Schema:
 //   { id:        string                — unique snake_case identifier
 //     argv:      string[]              — single-stage argv template (one of argv/pipeline required)
 //     pipeline:  [{argv: string[]}]    — multi-stage argv pipeline (stdin chained)

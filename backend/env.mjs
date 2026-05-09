@@ -244,8 +244,12 @@ def redact(s):
 def load_manifest(path):
   with open(path) as f:
     entries = json.load(f)
+  if not isinstance(entries, list):
+    raise ValueError(f"manifest must be a JSON array, got {type(entries).__name__}")
   actions = {}
   for e in entries:
+    if not isinstance(e, dict):
+      raise ValueError(f"manifest entry must be an object, got {type(e).__name__}: {e!r}")
     if 'id' not in e:
       raise ValueError(f"manifest entry missing 'id': {e}")
     if e['id'] in actions:
@@ -388,8 +392,18 @@ def execute_action(action, args, action_timeout):
   for p in procs[:-1]:
     p.wait()
 
+  # Pipefail-style returncode: surface the first non-zero exit from any
+  # stage. Without this, "false | cat" would return 0 because only the
+  # last stage's returncode is the final pipeline status. Iterate
+  # left-to-right; the leftmost non-zero is most informative for diagnosis.
+  returncode = prev.returncode
+  for p in procs:
+    if p.returncode != 0:
+      returncode = p.returncode
+      break
+
   redir = action.get('redirect')
-  if redir and prev.returncode == 0:
+  if redir and returncode == 0:
     target = substitute(redir['file'], validated)
     if not target.startswith('/') or '..' in target.split('/'):
       return 1, '', f"redirect target rejected: {target}"
@@ -397,7 +411,7 @@ def execute_action(action, args, action_timeout):
     with open(target, mode) as f:
       f.write(out)
     out = ''
-  return prev.returncode, out, err
+  return returncode, out, err
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
 

@@ -70,7 +70,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
         DMS_API_MANIFEST: manifestPath,
         DMS_API_SIZE: '2048',
       },
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: 'ignore',
     });
 
     // Wait for the server to be listening (poll with short retries).
@@ -96,8 +96,16 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
     throw new Error('rest-api.py did not start in time');
   }, 15000);
 
-  afterAll(() => {
-    if (serverProc) serverProc.kill('SIGTERM');
+  afterAll(async () => {
+    if (serverProc) {
+      const exited = new Promise((resolve) => serverProc.once('exit', resolve));
+      serverProc.kill('SIGTERM');
+      // Give the process up to 2 seconds to exit cleanly; SIGKILL fallback
+      // covers the (unlikely) case where SIGTERM is ignored.
+      const timeout = setTimeout(() => serverProc.kill('SIGKILL'), 2000);
+      await exited;
+      clearTimeout(timeout);
+    }
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });
   });
 
