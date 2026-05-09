@@ -242,9 +242,10 @@ def redact(s):
 
 def safe_id(s):
   # Sanitize an action id (or any short user-supplied string) for log
-  # output: truncate, strip CR/LF/other control characters that would
-  # otherwise let a caller (with a valid API key) inject log lines.
-  return str(s)[:64].replace(chr(10), ' ').replace(chr(13), ' ')
+  # output: truncate to 64 chars, replace every ASCII control character
+  # (C0 + DEL) with a space so a caller (with a valid API key) cannot
+  # inject log lines via newlines, ANSI escapes, etc.
+  return re.sub(r'[\\x00-\\x1f\\x7f]', ' ', str(s)[:64])
 
 # ---- Manifest load + freeze at startup ----
 def load_manifest(path):
@@ -631,7 +632,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       # fingerprint of the *received* key so failed-auth diagnosis
       # is still possible.
       debugg(f"Received API Key: {redact(api_key)}")
-      debugg(f"Received action: {action_id}")
+      debugg(f"Received action: {safe_id(action_id)}")
       debugg(f"Received command: {command}")
       debugg(f"Received timeout: {timeout}")
 

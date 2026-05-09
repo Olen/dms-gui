@@ -1,10 +1,16 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { spawn, spawnSync } from 'child_process';
 import { writeFileSync, mkdtempSync, rmSync } from 'fs';
 import { tmpdir } from 'os';
 import { join } from 'path';
 import http from 'http';
 import { createServer } from 'net';
+
+// Defensive — env.mjs dereferences process.env.DMSGUI_VERSION at module
+// load. Hoisted so it runs before the env.mjs import below.
+vi.hoisted(() => {
+  process.env.DMSGUI_VERSION = process.env.DMSGUI_VERSION || 'smoke-test';
+});
 
 import { mailserverRESTAPI } from '../env.mjs';
 
