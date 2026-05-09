@@ -48,7 +48,12 @@ const corsOptions = {
   origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept-Language',
+    'X-XSRF-TOKEN', // CSRF double-submit header (#40); CORS preflight needs this listed
+  ],
 };
 
 app.use(cookieParser());

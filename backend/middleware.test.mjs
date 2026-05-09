@@ -457,8 +457,25 @@ describe('requireCsrf (#40)', () => {
     expect(next).toHaveBeenCalled();
   });
 
+  it('passes POST through when no accessToken cookie (lets authenticateToken 401 instead)', () => {
+    // Anonymous request: no accessToken cookie. CSRF skips so the
+    // downstream authenticateToken produces the canonical 401
+    // rather than masking it with a CSRF 403.
+    const req = mockCsrfReq({ cookies: {} });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  // Below cases all simulate an authenticated request (accessToken
+  // cookie present) and assert the CSRF check.
+
   it('rejects POST when X-XSRF-TOKEN header is missing', () => {
-    const req = mockCsrfReq({ cookies: { xsrfToken: 'abc123' } });
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt', xsrfToken: 'abc123' },
+    });
     const res = mockRes();
     const next = mockNext();
     requireCsrf(req, res, next);
@@ -470,7 +487,10 @@ describe('requireCsrf (#40)', () => {
   });
 
   it('rejects POST when xsrfToken cookie is missing', () => {
-    const req = mockCsrfReq({ headers: { 'X-XSRF-TOKEN': 'abc123' } });
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt' },
+      headers: { 'X-XSRF-TOKEN': 'abc123' },
+    });
     const res = mockRes();
     const next = mockNext();
     requireCsrf(req, res, next);
@@ -480,7 +500,7 @@ describe('requireCsrf (#40)', () => {
 
   it('rejects POST when header and cookie do not match', () => {
     const req = mockCsrfReq({
-      cookies: { xsrfToken: 'cookie-value' },
+      cookies: { accessToken: 'jwt', xsrfToken: 'cookie-value' },
       headers: { 'X-XSRF-TOKEN': 'different-header-value' },
     });
     const res = mockRes();
@@ -493,7 +513,7 @@ describe('requireCsrf (#40)', () => {
   it('passes POST when header matches cookie', () => {
     const token = 'matching-token-1234';
     const req = mockCsrfReq({
-      cookies: { xsrfToken: token },
+      cookies: { accessToken: 'jwt', xsrfToken: token },
       headers: { 'X-XSRF-TOKEN': token },
     });
     const res = mockRes();
@@ -503,11 +523,12 @@ describe('requireCsrf (#40)', () => {
     expect(res.status).not.toHaveBeenCalled();
   });
 
-  // Same checks repeated for the other state-changing verbs
+  // Same checks repeated for the other state-changing verbs.
+  // accessToken cookie is set so CSRF doesn't skip-on-anonymous.
   it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
-    'requires CSRF token on %s requests',
+    'requires CSRF token on authenticated %s requests',
     (method) => {
-      const req = mockCsrfReq({ method });
+      const req = mockCsrfReq({ method, cookies: { accessToken: 'jwt' } });
       const res = mockRes();
       const next = mockNext();
       requireCsrf(req, res, next);

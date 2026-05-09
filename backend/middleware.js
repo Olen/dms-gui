@@ -90,11 +90,17 @@ export const generateCsrfToken = () => crypto.randomBytes(32).toString('hex');
 // the ability to read cookies (the standard browser-CSRF threat
 // model) cannot forge the header to match the cookie.
 //
-// Read methods (GET/HEAD/OPTIONS) pass through without checking —
-// they don't change state, so CSRF doesn't apply. Routes that
-// establish or rotate the session (login, refresh, password reset
-// flow) opt out at the route level; they don't authenticate via the
-// auth cookie so the CSRF threat shape doesn't apply to them.
+// Pass-through cases:
+//   - Read methods (GET/HEAD/OPTIONS): no state change, no CSRF.
+//   - No `accessToken` cookie present: the request is unauthenticated.
+//     `authenticateToken` (downstream) will produce the canonical 401.
+//     Running CSRF before auth would mask that with a 403 about
+//     CSRF, which is a behaviour change clients shouldn't see.
+//
+// Routes that establish or rotate the session (login, refresh,
+// password reset flow) opt out at the route level; they don't
+// authenticate via the auth cookie so the CSRF threat shape doesn't
+// apply to them.
 export const requireCsrf = (req, res, next) => {
   if (
     req.method === 'GET' ||
@@ -103,8 +109,15 @@ export const requireCsrf = (req, res, next) => {
   ) {
     return next();
   }
+  // Skip if the request isn't authenticated via the session cookie —
+  // CSRF only applies to requests the browser auto-authenticates,
+  // and `authenticateToken` will reject anonymous traffic with 401
+  // immediately downstream.
+  if (!req.cookies || !req.cookies.accessToken) {
+    return next();
+  }
   const headerToken = req.get('X-XSRF-TOKEN');
-  const cookieToken = req.cookies && req.cookies.xsrfToken;
+  const cookieToken = req.cookies.xsrfToken;
   if (!headerToken || !cookieToken || headerToken !== cookieToken) {
     return res.status(403).json({
       error: 'CSRF token missing or invalid',

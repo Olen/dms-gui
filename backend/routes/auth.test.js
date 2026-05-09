@@ -127,6 +127,12 @@ describe('POST /api/loginUser', () => {
     expect(cookieStr).toContain('accessToken');
     expect(cookieStr).toContain('refreshToken');
     expect(cookieStr).toContain('HttpOnly');
+    // CSRF double-submit cookie (#40): xsrfToken issued alongside the
+    // auth cookies. Non-httpOnly so axios can read it client-side.
+    const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+    const xsrfLine = cookieList.find((c) => c.startsWith('xsrfToken='));
+    expect(xsrfLine).toBeDefined();
+    expect(xsrfLine).not.toContain('HttpOnly');
   });
 
   it('returns success without cookies for test login', async () => {
@@ -207,6 +213,12 @@ describe('POST /api/refresh', () => {
     expect(cookies).toBeDefined();
     const cookieStr = Array.isArray(cookies) ? cookies.join(';') : cookies;
     expect(cookieStr).toContain('accessToken');
+    // CSRF cookie rotates alongside the access token (#40) so its
+    // lifetime stays in lockstep with the auth session.
+    const cookieList = Array.isArray(cookies) ? cookies : [cookies];
+    const xsrfLine = cookieList.find((c) => c.startsWith('xsrfToken='));
+    expect(xsrfLine).toBeDefined();
+    expect(xsrfLine).not.toContain('HttpOnly');
   });
 });
 
