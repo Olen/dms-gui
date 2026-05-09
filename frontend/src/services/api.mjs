@@ -15,6 +15,21 @@ const API_URL =
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, // Security with HTTP-Only Cookie
+  // CSRF double-submit cookie (#40). axios reads the named cookie
+  // value and forwards it as the named header on every request,
+  // matching the requireCsrf middleware on the backend. The cookie
+  // itself is set non-httpOnly server-side at /loginUser and
+  // /refresh so it's readable here.
+  //
+  // withXSRFToken: true forces axios to attach the header even on
+  // cross-origin requests. By default it only does so same-origin;
+  // production runs same-origin via nginx, but dev (`API_URL` set to
+  // an absolute URL like http://localhost:3001 from a different
+  // dev-server origin) would otherwise drop the header silently and
+  // every state-changing request would 403. Explicit > implicit.
+  xsrfCookieName: 'xsrfToken',
+  xsrfHeaderName: 'X-XSRF-TOKEN',
+  withXSRFToken: true,
   headers: {
     'Content-Type': 'application/json',
   },

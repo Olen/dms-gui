@@ -30,7 +30,9 @@ import {
   validateContainerName,
   serverError,
   generateAccessToken,
+  generateCsrfToken,
   generateRefreshToken,
+  requireCsrf,
   isValidDomain,
   DOMAIN_RE,
 } from './middleware.js';
@@ -46,7 +48,6 @@ const mockRes = () => {
 };
 const mockNext = () => vi.fn();
 
-
 describe('authenticateToken', () => {
   it('returns 401 with NO_TOKEN code when no cookie present', () => {
     const req = mockReq();
@@ -56,7 +57,9 @@ describe('authenticateToken', () => {
     authenticateToken(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'NO_TOKEN' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'NO_TOKEN' })
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -68,7 +71,9 @@ describe('authenticateToken', () => {
     authenticateToken(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'INVALID_TOKEN' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'INVALID_TOKEN' })
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -83,11 +88,19 @@ describe('authenticateToken', () => {
     authenticateToken(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(401);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'TOKEN_EXPIRED' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'TOKEN_EXPIRED' })
+    );
   });
 
   it('sets req.user from valid JWT and calls next()', () => {
-    const payload = { id: 1, mailbox: 'test@test.com', isAdmin: 1, isActive: 1, roles: [] };
+    const payload = {
+      id: 1,
+      mailbox: 'test@test.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: [],
+    };
     const token = jwt.sign(payload, TEST_JWT_SECRET, { expiresIn: '1h' });
     const req = mockReq({ cookies: { accessToken: token } });
     const res = mockRes();
@@ -135,7 +148,10 @@ describe('authenticateToken', () => {
 
     const jsonCall = res.json.mock.calls[0][0];
     expect(jsonCall).not.toHaveProperty('stack');
-    expect(jsonCall).not.toHaveProperty('message', expect.stringContaining('jwt'));
+    expect(jsonCall).not.toHaveProperty(
+      'message',
+      expect.stringContaining('jwt')
+    );
   });
 
   it('works with valid token payload (isAdmin, isActive, roles)', () => {
@@ -152,7 +168,6 @@ describe('authenticateToken', () => {
     expect(req.user.roles).toEqual(['a@b.com']);
   });
 });
-
 
 describe('requireAdmin', () => {
   it('calls next() when req.user.isAdmin is truthy', () => {
@@ -174,7 +189,9 @@ describe('requireAdmin', () => {
     requireAdmin(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'FORBIDDEN' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'FORBIDDEN' })
+    );
     expect(next).not.toHaveBeenCalled();
   });
 
@@ -188,7 +205,6 @@ describe('requireAdmin', () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 });
-
 
 describe('requireActive', () => {
   it('calls next() when req.user.isActive is truthy', () => {
@@ -209,7 +225,9 @@ describe('requireActive', () => {
     requireActive(req, res, next);
 
     expect(res.status).toHaveBeenCalledWith(403);
-    expect(res.json).toHaveBeenCalledWith(expect.objectContaining({ code: 'ACCOUNT_INACTIVE' }));
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'ACCOUNT_INACTIVE' })
+    );
   });
 
   it('returns 403 when req.user is missing', () => {
@@ -222,7 +240,6 @@ describe('requireActive', () => {
     expect(res.status).toHaveBeenCalledWith(403);
   });
 });
-
 
 describe('validateContainerName', () => {
   it('calls next() for valid names: mailserver, dms-v15, my.container', () => {
@@ -272,7 +289,6 @@ describe('validateContainerName', () => {
   });
 });
 
-
 describe('serverError', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -284,7 +300,9 @@ describe('serverError', () => {
 
     serverError(res, 'test context', error);
 
-    expect(errorLog).toHaveBeenCalledWith('test context: database connection failed');
+    expect(errorLog).toHaveBeenCalledWith(
+      'test context: database connection failed'
+    );
     expect(res.status).toHaveBeenCalledWith(500);
     expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
   });
@@ -302,10 +320,15 @@ describe('serverError', () => {
   });
 });
 
-
 describe('generateAccessToken', () => {
   it('contains full user payload', () => {
-    const user = { id: 1, mailbox: 'a@b.com', isAdmin: 1, isActive: 1, roles: ['a@b.com'] };
+    const user = {
+      id: 1,
+      mailbox: 'a@b.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: ['a@b.com'],
+    };
     const token = generateAccessToken(user);
     const decoded = jwt.verify(token, TEST_JWT_SECRET);
 
@@ -328,10 +351,15 @@ describe('generateAccessToken', () => {
   });
 });
 
-
 describe('generateRefreshToken', () => {
   it('contains only id and mailbox (minimal)', () => {
-    const user = { id: 1, mailbox: 'a@b.com', isAdmin: 1, isActive: 1, roles: ['a@b.com'] };
+    const user = {
+      id: 1,
+      mailbox: 'a@b.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: ['a@b.com'],
+    };
     const token = generateRefreshToken(user);
     const decoded = jwt.verify(token, TEST_JWT_SECRET_REFRESH);
 
@@ -352,7 +380,6 @@ describe('generateRefreshToken', () => {
     expect(() => jwt.verify(token, TEST_JWT_SECRET_REFRESH)).not.toThrow();
   });
 });
-
 
 describe('isValidDomain', () => {
   it('returns true for valid domains: example.com, sub.domain.org', () => {
@@ -383,7 +410,6 @@ describe('isValidDomain', () => {
   });
 });
 
-
 describe('DOMAIN_RE', () => {
   it('matches valid domain patterns', () => {
     expect(DOMAIN_RE.test('example.com')).toBe(true);
@@ -394,5 +420,133 @@ describe('DOMAIN_RE', () => {
   it('rejects invalid patterns', () => {
     expect(DOMAIN_RE.test('-start.com')).toBe(false);
     expect(DOMAIN_RE.test('end-.com')).toBe(false);
+  });
+});
+
+// Helper for CSRF tests: req with header-getter and cookies.
+const mockCsrfReq = ({ method = 'POST', cookies = {}, headers = {} } = {}) => ({
+  method,
+  cookies,
+  params: {},
+  get: (name) => headers[name] || headers[name.toLowerCase()],
+});
+
+describe('requireCsrf (#40)', () => {
+  it('passes through GET requests without checking', () => {
+    const req = mockCsrfReq({ method: 'GET' });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  it('passes through HEAD requests', () => {
+    const req = mockCsrfReq({ method: 'HEAD' });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('passes through OPTIONS preflight', () => {
+    const req = mockCsrfReq({ method: 'OPTIONS' });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+  });
+
+  it('passes POST through when no accessToken cookie (lets authenticateToken 401 instead)', () => {
+    // Anonymous request: no accessToken cookie. CSRF skips so the
+    // downstream authenticateToken produces the canonical 401
+    // rather than masking it with a CSRF 403.
+    const req = mockCsrfReq({ cookies: {} });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  // Below cases all simulate an authenticated request (accessToken
+  // cookie present) and assert the CSRF check.
+
+  it('rejects POST when X-XSRF-TOKEN header is missing', () => {
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt', xsrfToken: 'abc123' },
+    });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(res.json).toHaveBeenCalledWith(
+      expect.objectContaining({ code: 'CSRF_INVALID' })
+    );
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects POST when xsrfToken cookie is missing', () => {
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt' },
+      headers: { 'X-XSRF-TOKEN': 'abc123' },
+    });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('rejects POST when header and cookie do not match', () => {
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt', xsrfToken: 'cookie-value' },
+      headers: { 'X-XSRF-TOKEN': 'different-header-value' },
+    });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(res.status).toHaveBeenCalledWith(403);
+    expect(next).not.toHaveBeenCalled();
+  });
+
+  it('passes POST when header matches cookie', () => {
+    const token = 'matching-token-1234';
+    const req = mockCsrfReq({
+      cookies: { accessToken: 'jwt', xsrfToken: token },
+      headers: { 'X-XSRF-TOKEN': token },
+    });
+    const res = mockRes();
+    const next = mockNext();
+    requireCsrf(req, res, next);
+    expect(next).toHaveBeenCalled();
+    expect(res.status).not.toHaveBeenCalled();
+  });
+
+  // Same checks repeated for the other state-changing verbs.
+  // accessToken cookie is set so CSRF doesn't skip-on-anonymous.
+  it.each(['POST', 'PUT', 'PATCH', 'DELETE'])(
+    'requires CSRF token on authenticated %s requests',
+    (method) => {
+      const req = mockCsrfReq({ method, cookies: { accessToken: 'jwt' } });
+      const res = mockRes();
+      const next = mockNext();
+      requireCsrf(req, res, next);
+      expect(res.status).toHaveBeenCalledWith(403);
+      expect(next).not.toHaveBeenCalled();
+    }
+  );
+});
+
+describe('generateCsrfToken (#40)', () => {
+  it('returns a 64-char hex string (32 bytes)', () => {
+    const t = generateCsrfToken();
+    expect(t).toMatch(/^[0-9a-f]{64}$/);
+  });
+
+  it('returns different values on successive calls', () => {
+    const a = generateCsrfToken();
+    const b = generateCsrfToken();
+    expect(a).not.toBe(b);
   });
 });

@@ -31,6 +31,7 @@ import {
   authenticateToken,
   requireActive,
   requireAdmin,
+  requireCsrf,
 } from './middleware.js';
 
 const app = express();
@@ -47,7 +48,12 @@ const corsOptions = {
   origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
+  allowedHeaders: [
+    'Content-Type',
+    'Authorization',
+    'Accept-Language',
+    'X-XSRF-TOKEN', // CSRF double-submit header (#40); CORS preflight needs this listed
+  ],
 };
 
 app.use(cookieParser());
@@ -101,15 +107,21 @@ app.set('query parser', function (str) {
   });
 });
 
-// Mount route modules
+// Mount route modules. CSRF protection (#40) is applied to every
+// non-auth router via requireCsrf — those routers all rely on the
+// authenticateToken cookie and are therefore reachable via CSRF
+// without it. The auth router applies its own per-route CSRF policy
+// (skipped on login/refresh/password-reset, applied on logout) since
+// session-establishing routes don't authenticate via the existing
+// cookie and thus aren't a CSRF surface.
 app.use('/api', authRoutes);
-app.use('/api', loginRoutes);
-app.use('/api', accountRoutes);
-app.use('/api', aliasRoutes);
-app.use('/api', settingRoutes);
-app.use('/api', domainRoutes);
-app.use('/api', serverRoutes);
-app.use('/api', mailRoutes);
+app.use('/api', requireCsrf, loginRoutes);
+app.use('/api', requireCsrf, accountRoutes);
+app.use('/api', requireCsrf, aliasRoutes);
+app.use('/api', requireCsrf, settingRoutes);
+app.use('/api', requireCsrf, domainRoutes);
+app.use('/api', requireCsrf, serverRoutes);
+app.use('/api', requireCsrf, mailRoutes);
 
 // ============================================
 // MULTER ERROR HANDLER
