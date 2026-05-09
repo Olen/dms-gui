@@ -38,11 +38,15 @@ vi.mock('../db.mjs', () => ({
   updateDB: (...args) => mockUpdateDB(...args),
 }));
 
-import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import {
+  createTestApp,
+  adminToken,
+  userToken,
+  inactiveToken,
+} from '../test/routeHelper.mjs';
 import accountRoutes from './accounts.js';
 
 const app = createTestApp(accountRoutes);
-
 
 describe('GET /api/accounts/:containerName', () => {
   beforeEach(() => {
@@ -90,10 +94,11 @@ describe('GET /api/accounts/:containerName', () => {
 
     expect(res.status).toBe(200);
     // Non-admin call: getAccounts(containerName, false, roles)
-    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false, ['user@test.com']);
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false, [
+      'user@test.com',
+    ]);
   });
 });
-
 
 describe('POST /api/accounts/:schema/:containerName', () => {
   beforeEach(() => {
@@ -120,7 +125,10 @@ describe('POST /api/accounts/:schema/:containerName', () => {
   });
 
   it('returns 201 on successful creation', async () => {
-    mockAddAccount.mockResolvedValue({ success: true, message: 'Account created' });
+    mockAddAccount.mockResolvedValue({
+      success: true,
+      message: 'Account created',
+    });
 
     const res = await request(app)
       .post('/api/accounts/dms/mailserver')
@@ -132,32 +140,63 @@ describe('POST /api/accounts/:schema/:containerName', () => {
   });
 });
 
-
-describe('DELETE /api/accounts/:containerName/:mailbox', () => {
+describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('returns 403 for non-admin', async () => {
     const res = await request(app)
-      .delete('/api/accounts/mailserver/user@test.com')
+      .delete('/api/accounts/dms/mailserver/user@test.com')
       .set('Cookie', [`accessToken=${userToken}`]);
 
     expect(res.status).toBe(403);
   });
 
   it('returns 200 on successful deletion', async () => {
-    mockDeleteAccount.mockResolvedValue({ success: true, message: 'Account deleted' });
+    mockDeleteAccount.mockResolvedValue({
+      success: true,
+      message: 'Account deleted',
+    });
 
     const res = await request(app)
-      .delete('/api/accounts/mailserver/old@test.com')
+      .delete('/api/accounts/dms/mailserver/old@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
   });
-});
 
+  it('passes the schema path param through to deleteAccount (not hardcoded "dms")', async () => {
+    mockDeleteAccount.mockResolvedValue({
+      success: true,
+      message: 'Account deleted',
+    });
+
+    await request(app)
+      .delete('/api/accounts/customschema/mailserver/old@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockDeleteAccount).toHaveBeenCalledWith(
+      'customschema',
+      'mailserver',
+      'old@test.com'
+    );
+  });
+
+  it('rejects the legacy 2-segment path (regression guard for issue #38)', async () => {
+    // The old route was `/accounts/:containerName/:mailbox` and the
+    // handler hardcoded schema='dms'. The frontend always sent the
+    // 3-segment shape, so the 2-segment shape would 404 in production.
+    // Lock the new shape: a legacy 2-segment request must not match.
+    const res = await request(app)
+      .delete('/api/accounts/mailserver/user@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(404);
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
+  });
+});
 
 describe('PATCH /api/accounts/:schema/:containerName/:mailbox', () => {
   beforeEach(() => {
@@ -223,7 +262,6 @@ describe('PATCH /api/accounts/:schema/:containerName/:mailbox', () => {
   });
 });
 
-
 describe('PUT /api/accounts/:containerName/:mailbox/quota', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -249,6 +287,10 @@ describe('PUT /api/accounts/:containerName/:mailbox/quota', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(mockSetQuota).toHaveBeenCalledWith('mailserver', 'user@test.com', '500M');
+    expect(mockSetQuota).toHaveBeenCalledWith(
+      'mailserver',
+      'user@test.com',
+      '500M'
+    );
   });
 });

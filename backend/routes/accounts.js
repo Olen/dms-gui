@@ -261,19 +261,20 @@ router.put(
  *         description: Unable to delete account
  */
 router.delete(
-  '/accounts/:containerName/:mailbox',
+  '/accounts/:schema/:containerName/:mailbox',
   authenticateToken,
   requireActive,
   requireAdmin,
   async (req, res) => {
     try {
-      const { containerName, mailbox } = req.params;
+      const { schema, containerName, mailbox } = req.params;
+      if (!schema) return res.status(400).json({ error: 'schema is required' });
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
       if (!mailbox) {
         return res.status(400).json({ error: 'Mailbox is required' });
       }
-      const result = await deleteAccount('dms', containerName, mailbox);
+      const result = await deleteAccount(schema, containerName, mailbox);
       res.json(result);
     } catch (error) {
       serverError(res, 'DELETE /api/accounts', error);
