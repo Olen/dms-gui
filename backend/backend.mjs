@@ -374,10 +374,15 @@ export const execInContainerAPI = async (
  * as execCommand/execSetup; only the request body differs (it sends
  * {action, args, timeout} instead of {command, timeout}).
  *
- * IMPORTANT: action ids must be string literals at the call site so
- * the build-time manifest test (added in Sprint B Task 4) can grep for
- * them and verify every call has a matching manifest entry. Computed
- * action ids defeat that coverage check.
+ * IMPORTANT: action ids must be reachable as string literals from a
+ * static-grep at build time. Two patterns are supported by the
+ * manifest test:
+ *   1. Direct call:        execAction('setup_email_add', ...)
+ *   2. Config-table value: { actionId: 'setup_email_add' } then
+ *                          execAction(table[name].actionId, ...)
+ * Either form is statically discoverable. A computed expression like
+ * execAction(actionFor(kind), ...) is NOT discoverable and breaks
+ * coverage. Use one of the two patterns above.
  *
  * @param {string} actionId - Manifest action id (e.g. 'setup_email_add')
  * @param {object} args - Per-action validated args
@@ -408,6 +413,7 @@ export const execAction = async (
     ) {
       return {
         returncode: 99,
+        stdout: '',
         stderr: 'targetDict needs 4 keys: protocol, host, port, Authorization',
       };
     }
@@ -437,6 +443,7 @@ export const execAction = async (
         errorLog('response:', response);
         return {
           returncode: 99,
+          stdout: '',
           stderr: response.error.toString('utf8'),
         };
       } else {
@@ -451,6 +458,7 @@ export const execAction = async (
       debugLog('error:', result);
       return {
         returncode: 99,
+        stdout: '',
         stderr: result.message,
       };
     }
@@ -458,6 +466,7 @@ export const execAction = async (
     errorLog('error:', error.message);
     return {
       returncode: 99,
+      stdout: '',
       stderr: error.message,
     };
   }

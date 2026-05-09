@@ -134,6 +134,7 @@ describe('execAction', () => {
 
     expect(fetchSpy).not.toHaveBeenCalled();
     expect(result.returncode).toBe(99);
+    expect(result.stdout).toBe('');
     expect(result.stderr).toMatch(/protocol.*host.*port.*Authorization/i);
   });
 

@@ -17,15 +17,22 @@
 //
 // Sprint A ships an empty manifest. Sprints B–E populate it as
 // individual call sites migrate from the legacy {command:} protocol.
+// Resolved at startup from DMS_SETUP_SCRIPT env var (default /usr/local/bin/setup).
+// Operators using a non-default path (e.g. /usr/local/bin/setup.sh) set that env
+// var and the manifest written to disk will contain the correct concrete path.
+// NOTE: env.mjs imports this module, so we read process.env directly to avoid a
+// circular import.
+const SETUP_SCRIPT = process.env.DMS_SETUP_SCRIPT || '/usr/local/bin/setup';
+
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
   {
     id: 'setup_email_list',
-    argv: ['/usr/local/bin/setup', 'email', 'list'],
+    argv: [SETUP_SCRIPT, 'email', 'list'],
   },
   {
     id: 'setup_email_add',
-    argv: ['/usr/local/bin/setup', 'email', 'add', '{mailbox}', '{password}'],
+    argv: [SETUP_SCRIPT, 'email', 'add', '{mailbox}', '{password}'],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       password: { string: { minlen: 1, maxlen: 256 } },
@@ -33,21 +40,21 @@ export const REST_API_MANIFEST = [
   },
   {
     id: 'setup_email_del',
-    argv: ['/usr/local/bin/setup', 'email', 'del', '-y', '{mailbox}'],
+    argv: [SETUP_SCRIPT, 'email', 'del', '-y', '{mailbox}'],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
     },
   },
   {
     id: 'setup_quota_del',
-    argv: ['/usr/local/bin/setup', 'quota', 'del', '{mailbox}'],
+    argv: [SETUP_SCRIPT, 'quota', 'del', '{mailbox}'],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
     },
   },
   {
     id: 'setup_quota_set',
-    argv: ['/usr/local/bin/setup', 'quota', 'set', '{mailbox}', '{quota}'],
+    argv: [SETUP_SCRIPT, 'quota', 'set', '{mailbox}', '{quota}'],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       // setup quota set accepts strings like '1G', '500M', or 'unlimited'.
@@ -93,8 +100,8 @@ export const REST_API_MANIFEST = [
     ],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
-      // dovecot folder names: alphanumeric + ./-_ + slash for hierarchy + space.
-      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+      // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash for hierarchy + space + glob chars (* % ?).
+      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
     },
   },
   {
@@ -112,7 +119,7 @@ export const REST_API_MANIFEST = [
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
       // Single field name (e.g. 'all', 'messages') OR a space-separated list.
       field: { regex: '^[a-z_]+(?: [a-z_]+)*$', maxlen: 128 },
-      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
     },
   },
   {
@@ -127,7 +134,7 @@ export const REST_API_MANIFEST = [
     ],
     validate: {
       mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
-      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+      box: { regex: '^[A-Za-z0-9 ._/*%?\\-]+$', maxlen: 256 },
     },
   },
   {
