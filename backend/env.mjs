@@ -161,6 +161,7 @@ export const mailserverRESTAPI = {
 # version={DMSGUI_VERSION}
 
 import http.server
+import socket
 import socketserver
 import subprocess
 import shlex
@@ -244,9 +245,26 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       return
 
     # We've already enforced content_length <= DMS_API_SIZE above, so
-    # rfile.read(content_length) is bounded. (BaseHTTPRequestHandler's
-    # rfile is a socketreader; .read(N) returns at most N bytes.)
-    post_data = self.rfile.read(content_length)
+    # rfile.read(content_length) is bounded in size. Also apply a
+    # short read timeout so a slow / partial-body client (slowloris
+    # variant: send N declared, transmit fewer, pause) cannot hold
+    # the single-threaded socketserver.TCPServer indefinitely. 5s
+    # is generous for a body capped at DMS_API_SIZE (default 1 KiB).
+    self.connection.settimeout(5)
+    try:
+      post_data = self.rfile.read(content_length)
+    except socket.timeout:
+      response_message = {"status": "error", "error": "request body read timed out"}
+      logger(response_message['error'])
+      self.send_response(408)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
+    finally:
+      # Restore the connection to the (default) blocking mode for
+      # whatever cleanup the handler does after the response.
+      self.connection.settimeout(None)
 
     try:
       json_data = json.loads(post_data.decode('utf-8'))
