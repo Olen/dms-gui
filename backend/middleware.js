@@ -1,19 +1,18 @@
+import crypto from 'node:crypto';
 import jwt from 'jsonwebtoken';
 import rateLimit from 'express-rate-limit';
 import { env } from './env.mjs';
 import { errorLog } from './backend.mjs';
 
 // Domain validation
-export const DOMAIN_RE = /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
-export const isValidDomain = (d) => typeof d === 'string' && d.length <= 253 && DOMAIN_RE.test(d);
+export const DOMAIN_RE =
+  /^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/i;
+export const isValidDomain = (d) =>
+  typeof d === 'string' && d.length <= 253 && DOMAIN_RE.test(d);
 
 // Generate access token
 export const generateAccessToken = (user) => {
-  return jwt.sign(
-    user,
-    env.JWT_SECRET,
-    { expiresIn: env.ACCESS_TOKEN_EXPIRY }
-  );
+  return jwt.sign(user, env.JWT_SECRET, { expiresIn: env.ACCESS_TOKEN_EXPIRY });
 };
 
 // Generate refresh token
@@ -33,24 +32,23 @@ export const authenticateToken = (req, res, next) => {
     if (!accessToken) {
       return res.status(401).json({
         error: 'Authentication required',
-        code: 'NO_TOKEN'
+        code: 'NO_TOKEN',
       });
     }
 
     const decoded = jwt.verify(accessToken, env.JWT_SECRET);
     req.user = decoded; // Attach user data to request
     next();
-
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
       return res.status(401).json({
         error: 'Session expired. Please login again.',
-        code: 'TOKEN_EXPIRED'
+        code: 'TOKEN_EXPIRED',
       });
     }
     return res.status(403).json({
       error: 'Invalid token',
-      code: 'INVALID_TOKEN'
+      code: 'INVALID_TOKEN',
     });
   }
 };
@@ -60,7 +58,7 @@ export const requireAdmin = (req, res, next) => {
   if (!req.user.isAdmin) {
     return res.status(403).json({
       error: 'Admin access required',
-      code: 'FORBIDDEN'
+      code: 'FORBIDDEN',
     });
   }
   next();
@@ -71,7 +69,46 @@ export const requireActive = (req, res, next) => {
   if (!req.user || !req.user.isActive) {
     return res.status(403).json({
       error: 'Account is inactive',
-      code: 'ACCOUNT_INACTIVE'
+      code: 'ACCOUNT_INACTIVE',
+    });
+  }
+  next();
+};
+
+// Generate a CSRF token (32 bytes, hex). Used by routes that issue
+// the xsrfToken cookie alongside the auth cookie (login, refresh).
+// 32 bytes / 64 hex chars is well above the recommended 128-bit
+// entropy floor for CSRF tokens.
+export const generateCsrfToken = () => crypto.randomBytes(32).toString('hex');
+
+// CSRF protection via the double-submit-cookie pattern (#40). On
+// state-changing requests (POST/PUT/PATCH/DELETE), the request must
+// include `X-XSRF-TOKEN` header whose value matches the value of the
+// xsrfToken cookie. Both are issued at login (and rotated on
+// /refresh); the cookie is non-httpOnly so axios can read it and
+// forward it as the header. An attacker MITM'ing or CSRF'ing without
+// the ability to read cookies (the standard browser-CSRF threat
+// model) cannot forge the header to match the cookie.
+//
+// Read methods (GET/HEAD/OPTIONS) pass through without checking —
+// they don't change state, so CSRF doesn't apply. Routes that
+// establish or rotate the session (login, refresh, password reset
+// flow) opt out at the route level; they don't authenticate via the
+// auth cookie so the CSRF threat shape doesn't apply to them.
+export const requireCsrf = (req, res, next) => {
+  if (
+    req.method === 'GET' ||
+    req.method === 'HEAD' ||
+    req.method === 'OPTIONS'
+  ) {
+    return next();
+  }
+  const headerToken = req.get('X-XSRF-TOKEN');
+  const cookieToken = req.cookies && req.cookies.xsrfToken;
+  if (!headerToken || !cookieToken || headerToken !== cookieToken) {
+    return res.status(403).json({
+      error: 'CSRF token missing or invalid',
+      code: 'CSRF_INVALID',
     });
   }
   next();
@@ -88,10 +125,12 @@ export const validateContainerName = (req, res, next, value) => {
 // Rate limiter for auth endpoints (login + refresh)
 export const authLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 15,                   // limit each IP to 15 requests per window
+  max: 15, // limit each IP to 15 requests per window
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many authentication attempts, please try again later' },
+  message: {
+    error: 'Too many authentication attempts, please try again later',
+  },
 });
 
 // Log full error details server-side but return only a generic message to clients

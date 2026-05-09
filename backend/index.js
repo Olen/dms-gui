@@ -1,24 +1,11 @@
-import {
-  debugLog,
-  errorLog,
-  infoLog,
-} from './backend.mjs';
-import {
-  env,
-} from './env.mjs';
+import { debugLog, errorLog, infoLog } from './backend.mjs';
+import { env } from './env.mjs';
 
-import {
-  dbInit,
-  refreshTokens,
-} from './db.mjs';
+import { dbInit, refreshTokens } from './db.mjs';
 
-import {
-  killContainer,
-} from './settings.mjs';
+import { killContainer } from './settings.mjs';
 
-import {
-  cleanupExpiredTokens,
-} from './passwordReset.mjs';
+import { cleanupExpiredTokens } from './passwordReset.mjs';
 
 import cookieParser from 'cookie-parser';
 import cors from 'cors';
@@ -29,6 +16,8 @@ import cron from 'node-cron';
 import qs from 'qs';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
+
+import { requireCsrf } from './middleware.js';
 
 // Route modules
 import authRoutes from './routes/auth.js';
@@ -58,18 +47,19 @@ const options = {
 };
 const oasDefinition = swaggerJsdoc(options);
 
-
 // CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
-debugLog('env.API_URL',env.API_URL)
-debugLog('env.FRONTEND_URL',env.FRONTEND_URL)
+debugLog('env.API_URL', env.API_URL);
+debugLog('env.FRONTEND_URL', env.FRONTEND_URL);
 const corsOriginsList = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',').map(s => s.trim()).filter(Boolean)
+  ? process.env.CORS_ORIGINS.split(',')
+      .map((s) => s.trim())
+      .filter(Boolean)
   : null;
 const corsOptions = {
   origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language']
+  allowedHeaders: ['Content-Type', 'Authorization', 'Accept-Language'],
 };
 
 app.use(cookieParser());
@@ -86,25 +76,30 @@ app.set('query parser', function (str) {
         true: true,
         false: false,
       };
-      if (type === 'value' && typeof bools[str] === "boolean") {
+      if (type === 'value' && typeof bools[str] === 'boolean') {
         return bools[str];
       } else {
         return defaultDecoder(str);
       }
-    }
-  })
+    },
+  });
 });
 
-// Mount route modules
+// Mount route modules. CSRF protection (#40) is applied to every
+// non-auth router via requireCsrf — those routers all rely on the
+// authenticateToken cookie and are therefore reachable via CSRF
+// without it. The auth router applies its own per-route CSRF policy
+// (skipped on login/refresh/password-reset, applied on logout) since
+// session-establishing routes don't authenticate via the existing
+// cookie and thus aren't a CSRF surface.
 app.use('/api', authRoutes);
-app.use('/api', loginRoutes);
-app.use('/api', accountRoutes);
-app.use('/api', aliasRoutes);
-app.use('/api', settingRoutes);
-app.use('/api', domainRoutes);
-app.use('/api', serverRoutes);
-app.use('/api', mailRoutes);
-
+app.use('/api', requireCsrf, loginRoutes);
+app.use('/api', requireCsrf, accountRoutes);
+app.use('/api', requireCsrf, aliasRoutes);
+app.use('/api', requireCsrf, settingRoutes);
+app.use('/api', requireCsrf, domainRoutes);
+app.use('/api', requireCsrf, serverRoutes);
+app.use('/api', requireCsrf, mailRoutes);
 
 // ============================================
 // MULTER ERROR HANDLER
@@ -113,7 +108,9 @@ app.use('/api', mailRoutes);
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res.status(413).json({ error: 'File too large. Maximum size is 2 MB.' });
+      return res
+        .status(413)
+        .json({ error: 'File too large. Maximum size is 2 MB.' });
     }
     return res.status(400).json({ error: err.message });
   }
@@ -122,7 +119,6 @@ app.use((err, req, res, next) => {
   }
   next(err);
 });
-
 
 // ============================================
 // GLOBAL ERROR HANDLER
@@ -136,35 +132,38 @@ app.use((err, req, res, next) => {
   res.status(err.status || 500).json({
     error: 'Internal server error',
     code: err.code || 'INTERNAL_ERROR',
-    ...(isDevelopment && { message: err.message, stack: err.stack })
+    ...(isDevelopment && { message: err.message, stack: err.stack }),
   });
 });
 
-
 app.listen(env.PORT_NODEJS, async () => {
-  infoLog(`dms-gui-backend ${env.DMSGUI_VERSION} Server ${process.version} running on port ${env.PORT_NODEJS}`);
+  infoLog(
+    `dms-gui-backend ${env.DMSGUI_VERSION} Server ${process.version} running on port ${env.PORT_NODEJS}`
+  );
   debugLog('🐞 debug mode is ENABLED');
 
   // https://github.com/ncb000gt/node-cron    // internal crontan
   // node-cron uses 6 fields: second minute hour day month weekday
   // Prevent reboot storms when seconds field is wildcard (e.g. "* 1 23 * * *" fires 60 times)
-  debugLog('DMSGUI_CRON',env.DMSGUI_CRON)
+  debugLog('DMSGUI_CRON', env.DMSGUI_CRON);
   if (env.DMSGUI_CRON) {
     let cronExpr = env.DMSGUI_CRON;
     const fields = cronExpr.trim().split(/\s+/);
     if (fields.length === 6 && fields[0] === '*') {
       fields[0] = '0';
       cronExpr = fields.join(' ');
-      debugLog(`DMSGUI_CRON: seconds field was *, defaulting to 0: ${cronExpr}`);
+      debugLog(
+        `DMSGUI_CRON: seconds field was *, defaulting to 0: ${cronExpr}`
+      );
     }
     cron.schedule(cronExpr, () => {
-        killContainer('dms-gui', 'dms-gui', 'dms-gui');    // no await
+      killContainer('dms-gui', 'dms-gui', 'dms-gui'); // no await
     });
-  };
+  }
 
   // await dbInit(true);         // reset db
-  await dbInit();         // apply patches etc
-  await refreshTokens();  // delete all user's refreshToken as the secret has changed after a restart
+  await dbInit(); // apply patches etc
+  await refreshTokens(); // delete all user's refreshToken as the secret has changed after a restart
 
   // Cleanup expired password reset tokens on startup and daily
   cleanupExpiredTokens();
@@ -181,5 +180,4 @@ app.listen(env.PORT_NODEJS, async () => {
     `);
     process.exit(1);
   }
-
 });

@@ -47,7 +47,8 @@ vi.mock('../db.mjs', () => ({
   sql: {
     logins: {
       select: {
-        refreshToken: 'SELECT * FROM logins WHERE id = ? AND refreshToken = @refreshToken',
+        refreshToken:
+          'SELECT * FROM logins WHERE id = ? AND refreshToken = @refreshToken',
       },
     },
   },
@@ -67,7 +68,6 @@ import { createTestApp, adminToken, userToken } from '../test/routeHelper.mjs';
 import authRoutes from './auth.js';
 
 const app = createTestApp(authRoutes);
-
 
 describe('POST /api/loginUser', () => {
   beforeEach(() => {
@@ -103,7 +103,13 @@ describe('POST /api/loginUser', () => {
   });
 
   it('returns 200 with user data and sets httpOnly cookies on success', async () => {
-    const userMessage = { id: 1, mailbox: 'admin@test.com', isAdmin: 1, isActive: 1, roles: [] };
+    const userMessage = {
+      id: 1,
+      mailbox: 'admin@test.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: [],
+    };
     mockLoginUser.mockResolvedValue({ success: true, message: userMessage });
     mockUpdateDB.mockReturnValue({ success: true });
 
@@ -124,7 +130,13 @@ describe('POST /api/loginUser', () => {
   });
 
   it('returns success without cookies for test login', async () => {
-    const userMessage = { id: 1, mailbox: 'admin@test.com', isAdmin: 1, isActive: 1, roles: [] };
+    const userMessage = {
+      id: 1,
+      mailbox: 'admin@test.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: [],
+    };
     mockLoginUser.mockResolvedValue({ success: true, message: userMessage });
 
     const res = await request(app)
@@ -139,22 +151,24 @@ describe('POST /api/loginUser', () => {
   });
 });
 
-
 describe('POST /api/refresh', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('returns 401 when no refresh token cookie', async () => {
-    const res = await request(app)
-      .post('/api/refresh');
+    const res = await request(app).post('/api/refresh');
 
     expect(res.status).toBe(401);
     expect(res.body.code).toBe('NO_REFRESH_TOKEN');
   });
 
   it('returns 403 when token not found in DB', async () => {
-    const refreshToken = jwt.sign({ id: 1, mailbox: 'admin@test.com' }, TEST_JWT_SECRET_REFRESH, { expiresIn: '7d' });
+    const refreshToken = jwt.sign(
+      { id: 1, mailbox: 'admin@test.com' },
+      TEST_JWT_SECRET_REFRESH,
+      { expiresIn: '7d' }
+    );
     mockDbGet.mockReturnValue({ success: false });
 
     const res = await request(app)
@@ -166,10 +180,20 @@ describe('POST /api/refresh', () => {
   });
 
   it('returns 200 with new access token cookie on success', async () => {
-    const refreshToken = jwt.sign({ id: 1, mailbox: 'admin@test.com' }, TEST_JWT_SECRET_REFRESH, { expiresIn: '7d' });
+    const refreshToken = jwt.sign(
+      { id: 1, mailbox: 'admin@test.com' },
+      TEST_JWT_SECRET_REFRESH,
+      { expiresIn: '7d' }
+    );
     mockDbGet.mockReturnValue({
       success: true,
-      message: { id: 1, mailbox: 'admin@test.com', isAdmin: 1, isActive: 1, roles: '[]' },
+      message: {
+        id: 1,
+        mailbox: 'admin@test.com',
+        isAdmin: 1,
+        isActive: 1,
+        roles: '[]',
+      },
     });
 
     const res = await request(app)
@@ -186,32 +210,43 @@ describe('POST /api/refresh', () => {
   });
 });
 
-
 describe('POST /api/logout', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('returns 401 when not authenticated', async () => {
-    const res = await request(app)
-      .post('/api/logout');
+    const res = await request(app).post('/api/logout');
 
     expect(res.status).toBe(401);
   });
 
-  it('clears cookies and returns success when authenticated', async () => {
-    mockUpdateDB.mockReturnValue({ success: true });
-
+  it('returns 403 when authenticated but missing CSRF token (#40)', async () => {
     const res = await request(app)
       .post('/api/logout')
       .set('Cookie', [`accessToken=${adminToken}`]);
+
+    // No X-XSRF-TOKEN header / no xsrfToken cookie → 403 from
+    // requireCsrf. Unauthenticated requests still 401 (above test);
+    // CSRF only applies after authenticateToken passes.
+    expect(res.status).toBe(403);
+    expect(res.body.code).toBe('CSRF_INVALID');
+  });
+
+  it('clears cookies and returns success when authenticated + CSRF tokens match', async () => {
+    mockUpdateDB.mockReturnValue({ success: true });
+    const csrf = 'matching-csrf-token-value-1234';
+
+    const res = await request(app)
+      .post('/api/logout')
+      .set('Cookie', [`accessToken=${adminToken}`, `xsrfToken=${csrf}`])
+      .set('X-XSRF-TOKEN', csrf);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(res.body.message).toMatch(/logged out/i);
   });
 });
-
 
 describe('POST /api/forgot-password', () => {
   beforeEach(() => {
@@ -234,13 +269,19 @@ describe('POST /api/forgot-password', () => {
   });
 
   it('calls requestPasswordReset with email and RESET_BASE_URL', async () => {
-    mockRequestPasswordReset.mockResolvedValue({ success: true, message: 'ok' });
+    mockRequestPasswordReset.mockResolvedValue({
+      success: true,
+      message: 'ok',
+    });
 
     await request(app)
       .post('/api/forgot-password')
       .send({ email: 'user@test.com' });
 
-    expect(mockRequestPasswordReset).toHaveBeenCalledWith('user@test.com', 'https://test.example.com');
+    expect(mockRequestPasswordReset).toHaveBeenCalledWith(
+      'user@test.com',
+      'https://test.example.com'
+    );
   });
 
   it('refuses to send mail and returns generic success when RESET_BASE_URL is unset', async () => {
@@ -263,7 +304,6 @@ describe('POST /api/forgot-password', () => {
   });
 });
 
-
 describe('POST /api/reset-password', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -279,7 +319,10 @@ describe('POST /api/reset-password', () => {
   });
 
   it('returns 200 on successful reset', async () => {
-    mockExecutePasswordReset.mockResolvedValue({ success: true, message: 'Password updated' });
+    mockExecutePasswordReset.mockResolvedValue({
+      success: true,
+      message: 'Password updated',
+    });
 
     const res = await request(app)
       .post('/api/reset-password')
