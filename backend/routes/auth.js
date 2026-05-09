@@ -181,7 +181,9 @@ router.post('/loginUser', authLimiter, async (req, res, next) => {
         const refreshToken = generateRefreshToken(user.message);
 
         // Store refresh token in database
-        updateDB('logins', user.message.id, { refreshToken: refreshToken });
+        await updateDB('logins', user.message.id, {
+          refreshToken: refreshToken,
+        });
 
         // HTTP-Only Cookies. maxAge is derived from the same env vars the
         // JWT signer uses (ACCESS_TOKEN_EXPIRY / REFRESH_TOKEN_EXPIRY) so
@@ -324,8 +326,15 @@ router.post('/refresh', authLimiter, async (req, res) => {
 // authenticated via the cookie, so a CSRF-logout would be possible
 // without protection. Login/refresh/password-reset don't authenticate
 // via the existing session cookie, so the CSRF threat shape doesn't
-// apply to them. Order matters: authenticateToken runs first so
-// anonymous requests still get a 401 (not a 403 about CSRF).
+// apply to them.
+//
+// Middleware ordering invariants:
+//   apiLimiter        — runs first; rate limits apply regardless of auth
+//   authenticateToken — runs before requireCsrf so anonymous requests
+//                       receive a 401 NO_TOKEN, not a misleading 403
+//                       CSRF_INVALID
+//   requireCsrf       — runs after authentication; doubles as a no-op
+//                       for anonymous requests via its own short-circuit
 router.post(
   '/logout',
   apiLimiter,
@@ -334,7 +343,7 @@ router.post(
   async (req, res) => {
     try {
       // Remove refresh token from database
-      updateDB('logins', req.user.id, { refreshToken: 'null' });
+      await updateDB('logins', req.user.id, { refreshToken: 'null' });
 
       // Clear cookies
       res.clearCookie('accessToken');
