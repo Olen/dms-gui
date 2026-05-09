@@ -1480,10 +1480,10 @@ export const createAPIfiles = async (schema = 'dms') => {
   let result;
   try {
     for (const file of Object.values(mailserverRESTAPI[schema])) {
-      // The version-marker substitution applies to the rest-api.py and
-      // rest-api.conf scripts. JSON manifests must not be touched: a
-      // future action argv token containing the literal '{DMSGUI_VERSION}'
-      // would otherwise be silently rewritten.
+      // The version-marker substitution applies to the rest-api.py template
+      // (the only file with a {DMSGUI_VERSION} placeholder). JSON manifests
+      // must not be touched: a future action argv token containing the
+      // literal '{DMSGUI_VERSION}' would otherwise be silently rewritten.
       const content = file.path.endsWith('.json')
         ? file.content
         : file.content.replace('{DMSGUI_VERSION}', env.DMSGUI_VERSION);

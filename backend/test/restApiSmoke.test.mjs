@@ -114,7 +114,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
         if (!serverProc.killed) serverProc.kill('SIGTERM');
         // Hard ceiling — if SIGTERM is ignored, force-kill and resolve.
         // Resolve unconditionally on timeout so afterAll never hangs.
-        setTimeout(() => {
+        const killTimer = setTimeout(() => {
           try {
             if (serverProc.exitCode === null) serverProc.kill('SIGKILL');
           } catch {
@@ -122,6 +122,7 @@ describeIfPython('rest-api.py smoke (Sprint A)', () => {
           }
           resolve();
         }, 2000);
+        killTimer.unref();
       });
     }
     if (tmpDir) rmSync(tmpDir, { recursive: true, force: true });

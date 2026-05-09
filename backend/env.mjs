@@ -670,6 +670,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response_message).encode('utf-8'))
         return
 
+      # 'action' field is optional (the legacy {command:} path is still
+      # supported during migration). But when 'action' IS present, it
+      # must be a non-empty string. Treat null / non-string / empty as
+      # 400 instead of silently falling through to the legacy path.
+      action_present = 'action' in json_data
       action_id = json_data.get('action')
       command = json_data.get('command')
       args = json_data.get('args', {})
@@ -685,10 +690,11 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
       # Reject malformed shapes early with a 400 instead of letting them
       # raise inside execute_action / dict lookup, which would surface
-      # as a 500. action_id may be absent entirely (legacy command path);
-      # when present it must be a string. args may be absent (defaults
-      # to {}) but if present must be an object.
-      if action_id is not None and not isinstance(action_id, str):
+      # as a 500. action_id is optional (legacy command path still
+      # supported), but when 'action' IS present, it must be a
+      # non-empty string. args may be absent (defaults to {}) but if
+      # present must be an object.
+      if action_present and not isinstance(action_id, str):
         response_message = {"status": "error", "error": "'action' must be a string"}
         logger(response_message['error'])
         self.send_response(400)
@@ -725,7 +731,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       # Empty / whitespace-only action ids are explicit programming
       # errors, not "missing action" — reject them rather than silently
       # falling through to the legacy command path.
-      if isinstance(action_id, str) and not action_id.strip():
+      if action_present and not action_id.strip():
         response_message = {"status": "error", "error": "'action' must be a non-empty string"}
         logger(response_message['error'])
         self.send_response(400)
@@ -735,7 +741,7 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return
 
       if api_key == DMS_API_KEY:
-        if action_id is not None:
+        if action_present:
           # New action protocol path.
           if action_id not in ACTIONS:
             logger(f"Rejected: unknown action '{safe_id(action_id)}'")
