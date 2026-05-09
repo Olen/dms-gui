@@ -1,5 +1,6 @@
 import dotenv from 'dotenv';
 import crypto from 'node:crypto';
+import { REST_API_MANIFEST } from './restApiManifest.mjs';
 
 dotenv.config({ path: '/app/config/.dms-gui.env' });
 
@@ -473,6 +474,11 @@ with socketserver.TCPServer((DMS_API_HOST, DMS_API_PORT), APIHandler) as httpd:
   logger(f"Serving at port {DMS_API_HOST}:{DMS_API_PORT}")
   httpd.serve_forever()
 `,
+    },
+    manifest: {
+      desc: 'Action manifest consumed by rest-api.py at startup. Generated from REST_API_MANIFEST in restApiManifest.mjs; do not hand-edit on the DMS volume.',
+      path: env.DMSGUI_CONFIG_PATH + '/rest-api-manifest.json',
+      content: JSON.stringify(REST_API_MANIFEST, null, 2),
     },
     cron: {
       desc: 'https://github.com/orgs/docker-mailserver/discussions/2908 - mount this to /etc/supervisor/conf.d/rest-api.conf',
