@@ -233,6 +233,7 @@ docker compose up -d
 | `HASH_LEN` | `64` | Password hash key length |
 | `LOG_COLORS` | `true` | Colored backend logs |
 | `isDEMO` | `false` | Demo mode — shows anonymized fake data, all write operations are no-ops |
+| `ENABLE_SWAGGER` | `false` | Mount the OpenAPI / Swagger UI at `/docs`. Off by default — the docs disclose every endpoint and shape, useful in dev/staging but unnecessary reconnaissance surface in prod. When set to `true`, `/docs` is also gated behind `authenticateToken + requireActive + requireAdmin` (anonymous → 401, inactive account → 403, active non-admin → 403, active admin → 200). |
 
 #### Why `RESET_BASE_URL` is required
 

@@ -118,6 +118,19 @@ export const env = {
       ? '6 7 *  * * *'
       : process.env.DMSGUI_CRON || '* 1 23 * * *',
 
+  // Mount the OpenAPI / Swagger UI at /docs. Default off — the docs
+  // disclose every endpoint and request shape, which is useful in
+  // dev/staging but provides reconnaissance value in prod (and is
+  // typically already accessible through the Traefik OIDC gate
+  // anyway, so the second-layer admin guard below is purely
+  // defence-in-depth). Set ENABLE_SWAGGER=true in .dms-gui.env to
+  // enable; even when enabled, the route is wrapped in
+  // authenticateToken + requireActive + requireAdmin, so anonymous
+  // traffic gets 401, inactive accounts are blocked by the active-
+  // account check, and active non-admin users get 403.
+  ENABLE_SWAGGER:
+    (process.env.ENABLE_SWAGGER || '').toLowerCase() === 'true' ? true : false,
+
   // SMTP for password reset emails (local delivery to DMS container, no auth)
   SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
   SMTP_PORT: Number(process.env.SMTP_PORT) || 25,
