@@ -24,7 +24,11 @@
 //   humanSize2ByteSize,
 //   moveKeyToLast,
 // } from '../common.mjs'
-import { reduxArrayOfObjByValue, humanSize2ByteSize } from '../common.mjs';
+import {
+  reduxArrayOfObjByValue,
+  humanSize2ByteSize,
+  redactKey,
+} from '../common.mjs';
 import { addAlias, deleteAlias, getAliases } from './aliases.mjs';
 import {
   debugLog,
@@ -203,7 +207,11 @@ export const pullAccountsFromDMS = async (containerName = null) => {
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
-    debugLog(`execAction(setup_email_list)`, targetDict);
+    debugLog(`execAction(setup_email_list)`, {
+      ...targetDict,
+      // Redact the DMS API key before it reaches the log stream.
+      Authorization: redactKey(targetDict.Authorization),
+    });
     const results = await execAction(
       'setup_email_list',
       { setup_path: targetDict.setupPath },
