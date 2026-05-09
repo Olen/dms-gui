@@ -250,6 +250,33 @@ A pre-2.2.0 deployment derived the password-reset URL from these headers. An att
 | `DMS_API_KEY` | — | API authentication key (must match dms-gui Settings) |
 | `DMS_API_SIZE` | `1024` | Maximum request payload size |
 
+#### Hardening `DMS_API_HOST` (defense in depth)
+
+The default `0.0.0.0` makes the API reachable from any container on any docker
+network the DMS container is attached to. If DMS is only attached to a private
+network shared with dms-gui (and port 8888 is `expose:`d, not `ports:`-published),
+the exposure is already limited to dms-gui. If DMS shares a network with other
+unrelated services, narrow the listener to the DMS container's bridge IP:
+
+```bash
+# Find the DMS container's IP on the dms-gui-shared network (e.g. "mail"):
+docker inspect mailserver --format \
+  '{{(index .NetworkSettings.Networks "mail").IPAddress}}'
+# → 172.18.0.3
+```
+
+Then set in your DMS compose `environment:`:
+
+```yaml
+environment:
+  DMS_API_HOST: 172.18.0.3
+```
+
+Caveat: docker may reassign container IPs across recreates. If you set this,
+either pin the container with a static IP via `networks.<name>.ipv4_address`,
+or revisit the value when re-creating containers. The authentication layer
+(`DMS_API_KEY`) is the primary lock — this is hardening, not a substitute.
+
 ---
 
 ## 🔒 Security
