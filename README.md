@@ -223,6 +223,9 @@ docker compose up -d
 | `AES_SECRET` | — | **Required.** Encryption key for stored credentials. Generate once, never change. |
 | `AES_ALGO` | `aes-256-gcm` | Encryption algorithm. Authenticated GCM is the only mode used for new writes since 2.2.0; `aes-256-cbc` is read only for one-time migration of older ciphertexts. |
 | `RESET_BASE_URL` | — | **Required for password reset.** Public base URL of your dms-gui (e.g. `https://epost.example.com`). See [Why this is required](#why-reset_base_url-is-required) below. |
+| `SMTP_HOST` | `mailserver` | SMTP host used to send password-reset emails. Default is the local DMS Docker container. |
+| `SMTP_PORT` | `25` | SMTP port (STARTTLS upgrade is required regardless). |
+| `SMTP_TLS_VERIFY` | depends on `SMTP_HOST` | Validate the SMTP server's TLS certificate against the system CA bundle. **Default-resolution rules:** if you set `SMTP_TLS_VERIFY=true\|false` explicitly, that wins. Otherwise: when `SMTP_HOST` is set explicitly, the default is `true` (proper CA validation — the assumption is you've configured a real relay with a real cert). When `SMTP_HOST` is unset (i.e., using the default `mailserver` Docker container), the default is `false` (the container's self-signed cert won't validate by hostname). STARTTLS is still required either way — verification disabled does not mean plaintext fallback. |
 | `ACCESS_TOKEN_EXPIRY` | `1h` | JWT access token lifetime |
 | `REFRESH_TOKEN_EXPIRY` | `1d` | JWT refresh token lifetime |
 | `DMSGUI_CRON` | `0 1 23 * * *` | Daily restart schedule (regenerates JWT secrets) |

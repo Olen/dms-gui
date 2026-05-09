@@ -2,6 +2,15 @@ import dotenv from 'dotenv';
 import crypto from 'node:crypto';
 
 dotenv.config({ path: '/app/config/.dms-gui.env' });
+
+// Resolve the SMTP_TLS_VERIFY default. Exported for unit tests; the
+// resolution rules are documented next to the env consumer below.
+export const resolveSmtpTlsVerify = (procEnv) => {
+  const v = (procEnv.SMTP_TLS_VERIFY || '').toLowerCase();
+  if (v === 'false') return false;
+  if (v === 'true') return true;
+  return Boolean(procEnv.SMTP_HOST);
+};
 export const env = {
   debug: (process.env.DEBUG || '').toLowerCase() == 'true' ? true : false,
 
@@ -112,6 +121,21 @@ export const env = {
   // SMTP for password reset emails (local delivery to DMS container, no auth)
   SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
   SMTP_PORT: Number(process.env.SMTP_PORT) || 25,
+  // SMTP TLS certificate verification. The resolution order:
+  //   1. SMTP_TLS_VERIFY=true|false → explicit override, always wins.
+  //   2. SMTP_HOST is set explicitly → default true (proper CA
+  //      validation; the cohort using a real SMTP relay has, almost
+  //      certainly, configured SMTP_HOST and we should validate
+  //      their cert).
+  //   3. SMTP_HOST is not set → default false (the user is using
+  //      our default 'mailserver' Docker container hostname; that
+  //      cert is self-signed and the CN won't match the container
+  //      name. Verifying would just make password-reset email fail
+  //      out of the box on every default deployment).
+  // requireTLS stays true regardless — verification disabled does
+  // not mean plaintext fallback, only that we accept a self-signed
+  // peer.
+  SMTP_TLS_VERIFY: resolveSmtpTlsVerify(process.env),
 
   // Base URL for password reset links (e.g., https://epost.example.com)
   // If not set, derived from X-Forwarded-Proto/Host headers (set by reverse proxy)
