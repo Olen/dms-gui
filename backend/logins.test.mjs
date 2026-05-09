@@ -32,7 +32,8 @@ vi.mock('./db.mjs', () => ({
       insert: { login: 'INSERT INTO logins ...' },
       select: {
         login: 'SELECT * FROM logins WHERE id = @id',
-        loginGuess: 'SELECT * FROM logins WHERE mailbox = @mailbox OR username = @username',
+        loginGuess:
+          'SELECT * FROM logins WHERE mailbox = @mailbox OR username = @username',
         loginByMailbox: 'SELECT * FROM logins WHERE mailbox = @mailbox',
         loginByUsername: 'SELECT * FROM logins WHERE username = @username',
         roles: 'SELECT roles FROM logins WHERE id = @id',
@@ -51,7 +52,7 @@ vi.mock('./demoMode.mjs', () => ({
 }));
 
 import { addLogin, getLogin, getRoles } from './logins.mjs';
-import { dbGet } from './db.mjs';
+import { dbGet, sql } from './db.mjs';
 
 describe('addLogin — password redaction', () => {
   beforeEach(() => {
@@ -62,15 +63,15 @@ describe('addLogin — password redaction', () => {
     const secretPassword = 'SuperSecret123!';
 
     await addLogin(
-      'user@example.com',   // mailbox
-      'testuser',           // username
-      secretPassword,       // password — must NOT appear in logs
-      'user@example.com',   // email
-      0,                    // isAdmin
-      0,                    // isAccount
-      1,                    // isActive
-      'test-mailserver',    // mailserver
-      ['user@example.com'], // roles
+      'user@example.com', // mailbox
+      'testuser', // username
+      secretPassword, // password — must NOT appear in logs
+      'user@example.com', // email
+      0, // isAdmin
+      0, // isAccount
+      1, // isActive
+      'test-mailserver', // mailserver
+      ['user@example.com'] // roles
     );
 
     // Verify debugLog was called
@@ -109,7 +110,6 @@ describe('addLogin — password redaction', () => {
   });
 });
 
-
 describe('getLogin — key validation', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -117,7 +117,10 @@ describe('getLogin — key validation', () => {
 
   it('rejects invalid credential key', async () => {
     const result = await getLogin({ invalidKey: 'test' });
-    expect(result).toEqual({ success: false, message: 'invalid credential key' });
+    expect(result).toEqual({
+      success: false,
+      message: 'invalid credential key',
+    });
     expect(dbGet).not.toHaveBeenCalled();
   });
 
@@ -127,16 +130,23 @@ describe('getLogin — key validation', () => {
     expect(dbGet).toHaveBeenCalled();
   });
 
-  it('uses parameterized query for string credential', async () => {
+  it('treats a string credential as a mailbox (issue #39)', async () => {
+    // The fix is specifically for the guess=false branch: a bare
+    // getLogin(string) — i.e., the GET /api/roles/:credential and
+    // similar contracts where the input is contractually a mailbox.
+    // The login flow still uses guess=true (loginGuess, mailbox-OR-
+    // username) and is unaffected by this test. Pre-#39 the
+    // guess=false branch keyed by the primary-key id column and
+    // silently returned 0 rows for any mailbox-shape input.
     dbGet.mockReturnValueOnce({ success: false });
     await getLogin('user@example.com');
-    expect(dbGet).toHaveBeenCalledWith(
-      expect.any(String),
-      { id: 'user@example.com' },
-    );
+    // Assert the *exact* prepared statement, not a substring — a column
+    // list that happens to mention "mailbox" elsewhere mustn't pass.
+    expect(dbGet).toHaveBeenCalledWith(sql.logins.select.loginByMailbox, {
+      mailbox: 'user@example.com',
+    });
   });
 });
-
 
 describe('getRoles — key validation', () => {
   beforeEach(() => {
@@ -145,7 +155,10 @@ describe('getRoles — key validation', () => {
 
   it('rejects invalid credential key', async () => {
     const result = await getRoles({ badKey: 'test' });
-    expect(result).toEqual({ success: false, message: 'invalid credential key' });
+    expect(result).toEqual({
+      success: false,
+      message: 'invalid credential key',
+    });
     expect(dbGet).not.toHaveBeenCalled();
   });
 
@@ -154,5 +167,18 @@ describe('getRoles — key validation', () => {
     const result = await getRoles({ mailbox: 'user@test.com' });
     expect(dbGet).toHaveBeenCalled();
     expect(result).toEqual({ success: true, message: ['admin'] });
+  });
+
+  it('treats a string credential as a mailbox (issue #39)', async () => {
+    // The GET /api/roles/:credential route hands its :credential path
+    // param to getRoles() as a string and is contractually a mailbox
+    // (non-admins are restricted to req.user.mailbox). Pre-#39 the
+    // string path keyed by the primary-key id column instead.
+    dbGet.mockReturnValueOnce({ success: true, message: '["user@test.com"]' });
+    await getRoles('user@test.com');
+    // Assert the *exact* prepared statement, not a substring.
+    expect(dbGet).toHaveBeenCalledWith(sql.logins.select.rolesByMailbox, {
+      mailbox: 'user@test.com',
+    });
   });
 });
