@@ -289,6 +289,43 @@ def load_manifest(path):
           raise ValueError(
             f"action {e['id']}: validate['{arg_name}'] must be an object"
           )
+        # Each spec must have exactly one validator-type key.
+        type_keys = {'enum', 'regex', 'int', 'string'} & set(spec.keys())
+        if len(type_keys) != 1:
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'] must have exactly "
+            f"one of 'enum', 'regex', 'int', 'string'; got keys "
+            f"{sorted(spec.keys())}"
+          )
+        # Reject unknown top-level keys; allow {validator-type, maxlen, optional}.
+        allowed_keys = {'enum', 'regex', 'int', 'string', 'maxlen', 'optional'}
+        unknown = set(spec.keys()) - allowed_keys
+        if unknown:
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'] has unknown keys: {sorted(unknown)}"
+          )
+        vtype = next(iter(type_keys))
+        # Type-check the validator-type's payload.
+        if vtype == 'enum' and not isinstance(spec['enum'], list):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'].enum must be a list"
+          )
+        if vtype == 'regex' and not isinstance(spec['regex'], str):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'].regex must be a string"
+          )
+        if vtype == 'int' and not isinstance(spec['int'], dict):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'].int must be an object"
+          )
+        if vtype == 'string' and not isinstance(spec['string'], dict):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'].string must be an object"
+          )
+        if 'optional' in spec and not isinstance(spec['optional'], bool):
+          raise ValueError(
+            f"action {e['id']}: validate['{arg_name}'].optional must be a bool"
+          )
     if 'redirect' in e:
       r = e['redirect']
       if not isinstance(r, dict):
@@ -410,25 +447,38 @@ def execute_action(action, args, action_timeout):
   prev = None
   procs = []
   num_stages = len(stages)
-  for i, stage in enumerate(stages):
-    is_last = (i == num_stages - 1)
-    proc = subprocess.Popen(
-      stage,
-      stdin=prev.stdout if prev else None,
-      stdout=subprocess.PIPE,
-      # Only the last stage's stderr is read via communicate(); piping
-      # earlier stages would deadlock the pipeline once the OS pipe
-      # buffer fills (~64KB on Linux). Intermediate stage diagnostics
-      # are sent to /dev/null — the exit-code propagation through the
-      # pipe still surfaces failures.
-      stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
-      text=True,
-      shell=False,
-    )
-    if prev:
-      prev.stdout.close()
-    procs.append(proc)
-    prev = proc
+  try:
+    for i, stage in enumerate(stages):
+      is_last = (i == num_stages - 1)
+      proc = subprocess.Popen(
+        stage,
+        stdin=prev.stdout if prev else None,
+        stdout=subprocess.PIPE,
+        # Only the last stage's stderr is read via communicate(); piping
+        # earlier stages would deadlock the pipeline once the OS pipe
+        # buffer fills (~64KB on Linux). Intermediate stage diagnostics
+        # are sent to /dev/null — the exit-code propagation through the
+        # pipe still surfaces failures.
+        stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
+        text=True,
+        shell=False,
+      )
+      if prev:
+        prev.stdout.close()
+      procs.append(proc)
+      prev = proc
+  except (FileNotFoundError, OSError) as e:
+    # Manifest references a binary that doesn't exist or can't be spawned.
+    # Reap whatever started successfully; return a controlled 127-style
+    # error rather than letting it surface as HTTP 500.
+    for p in procs:
+      try:
+        p.kill()
+      except OSError:
+        pass
+    for p in procs:
+      p.wait()
+    return 127, '', f"failed to spawn process: {e}"
 
   try:
     out, err = prev.communicate(timeout=action_timeout)
@@ -713,12 +763,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
 
               prev_proc = None
               procs = []
-              for stage in stages:
+              num_stages = len(stages)
+              for i, stage in enumerate(stages):
                 stdin_src = prev_proc.stdout if prev_proc else None
+                is_last = (i == num_stages - 1)
                 proc = subprocess.Popen(stage,
                                         stdin=stdin_src,
                                         stdout=subprocess.PIPE,
-                                        stderr=subprocess.PIPE,
+                                        # Only the last stage's stderr is read;
+                                        # intermediate stages would deadlock
+                                        # the pipeline once the OS pipe buffer
+                                        # fills (~64KB on Linux).
+                                        stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
                                         text=True,
                                         shell=False)
                 if prev_proc:
