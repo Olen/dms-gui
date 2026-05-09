@@ -46,6 +46,31 @@ export const safeUrl = (url, allowedSchemes = ['http:', 'https:']) => {
   }
 };
 
+// redactKey returns a short fingerprint suitable for logs: the first
+// four and last four characters separated by '...'. Anything shorter
+// than 12 chars is fully redacted to '***' (the prefix-suffix form
+// would leak too much). Use whenever a secret-like value (API key,
+// generated password) needs to appear in a log line for traceability.
+export const redactKey = (key) => {
+  if (typeof key !== 'string' || key.length < 12) return '***';
+  return `${key.slice(0, 4)}...${key.slice(-4)}`;
+};
+
+// redactSensitiveSettings replaces the value of any [{name, value}, ...]
+// row whose name looks secret-shaped with the redactKey form. Used
+// before logging a full settings payload so a debug-level dump cannot
+// leak credentials (DMS_API_KEY, AES_SECRET, JWT_SECRET, etc.) into
+// shared log aggregators.
+const SENSITIVE_NAME_RE = /SECRET|KEY|PASSWORD|TOKEN/i;
+export const redactSensitiveSettings = (rows) => {
+  if (!Array.isArray(rows)) return rows;
+  return rows.map((row) =>
+    row && typeof row.name === 'string' && SENSITIVE_NAME_RE.test(row.name)
+      ? { ...row, value: redactKey(row.value) }
+      : row
+  );
+};
+
 // import {
 //   regexColors,
 //   regexPrintOnly,

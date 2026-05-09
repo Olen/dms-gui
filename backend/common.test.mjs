@@ -22,6 +22,8 @@ import {
   regexEmailRegex,
   regexUsername,
   safeUrl,
+  redactKey,
+  redactSensitiveSettings,
 } from '../common.mjs';
 
 describe('escapeShellArg', () => {
@@ -566,5 +568,77 @@ describe('safeUrl', () => {
 
   it('rejects relative path with no base', () => {
     expect(safeUrl('/some/path')).toBeNull();
+  });
+});
+
+describe('redactKey', () => {
+  it('shows first 4 and last 4 chars for keys >= 12 chars', () => {
+    expect(redactKey('mailserver-12345678-90ab-cdef-1234')).toBe('mail...1234');
+  });
+
+  it('returns *** for keys shorter than 12 chars', () => {
+    expect(redactKey('short')).toBe('***');
+    expect(redactKey('eleven-chrs')).toBe('***'); // 11 chars
+  });
+
+  it('returns *** for empty string', () => {
+    expect(redactKey('')).toBe('***');
+  });
+
+  it('returns *** for non-string input', () => {
+    expect(redactKey(null)).toBe('***');
+    expect(redactKey(undefined)).toBe('***');
+    expect(redactKey(12345)).toBe('***');
+    expect(redactKey({})).toBe('***');
+  });
+
+  it('does not include the middle of a real-looking key in output', () => {
+    const key = 'super-secret-actual-key-content-99999';
+    const out = redactKey(key);
+    expect(out).not.toContain('secret-actual-key-content');
+    expect(out).toContain('...');
+  });
+});
+
+describe('redactSensitiveSettings', () => {
+  it('redacts values for names matching SECRET/KEY/PASSWORD/TOKEN', () => {
+    const rows = [
+      { name: 'DMS_API_KEY', value: 'mailserver-12345678-90ab-cdef-1234' },
+      { name: 'AES_SECRET', value: 'super-secret-actual-aes-content-9999' },
+      { name: 'JWT_SECRET', value: 'jwt-private-signing-key-1234' },
+      { name: 'RESET_TOKEN', value: 'token-1234-5678-90ab-cdef-1234' },
+      { name: 'USER_PASSWORD', value: 'plain-text-password-12345' },
+    ];
+    const out = redactSensitiveSettings(rows);
+    for (const row of out) {
+      expect(row.value).toMatch(/^[\w-]{4}\.\.\.[\w-]{4}$/);
+    }
+  });
+
+  it('passes through non-sensitive rows unchanged', () => {
+    const rows = [
+      { name: 'WEBMAIL_URL', value: 'https://webmail.example.com' },
+      { name: 'TZ', value: 'UTC' },
+    ];
+    expect(redactSensitiveSettings(rows)).toEqual(rows);
+  });
+
+  it('is case-insensitive on the name match', () => {
+    const rows = [
+      { name: 'aes_secret', value: 'should-also-be-redacted-1234' },
+    ];
+    expect(redactSensitiveSettings(rows)[0].value).not.toBe(rows[0].value);
+    expect(redactSensitiveSettings(rows)[0].value).toContain('...');
+  });
+
+  it('returns input unchanged when not an array', () => {
+    expect(redactSensitiveSettings(null)).toBeNull();
+    expect(redactSensitiveSettings(undefined)).toBeUndefined();
+    expect(redactSensitiveSettings('a string')).toBe('a string');
+  });
+
+  it('tolerates rows missing the name field', () => {
+    const rows = [{ value: 'something' }, null, { name: 42, value: 'x' }];
+    expect(() => redactSensitiveSettings(rows)).not.toThrow();
   });
 });

@@ -161,6 +161,7 @@ export const mailserverRESTAPI = {
 # version={DMSGUI_VERSION}
 
 import http.server
+import socket
 import socketserver
 import subprocess
 import shlex
@@ -182,31 +183,100 @@ def logger(message):
 def debugg(message):
   if LOG_LEVEL == 'debug': logger(message)
 
+def redact(s):
+  # Show first 4 + last 4 chars for traceability without leaking the
+  # full secret. Anything shorter than 12 chars is fully redacted —
+  # the prefix-suffix form would leak too much of a short value.
+  s = str(s) if s is not None else ''
+  if len(s) < 12: return '***'
+  return f"{s[:4]}...{s[-4:]}"
+
 class APIHandler(http.server.BaseHTTPRequestHandler):
 
   def do_POST(self):
-    # 1. Get the content length from the headers
-    api_key  = self.headers.get('Authorization', 'missing')
-    content_length  = int(self.headers.get('Content-Length', 0))
+    # Defence in depth: even though the server runs HTTP/1.0 (no
+    # keep-alive by default), explicitly close the connection after
+    # this request so that under-reported Content-Length cannot leave
+    # bytes buffered on the socket where a future HTTP/1.1 upgrade
+    # would let them be interpreted as a smuggled request.
+    self.close_connection = True
 
-    # 2. Read the raw POST data from the request body
-    post_data = self.rfile.read(content_length)
+    api_key = self.headers.get('Authorization', 'missing')
 
-    # 3. Attempt to parse the data as JSON
+    # Require an explicit Content-Length on POST. Missing or malformed
+    # values are rejected with 4xx instead of falling through to a
+    # 0-byte read + JSON parse error, so the response code accurately
+    # communicates which client-side mistake was made.
+    raw_cl = self.headers.get('Content-Length')
+    if raw_cl is None:
+      response_message = {"status": "error", "error": "Content-Length header required"}
+      logger(response_message['error'])
+      self.send_response(411)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
     try:
-      # 4. Rejects content > DMS_API_SIZE
-      if content_length > DMS_API_SIZE:
-        response_message = {"status": "error", "error": "data recieved is too large"}
-        logger(response_message['error'])
+      content_length = int(raw_cl)
+      if content_length < 0:
+        raise ValueError('negative')
+    except (TypeError, ValueError):
+      response_message = {"status": "error", "error": "invalid Content-Length header"}
+      logger(response_message['error'])
+      self.send_response(400)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
 
+    # Reject oversized requests BEFORE reading the body. Previously
+    # the read happened first and the size check came after, so a
+    # caller (with the API key) could push arbitrary bytes into the
+    # process before the limit triggered — and the limit didn't
+    # actually short-circuit, it just set an error string and
+    # processing continued.
+    if content_length > DMS_API_SIZE:
+      response_message = {"status": "error", "error": "data received is too large"}
+      logger(response_message['error'])
+      self.send_response(413)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
+
+    # We've already enforced content_length <= DMS_API_SIZE above, so
+    # rfile.read(content_length) is bounded in size. Also apply a
+    # short read timeout so a slow / partial-body client (slowloris
+    # variant: send N declared, transmit fewer, pause) cannot hold
+    # the single-threaded socketserver.TCPServer indefinitely. 5s
+    # is generous for a body capped at DMS_API_SIZE (default 1 KiB).
+    self.connection.settimeout(5)
+    try:
+      post_data = self.rfile.read(content_length)
+    except socket.timeout:
+      response_message = {"status": "error", "error": "request body read timed out"}
+      logger(response_message['error'])
+      self.send_response(408)
+      self.send_header('Content-type', 'application/json')
+      self.end_headers()
+      self.wfile.write(json.dumps(response_message).encode('utf-8'))
+      return
+    finally:
+      # Restore the connection to the (default) blocking mode for
+      # whatever cleanup the handler does after the response.
+      self.connection.settimeout(None)
+
+    try:
       json_data = json.loads(post_data.decode('utf-8'))
       debugg(f"Received JSON data: {json_data}")
-      
+
       command = json_data.get('command')
       timeout = json_data.get('timeout', timeout_default)
-      
-      debugg(f"      my API Key: {DMS_API_KEY}")
-      debugg(f"Received API Key: {api_key}")
+
+      # Never log the configured DMS_API_KEY in full; show only a
+      # fingerprint of the *received* key so failed-auth diagnosis
+      # is still possible.
+      debugg(f"Received API Key: {redact(api_key)}")
       debugg(f"Received command: {command}")
       debugg(f"Received timeout: {timeout}")
     
@@ -328,10 +398,10 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       else:
         if DMS_API_KEY != 'missing':
           if api_key != 'missing':
-            response_message = {"status": "error", "error": f"Invalid api_key: api_match: {str(api_key)}"}
+            response_message = {"status": "error", "error": f"Invalid api_key: api_match: {redact(api_key)}"}
           else:
             response_message = {"status": "error", "error": f"Missing api_key: api_miss"}
-        else: 
+        else:
           response_message = {"status": "error", "error": f"DMS api_key unset: api_unset"}
         logger(response_message['error'])
 
