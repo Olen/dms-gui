@@ -142,10 +142,18 @@ export const getSieveRules = async (containerName, mailbox) => {
       targetDict
     );
 
+    if (listResult.returncode !== 0) {
+      errorLog(`doveadm_sieve_list failed: ${listResult.stderr}`);
+      return {
+        success: false,
+        error: listResult.stderr || 'sieve list failed',
+      };
+    }
+
     let scriptExists = false;
     let isActive = false;
 
-    if (listResult.returncode === 0 && listResult.stdout) {
+    if (listResult.stdout) {
       for (const line of listResult.stdout.split('\n')) {
         const trimmed = line.trim();
         if (

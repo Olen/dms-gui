@@ -613,6 +613,14 @@ describe('deleteAlias — regex path', () => {
     expect(result.success).toBe(true);
     expect(execAction).toHaveBeenCalledTimes(3);
     expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
+    // The {line} arg must use the RAW source — not JSON.stringify'd — so
+    // the grep -Fv matches what addAlias wrote to postfix-regexp.cf.
+    // Re-introducing JSON.stringify(source) before this line build would
+    // cause phantom deletion (DB cleared, file line stays). This assertion
+    // is the regression guard.
+    expect(execAction.mock.calls[0][1]).toEqual({
+      line: '/^abuse@.*$/ admin@example.com',
+    });
     expect(execAction.mock.calls[1][0]).toBe('tmp_postfix_regexp_to_final');
     expect(execAction.mock.calls[2][0]).toBe('postfix_reload');
   });
@@ -634,6 +642,9 @@ describe('deleteAlias — regex path', () => {
     expect(result.success).toBe(false);
     expect(execAction).toHaveBeenCalledTimes(1);
     expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
+    expect(execAction.mock.calls[0][1]).toEqual({
+      line: '/^abuse@.*$/ admin@example.com',
+    });
     expect(mockDeleteEntry).not.toHaveBeenCalled();
   });
 

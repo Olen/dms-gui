@@ -23,6 +23,13 @@
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
 // settings UI that a hardcoded constant would silently ignore.
 
+// DMS config path — the directory where postfix-regexp.cf lives. Read
+// from process.env directly (rather than ./env.mjs) to avoid the
+// circular import that env.mjs ↔ restApiManifest.mjs would otherwise
+// cause. Default matches env.mjs's DMS_CONFIG_PATH default.
+const DMS_CONFIG_PATH = process.env.DMS_CONFIG_PATH || '/tmp/docker-mailserver';
+const POSTFIX_REGEXP_FILE = `${DMS_CONFIG_PATH}/postfix-regexp.cf`;
+
 // Validator presets reused across multiple actions. Centralised here so
 // regex tweaks (e.g. aligning with common.mjs regexEmailStrict) are made
 // in one place rather than fanned across every action that takes a
@@ -263,10 +270,9 @@ export const REST_API_MANIFEST = [
     },
   },
   {
-    // Read the postfix regex aliases file. Path is fixed because the
-    // file lives at a well-known DMS-config-relative location.
+    // Read the postfix regex aliases file.
     id: 'cat_postfix_regexp',
-    argv: ['cat', '/tmp/docker-mailserver/postfix-regexp.cf'],
+    argv: ['cat', POSTFIX_REGEXP_FILE],
   },
   {
     // Append a postfix-regex alias line to the file.
@@ -280,7 +286,7 @@ export const REST_API_MANIFEST = [
     argv: ['printf', '%s\\n', '{line}'],
     redirect: {
       mode: 'append',
-      file: '/tmp/docker-mailserver/postfix-regexp.cf',
+      file: POSTFIX_REGEXP_FILE,
     },
     validate: {
       line: POSTFIX_REGEXP_LINE_VALIDATOR,
@@ -296,13 +302,7 @@ export const REST_API_MANIFEST = [
     // -- terminates option parsing — `grep -Fv -- '-x' file` searches for
     // literal '-x' even if grep would otherwise treat it as an option.
     // Belt-and-suspenders with the validator's no-leading-dash rule.
-    argv: [
-      'grep',
-      '-Fv',
-      '--',
-      '{line}',
-      '/tmp/docker-mailserver/postfix-regexp.cf',
-    ],
+    argv: ['grep', '-Fv', '--', '{line}', POSTFIX_REGEXP_FILE],
     redirect: { mode: 'write', file: '/tmp/postfix-regexp.cf' },
     validate: {
       line: POSTFIX_REGEXP_LINE_VALIDATOR,
@@ -312,11 +312,7 @@ export const REST_API_MANIFEST = [
     // Atomically replace the postfix-regex file with the filtered tmp.
     // Pairs with postfix_regexp_filter_to_tmp.
     id: 'tmp_postfix_regexp_to_final',
-    argv: [
-      'mv',
-      '/tmp/postfix-regexp.cf',
-      '/tmp/docker-mailserver/postfix-regexp.cf',
-    ],
+    argv: ['mv', '/tmp/postfix-regexp.cf', POSTFIX_REGEXP_FILE],
   },
   {
     id: 'postfix_reload',

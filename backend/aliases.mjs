@@ -434,25 +434,22 @@ export const deleteAlias = async (
         // All failed — DB unchanged
         return { success: false, error: `Failed to delete alias ${source}` };
       }
-
-      // this is regex, must stringify
-      // KNOWN BUG (carried verbatim from the legacy implementation): this
-      // JSON.stringify wraps the source in JSON quotes, so the line we
-      // search for is `"<src>" <dst>`. But addAlias's `postfix_regexp_append`
-      // writes the raw source — `<src> <dst>` — to the file. The grep -Fv
-      // never matches, mv runs unchanged, the DB row is removed, and the
-      // postfix-regexp.cf line stays. Phantom deletion. Sprint C's scope is
-      // "preserve behaviour, change protocol", so the bug is migrated as-is;
-      // a follow-up bug-fix PR should drop the JSON.stringify here AND match
-      // however the route layer passes `source` (raw vs. DB-stored).
     } else {
-      source = JSON.stringify(source);
-      debugLog(`Deleting alias regex: ${source}`);
+      // Two forms of source:
+      //   rawSource        — what addAlias appended to postfix-regexp.cf
+      //                      (e.g. /^abuse@.*$/)
+      //   stringifiedSource — what addAlias stored in the DB via JSON.stringify
+      //                      (e.g. "/^abuse@.*$/")
+      // The grep line must use rawSource to match the file content.
+      // The DB deleteEntry must use stringifiedSource to match the stored key.
+      const rawSource = source;
+      const stringifiedSource = JSON.stringify(source);
+      debugLog(`Deleting alias regex: ${rawSource}`);
 
       // The legacy &&-chain (grep -Fv > tmp && mv tmp final && postfix reload)
       // is replaced by three sequential execAction calls; each step only runs
       // if the previous one succeeded.
-      const line = `${source} ${destination}`;
+      const line = `${rawSource} ${destination}`;
       results = await execAction(
         'postfix_regexp_filter_to_tmp',
         { line },
@@ -469,16 +466,16 @@ export const deleteAlias = async (
           targetDict
         );
         if (!results.returncode) {
-          successLog(`Alias regex deleted: ${source}`);
+          successLog(`Alias regex deleted: ${rawSource}`);
 
           const result = deleteEntry(
             'aliases',
-            source,
+            stringifiedSource,
             'bySource',
             containerName
           );
           if (result.success) {
-            successLog(`Alias entry deleted: ${source}`);
+            successLog(`Alias entry deleted: ${rawSource}`);
 
             // reload postfix
             results = await execAction('postfix_reload', {}, targetDict);

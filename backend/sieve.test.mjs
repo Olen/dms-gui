@@ -392,6 +392,26 @@ describe('getSieveRules — CRUD', () => {
     expect(execAction).toHaveBeenCalledTimes(1);
     expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_list');
   });
+
+  it('propagates doveadm_sieve_list failure as {success: false} instead of masking as "no script"', async () => {
+    // Non-zero returncode: auth error, connection error, etc.
+    // The legacy code silently treated this as scriptExists=false (phantom
+    // "no script" response). After Fix 4 it must return success:false so
+    // the caller/operator can distinguish a real failure from an empty list.
+    execAction.mockResolvedValueOnce({
+      returncode: 1,
+      stdout: '',
+      stderr: 'authentication failed',
+    });
+
+    const result = await getSieveRules('mailserver', 'user@example.com');
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/authentication failed/);
+    // Only the list call was made — sieve_get must NOT be called
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_list');
+  });
 });
 
 describe('saveSieveRules — CRUD', () => {
