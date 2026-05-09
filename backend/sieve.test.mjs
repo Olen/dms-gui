@@ -25,8 +25,15 @@ vi.mock('./demoMode.mjs', () => ({
   demoWriteResponse: vi.fn(() => null),
 }));
 
-import { _test } from './sieve.mjs';
+import {
+  _test,
+  getSieveRules,
+  saveSieveRules,
+  deleteSieveRules,
+} from './sieve.mjs';
 const { generateSieveScript, parseSieveScript, defaultRules } = _test;
+import { execAction } from './backend.mjs';
+import { getTargetDict } from './db.mjs';
 
 describe('generateSieveScript', () => {
   it('generates minimal script when all rules are disabled', () => {
@@ -320,5 +327,163 @@ describe('round-trip: generate then parse', () => {
     expect(parsed.forward).toEqual(original.forward);
     expect(parsed.vacation).toEqual(original.vacation);
     expect(parsed.block).toEqual(original.block);
+  });
+});
+
+describe('getSieveRules — CRUD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls doveadm_sieve_list then doveadm_sieve_get when script exists, returns parsed rules', async () => {
+    execAction
+      .mockResolvedValueOnce({
+        returncode: 0,
+        stdout: 'roundcube ACTIVE\n',
+        stderr: '',
+      })
+      .mockResolvedValueOnce({
+        returncode: 0,
+        stdout: [
+          '# dms-gui:forward:begin',
+          '# dms-gui:forward:enabled=false',
+          '# dms-gui:forward:end',
+          '# dms-gui:vacation:begin',
+          '# dms-gui:vacation:enabled=false',
+          '# dms-gui:vacation:days=7',
+          '# dms-gui:vacation:end',
+          '# dms-gui:block:begin',
+          '# dms-gui:block:enabled=false',
+          '# dms-gui:block:end',
+        ].join('\n'),
+        stderr: '',
+      });
+
+    const result = await getSieveRules('mailserver', 'user@example.com');
+
+    expect(result.success).toBe(true);
+    expect(result.message.scriptExists).toBe(true);
+    expect(result.message.isActive).toBe(true);
+    expect(result.message.rules).not.toBeNull();
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_list');
+    expect(execAction.mock.calls[0][1]).toEqual({
+      mailbox: 'user@example.com',
+    });
+    expect(execAction.mock.calls[1][0]).toBe('doveadm_sieve_get');
+    expect(execAction.mock.calls[1][1]).toEqual({
+      mailbox: 'user@example.com',
+    });
+  });
+
+  it('does NOT call doveadm_sieve_get when list returns empty (no script)', async () => {
+    execAction.mockResolvedValueOnce({
+      returncode: 0,
+      stdout: '',
+      stderr: '',
+    });
+
+    const result = await getSieveRules('mailserver', 'user@example.com');
+
+    expect(result.success).toBe(true);
+    expect(result.message.scriptExists).toBe(false);
+    expect(result.message.rules).toBeNull();
+    // Only the list call was made
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_list');
+  });
+});
+
+describe('saveSieveRules — CRUD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls doveadm_sieve_put then doveadm_sieve_activate on success', async () => {
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // put
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }); // activate
+
+    const rules = defaultRules();
+    const result = await saveSieveRules(
+      'mailserver',
+      'user@example.com',
+      rules
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/Sieve rules saved/);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    // First call: put — mailbox correct, b64 is a non-empty base64 string
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_put');
+    expect(execAction.mock.calls[0][1].mailbox).toBe('user@example.com');
+    expect(execAction.mock.calls[0][1].b64).toMatch(/^[A-Za-z0-9+/=]+$/);
+    // Second call: activate
+    expect(execAction.mock.calls[1][0]).toBe('doveadm_sieve_activate');
+    expect(execAction.mock.calls[1][1]).toEqual({
+      mailbox: 'user@example.com',
+    });
+  });
+
+  it('does NOT call doveadm_sieve_activate if put fails', async () => {
+    execAction.mockResolvedValueOnce({
+      returncode: 1,
+      stdout: '',
+      stderr: 'quota exceeded',
+    });
+
+    const rules = defaultRules();
+    const result = await saveSieveRules(
+      'mailserver',
+      'user@example.com',
+      rules
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Failed to save sieve script/);
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_put');
+  });
+});
+
+describe('deleteSieveRules — CRUD', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls doveadm_sieve_deactivate then doveadm_sieve_delete on success', async () => {
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // deactivate
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }); // delete
+
+    const result = await deleteSieveRules('mailserver', 'user@example.com');
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/Sieve rules deleted/);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[0][0]).toBe('doveadm_sieve_deactivate');
+    expect(execAction.mock.calls[0][1]).toEqual({
+      mailbox: 'user@example.com',
+    });
+    expect(execAction.mock.calls[1][0]).toBe('doveadm_sieve_delete');
+    expect(execAction.mock.calls[1][1]).toEqual({
+      mailbox: 'user@example.com',
+    });
+  });
+
+  it('still calls doveadm_sieve_delete even when deactivate fails (no active script)', async () => {
+    execAction
+      .mockResolvedValueOnce({
+        returncode: 1,
+        stdout: '',
+        stderr: 'no active script',
+      }) // deactivate fails
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }); // delete succeeds
+
+    const result = await deleteSieveRules('mailserver', 'user@example.com');
+
+    expect(result.success).toBe(true);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[1][0]).toBe('doveadm_sieve_delete');
   });
 });

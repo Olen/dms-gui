@@ -59,12 +59,19 @@ const BOX_VALIDATOR = {
   regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$',
   maxlen: 256,
 };
-// Postfix-regex alias source/destination line for echo+append. Each
-// half is a single token; together they form a postfix-regex map line.
-// Tightened against shell metas just in case future protocol-changes
-// expose argv tokens to a shell — `shell=False` makes them inert today.
+// Postfix-regex source/destination line for printf+append. The legacy
+// shell-form was `echo "<src> <dst>" >> file && reload`; the action
+// protocol passes the whole "src dst" line as a single argv token.
+//
+// Validation policy: forbid only characters that would corrupt the
+// file (NUL, newline, CR — would split into multiple lines or truncate
+// reads) and forbid leading '-' / space (defense in depth against argv
+// option-injection in `printf`/`grep` — Fix 2/3 add `--` separators
+// to the argv as belt-and-suspenders). Allow regex metacharacters
+// (^, $, ., *, +, ?, (, ), [, ], {, }, |, \, /) since postfix-regexp
+// SOURCES contain them by design.
 const POSTFIX_REGEXP_LINE_VALIDATOR = {
-  regex: '^[\\w./@\\-+ ]+$',
+  regex: '^[^-\\s][^\\x00-\\x1f\\x7f]*$',
   maxlen: 512,
 };
 // Generic 'short string' for things like alias source/destination
@@ -266,7 +273,11 @@ export const REST_API_MANIFEST = [
     // line is a free-form string; constrained server-side and at the
     // route layer (the JS caller composes "<src> <dst>" before the call).
     id: 'postfix_regexp_append',
-    argv: ['echo', '{line}'],
+    // printf '%s\n' is option-safe — the format arg is fixed, the data
+    // arg is always treated as content. Replaces a previous `echo {line}`
+    // which would interpret `{line}` as flags if it started with '-'.
+    // The validator already disallows leading '-', but layering both is cheap.
+    argv: ['printf', '%s\\n', '{line}'],
     redirect: {
       mode: 'append',
       file: '/tmp/docker-mailserver/postfix-regexp.cf',
@@ -282,7 +293,16 @@ export const REST_API_MANIFEST = [
     // for atomic-ish replace; the action protocol splits this into two
     // sequential calls (this one + tmp_postfix_regexp_to_final).
     id: 'postfix_regexp_filter_to_tmp',
-    argv: ['grep', '-Fv', '{line}', '/tmp/docker-mailserver/postfix-regexp.cf'],
+    // -- terminates option parsing — `grep -Fv -- '-x' file` searches for
+    // literal '-x' even if grep would otherwise treat it as an option.
+    // Belt-and-suspenders with the validator's no-leading-dash rule.
+    argv: [
+      'grep',
+      '-Fv',
+      '--',
+      '{line}',
+      '/tmp/docker-mailserver/postfix-regexp.cf',
+    ],
     redirect: { mode: 'write', file: '/tmp/postfix-regexp.cf' },
     validate: {
       line: POSTFIX_REGEXP_LINE_VALIDATOR,

@@ -54,7 +54,7 @@ vi.mock('./settings.mjs', () => ({
 }));
 
 import { execAction } from './backend.mjs';
-import { updateAlias, getAliases } from './aliases.mjs';
+import { updateAlias, getAliases, addAlias, deleteAlias } from './aliases.mjs';
 
 describe('updateAlias', () => {
   beforeEach(() => {
@@ -427,5 +427,231 @@ describe('getAliases — refresh path with non-admin roles', () => {
 
     expect(result.success).toBe(true);
     expect(result.message).toHaveLength(2);
+  });
+});
+
+describe('addAlias — email path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls setup_alias_add with correct args and returns success', async () => {
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await addAlias(
+      'mailserver',
+      'alias@example.com',
+      'user@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/Alias created/);
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction).toHaveBeenCalledWith(
+      'setup_alias_add',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'alias@example.com',
+        destination: 'user@example.com',
+      },
+      expect.any(Object)
+    );
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        source: 'alias@example.com',
+        destination: 'user@example.com',
+        regex: 0,
+      }),
+      'mailserver'
+    );
+  });
+
+  it('returns error (no DB write) when setup_alias_add fails', async () => {
+    execAction.mockResolvedValue({
+      returncode: 1,
+      stdout: '',
+      stderr: 'setup error',
+    });
+
+    const result = await addAlias(
+      'mailserver',
+      'alias@example.com',
+      'user@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(mockDbRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('addAlias — regex path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls postfix_regexp_append then postfix_reload on success, preserving regex metacharacters', async () => {
+    // Use a realistic postfix-regexp source that contains regex metacharacters.
+    const regexSource = '/^abuse@.*$/';
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await addAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/Alias regex created/);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    // First: append the line — source must be preserved verbatim including metacharacters
+    expect(execAction.mock.calls[0]).toEqual([
+      'postfix_regexp_append',
+      { line: `${regexSource} admin@example.com` },
+      expect.any(Object),
+    ]);
+    // Second: reload postfix
+    expect(execAction.mock.calls[1]).toEqual([
+      'postfix_reload',
+      {},
+      expect.any(Object),
+    ]);
+  });
+
+  it('does NOT call postfix_reload if postfix_regexp_append fails', async () => {
+    const regexSource = '/^abuse@.*$/';
+    execAction.mockResolvedValue({
+      returncode: 1,
+      stdout: '',
+      stderr: 'write error',
+    });
+
+    const result = await addAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    // Only the first call (append) should have been made
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_append');
+    expect(mockDbRun).not.toHaveBeenCalled();
+  });
+});
+
+describe('deleteAlias — email path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls setup_alias_del for each destination and removes DB entry on full success', async () => {
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDeleteEntry.mockReturnValue({ success: true });
+
+    const result = await deleteAlias(
+      'mailserver',
+      'alias@example.com',
+      'user@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(result.message).toMatch(/Alias deleted/);
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction).toHaveBeenCalledWith(
+      'setup_alias_del',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'alias@example.com',
+        destination: 'user@example.com',
+      },
+      expect.any(Object)
+    );
+    expect(mockDeleteEntry).toHaveBeenCalled();
+  });
+
+  it('calls setup_alias_del for each destination in a multi-destination alias', async () => {
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDeleteEntry.mockReturnValue({ success: true });
+
+    const result = await deleteAlias(
+      'mailserver',
+      'alias@example.com',
+      'a@example.com,b@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[0][1]).toMatchObject({
+      destination: 'a@example.com',
+    });
+    expect(execAction.mock.calls[1][1]).toMatchObject({
+      destination: 'b@example.com',
+    });
+  });
+});
+
+describe('deleteAlias — regex path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls 3 actions in sequence and returns success', async () => {
+    const regexSource = '/^abuse@.*$/';
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDeleteEntry.mockReturnValue({ success: true });
+
+    const result = await deleteAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(execAction).toHaveBeenCalledTimes(3);
+    expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
+    expect(execAction.mock.calls[1][0]).toBe('tmp_postfix_regexp_to_final');
+    expect(execAction.mock.calls[2][0]).toBe('postfix_reload');
+  });
+
+  it('does NOT call tmp_postfix_regexp_to_final if filter step fails', async () => {
+    const regexSource = '/^abuse@.*$/';
+    execAction.mockResolvedValue({
+      returncode: 1,
+      stdout: '',
+      stderr: 'grep error',
+    });
+
+    const result = await deleteAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
+    expect(mockDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call postfix_reload if tmp_to_final step fails', async () => {
+    const regexSource = '/^abuse@.*$/';
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // filter succeeds
+      .mockResolvedValueOnce({ returncode: 1, stdout: '', stderr: 'mv error' }); // mv fails
+
+    const result = await deleteAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
+    expect(execAction.mock.calls[1][0]).toBe('tmp_postfix_regexp_to_final');
   });
 });
