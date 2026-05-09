@@ -15,12 +15,37 @@
 //     redirect:  { mode: 'write'|'append', file: <path-template> } — optional file redirect
 //   }
 //
-// Sprint A ships an empty manifest. Sprints B–E populate it as
-// individual call sites migrate from the legacy {command:} protocol.
+// Sprint A shipped an empty manifest. Sprint B populates it with the
+// 12 actions accounts.mjs needs; Sprints C–E continue per-file as
+// migration progresses.
 // setup_path is supplied per-call from targetDict.setupPath (populated by
 // getTargetDict() from the per-container settings DB, defaulting to
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
 // settings UI that a hardcoded constant would silently ignore.
+
+// Validator presets reused across multiple actions. Centralised here so
+// regex tweaks (e.g. aligning with common.mjs regexEmailStrict) are made
+// in one place rather than fanned across every action that takes a
+// mailbox/box/setup_path arg.
+//
+// Mailbox regex aligned with regexEmailStrict from common.mjs — accepts
+// 'user@domain' (no TLD required) so local-only setups work, but still
+// rejects whitespace, '@'-in-local-part, and other malformed shapes.
+const MAILBOX_VALIDATOR = {
+  regex: '^[\\w.\\-_]+@[\\w.\\-_]+$',
+  maxlen: 254,
+};
+const SETUP_PATH_VALIDATOR = {
+  regex: '^/[A-Za-z0-9./_-]+$',
+  maxlen: 256,
+};
+// dovecot folder names + mask patterns: alphanumeric + ./-_ + slash + space + glob chars (* % ?).
+// Leading '-' / space disallowed to prevent the value from being parsed
+// as an option flag by doveadm when positional.
+const BOX_VALIDATOR = {
+  regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$',
+  maxlen: 256,
+};
 
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
@@ -31,15 +56,15 @@ export const REST_API_MANIFEST = [
       // setup_path is supplied by execAction callers from targetDict.setupPath,
       // which is the same source the legacy execSetup helper used. This keeps
       // per-container overrides via the settings UI working.
-      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
+      setup_path: SETUP_PATH_VALIDATOR,
     },
   },
   {
     id: 'setup_email_add',
     argv: ['{setup_path}', 'email', 'add', '{mailbox}', '{password}'],
     validate: {
-      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      setup_path: SETUP_PATH_VALIDATOR,
+      mailbox: MAILBOX_VALIDATOR,
       password: { string: { minlen: 1, maxlen: 256 } },
     },
   },
@@ -47,24 +72,24 @@ export const REST_API_MANIFEST = [
     id: 'setup_email_del',
     argv: ['{setup_path}', 'email', 'del', '-y', '{mailbox}'],
     validate: {
-      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      setup_path: SETUP_PATH_VALIDATOR,
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'setup_quota_del',
     argv: ['{setup_path}', 'quota', 'del', '{mailbox}'],
     validate: {
-      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      setup_path: SETUP_PATH_VALIDATOR,
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'setup_quota_set',
     argv: ['{setup_path}', 'quota', 'set', '{mailbox}', '{quota}'],
     validate: {
-      setup_path: { regex: '^/[A-Za-z0-9./_-]+$', maxlen: 256 },
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      setup_path: SETUP_PATH_VALIDATOR,
+      mailbox: MAILBOX_VALIDATOR,
       // setup quota set accepts strings like '1G', '500M', or 'unlimited'.
       quota: { regex: '^(?:[0-9]+[BKMGT]?|unlimited)$', maxlen: 16 },
     },
@@ -77,21 +102,21 @@ export const REST_API_MANIFEST = [
     // the argv token is just the literal '*'.
     argv: ['doveadm', 'index', '-u', '{mailbox}', '-q', '*'],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'doveadm_mailbox_list',
     argv: ['doveadm', 'mailbox', 'list', '-u', '{mailbox}'],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'doveadm_mailbox_list_subscribed',
     argv: ['doveadm', 'mailbox', 'list', '-u', '{mailbox}', '-s'],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
@@ -107,12 +132,12 @@ export const REST_API_MANIFEST = [
       '{box}',
     ],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
       // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash for hierarchy + space + glob chars (* % ?).
       // Leading '-' / space disallowed to prevent the value from being parsed
       // as an option flag by doveadm when positional (defense in depth — even
       // though shell=False is in effect, doveadm's own getopt sees the token).
-      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
+      box: BOX_VALIDATOR,
     },
   },
   {
@@ -127,13 +152,13 @@ export const REST_API_MANIFEST = [
       '{box}',
     ],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
       // Single field name (e.g. 'all', 'messages') OR a space-separated list.
       field: { regex: '^[a-z_]+(?: [a-z_]+)*$', maxlen: 128 },
       // Leading '-' / space disallowed to prevent the value from being parsed
       // as an option flag by doveadm when positional (defense in depth — even
       // though shell=False is in effect, doveadm's own getopt sees the token).
-      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
+      box: BOX_VALIDATOR,
     },
   },
   {
@@ -147,18 +172,18 @@ export const REST_API_MANIFEST = [
       '{box}',
     ],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
       // Leading '-' / space disallowed to prevent the value from being parsed
       // as an option flag by doveadm when positional (defense in depth — even
       // though shell=False is in effect, doveadm's own getopt sees the token).
-      box: { regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$', maxlen: 256 },
+      box: BOX_VALIDATOR,
     },
   },
   {
     id: 'doveadm_quota_get',
     argv: ['doveadm', 'quota', 'get', '-u', '{mailbox}'],
     validate: {
-      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      mailbox: MAILBOX_VALIDATOR,
     },
   },
 ];

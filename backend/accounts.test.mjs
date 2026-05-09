@@ -47,10 +47,14 @@ vi.mock('./aliases.mjs', () => ({
   deleteAlias: (...args) => mockDeleteAlias(...args),
 }));
 
-vi.mock('../common.mjs', () => ({
-  reduxArrayOfObjByValue: (array, key, values) =>
-    array.filter((item) => values.includes(item[key])),
-}));
+vi.mock('../common.mjs', async () => {
+  const actual = await vi.importActual('../common.mjs');
+  return {
+    ...actual,
+    reduxArrayOfObjByValue: (array, key, values) =>
+      array.filter((item) => values.includes(item[key])),
+  };
+});
 
 vi.mock('./env.mjs', () => ({
   env: { DMS_CONFIG_PATH: '/tmp/docker-mailserver' },
