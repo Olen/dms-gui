@@ -1,61 +1,60 @@
 const parseStatLine = (line, options) => {
-  line=line.replace(/ +(?= )/g,'')// replace multiple spaces
+  line = line.replace(/ +(?= )/g, ''); // replace multiple spaces
 
-  if(!options.root.regex.exec(line)){
-    return {}
-  }//root stat line
+  if (!options.root.regex.exec(line)) {
+    return {};
+  } //root stat line
 
-  var result={}
-  var tmp=null
-  try{
-    options.params.forEach(item=>{
-      item.keys=item.keys||1
-      tmp=item.regex.exec(line)
-      if(tmp){
-        if(!item.keys||item.keys==1){result[item.name]=tmp[1]}    
-        else{
-          var subarray=[]
-          for(var i=1;i<item.keys+1;i++){
-            subarray.push(tmp[i])
-          }//for
-          result[item.name]=subarray
-        }//else
-      }//if
-    })
-  } catch(error) {console.error(error)}
+  var result = {};
+  var tmp = null;
+  try {
+    options.params.forEach((item) => {
+      item.keys = item.keys || 1;
+      tmp = item.regex.exec(line);
+      if (tmp) {
+        if (!item.keys || item.keys == 1) {
+          result[item.name] = tmp[1];
+        } else {
+          var subarray = [];
+          for (var i = 1; i < item.keys + 1; i++) {
+            subarray.push(tmp[i]);
+          } //for
+          result[item.name] = subarray;
+        } //else
+      } //if
+    });
+  } catch (error) {
+    console.error(error);
+  }
 
-  return result
+  return result;
 };
 
+const parseProcessLine = (str) => {
+  var result = {};
+  var regex = /(?<=)\S+/g; //capture values between spaces
+  try {
+    var data = [...str.matchAll(regex)];
 
-const parseProcessLine = str => {
-  var result={}
-  var regex=/(?<=)\S+/g //capture values beetween spaces
-  var result={}
-  try{
-    var data=[...str.matchAll(regex)]
-
-    result= {
-      "pid":data[0][0],
-      "user":data[1][0],
-      "pr":data[2][0],
-      "ni":data[3][0],
-      "virt":data[4][0],
-      "res":data[5][0],
-      "shr":data[6][0],
-      "s":data[7][0],
-      "cpu":data[8][0],
-      "mem":data[9][0],
-      "time":data[10][0],
-      "command":data[11][0],
-    }
-  } catch(error) {console.error(error)}
-  return result
+    result = {
+      pid: data[0][0],
+      user: data[1][0],
+      pr: data[2][0],
+      ni: data[3][0],
+      virt: data[4][0],
+      res: data[5][0],
+      shr: data[6][0],
+      s: data[7][0],
+      cpu: data[8][0],
+      mem: data[9][0],
+      time: data[10][0],
+      command: data[11][0],
+    };
+  } catch (error) {
+    console.error(error);
+  }
+  return result;
 };
-
-
-
-
 
 // {
 //     pid_limit:10,//limit number of included pids in list (default: unlimited)
@@ -63,111 +62,112 @@ const parseProcessLine = str => {
 //     pid_sort:(a,b)=>{return a.cpu-b.cpu},// sorting pid list by cpu usage (default)
 // }
 
-export const processTopData = (data, options={pid_sort(a,b){return a.cpu-b.cpu}}) => {
-  var data=data.split("\n").filter(v=>v!="")
-  var result={
+export const processTopData = (
+  data,
+  options = {
+    pid_sort(a, b) {
+      return a.cpu - b.cpu;
+    },
+  }
+) => {
+  data = data.split('\n').filter((v) => v != '');
+  var result = {
+    top: parseStatLine(data[0], {
+      root: { regex: /top -/g, name: 'top' }, //root line params
+      params: [
+        // parse variable values
+        { regex: /(\d+:\d+:\d+) up/g, name: 'time' },
+        // {regex: /up  ([0-9,\:]+)\,/g, name:"up"},
+        { regex: / ([0-9,:]+), \d+ user/g, name: 'up_hours' },
+        { regex: / (\d+) days/g, name: 'up_days' },
 
-    top:parseStatLine(data[0],
-      {
-        root:{regex:/top \-/g,name:"top"},//root line params
-        params:[// parse variable values
-          {regex: /(\d+\:\d+\:\d+) up/g, name:"time"},
-          // {regex: /up  ([0-9,\:]+)\,/g, name:"up"},
-          {regex: / ([0-9,\:]+)\, \d+ user/g, name:"up_hours"},
-          {regex: / (\d+) days/g, name:"up_days"},
-  
-          {regex: /(\d+) users/g, name:"users"},
-          {regex: /load average: (\d+\.\d+)\, (\d+\.\d+)\, (\d+\.\d+)/g, name:"load_average",keys:3},//need subarray with values
-          // {regex: /(\d+) zombie/g, name:"zombie"},
-        ]
-  
-      },
-    ),
+        { regex: /(\d+) users/g, name: 'users' },
+        {
+          regex: /load average: (\d+\.\d+), (\d+\.\d+), (\d+\.\d+)/g,
+          name: 'load_average',
+          keys: 3,
+        }, //need subarray with values
+        // {regex: /(\d+) zombie/g, name:"zombie"},
+      ],
+    }),
 
-    tasks:parseStatLine(data[1],
-      {
-        root:{regex:/Tasks/g,name:"tasks"},//root line params
-        params:[// parse variable values
-          {regex: /(\d+) total/g, name:"total"},
-          {regex: /(\d+) running/g, name:"running"},
-          {regex: /(\d+) sleeping/g, name:"sleeping"},
-          {regex: /(\d+) stopped/g, name:"stopped"},
-          {regex: /(\d+) zombie/g, name:"zombie"},
-        ]
-  
-      },
-    ),
+    tasks: parseStatLine(data[1], {
+      root: { regex: /Tasks/g, name: 'tasks' }, //root line params
+      params: [
+        // parse variable values
+        { regex: /(\d+) total/g, name: 'total' },
+        { regex: /(\d+) running/g, name: 'running' },
+        { regex: /(\d+) sleeping/g, name: 'sleeping' },
+        { regex: /(\d+) stopped/g, name: 'stopped' },
+        { regex: /(\d+) zombie/g, name: 'zombie' },
+      ],
+    }),
 
-    cpu:parseStatLine(data[2],
-      {
-        root:{regex:/%Cpu/g,name:"cpu"},//root line params
-        params:[// parse variable values
-          {regex: /(\d+\.\d) us/g, name:"us"},
-          {regex: /(\d+\.\d) sy/g, name:"sy"},
-          {regex: /(\d+\.\d) ni/g, name:"ni"},
-          {regex: /(\d+\.\d) id/g, name:"id"},
-          {regex: /(\d+\.\d) wa/g, name:"wa"},
-          {regex: /(\d+\.\d) hi/g, name:"hi"},
-          {regex: /(\d+\.\d) si/g, name:"si"},
-          {regex: /(\d+\.\d) st/g, name:"st"},
-        ]
-      },
-    ),
+    cpu: parseStatLine(data[2], {
+      root: { regex: /%Cpu/g, name: 'cpu' }, //root line params
+      params: [
+        // parse variable values
+        { regex: /(\d+\.\d) us/g, name: 'us' },
+        { regex: /(\d+\.\d) sy/g, name: 'sy' },
+        { regex: /(\d+\.\d) ni/g, name: 'ni' },
+        { regex: /(\d+\.\d) id/g, name: 'id' },
+        { regex: /(\d+\.\d) wa/g, name: 'wa' },
+        { regex: /(\d+\.\d) hi/g, name: 'hi' },
+        { regex: /(\d+\.\d) si/g, name: 'si' },
+        { regex: /(\d+\.\d) st/g, name: 'st' },
+      ],
+    }),
 
-    mem:parseStatLine(data[3],
-      {
-        root:{regex:/MiB Mem/g,name:"mem"},//root line params
-        params:[// parse variable values
-          {regex: /(\d+\.\d) total/g, name:"total"},
-          {regex: /(\d+\.\d) used/g, name:"used"},
-          {regex: /(\d+\.\d) free/g, name:"free"},
-          {regex: /(\d+\.\d) buffers/g, name:"buffers"},
-          {regex: /(\d+\.\d) buff\/cache/g, name:"buff_cache"},
-        ]
-        
-      }
-      ),
+    mem: parseStatLine(data[3], {
+      root: { regex: /MiB Mem/g, name: 'mem' }, //root line params
+      params: [
+        // parse variable values
+        { regex: /(\d+\.\d) total/g, name: 'total' },
+        { regex: /(\d+\.\d) used/g, name: 'used' },
+        { regex: /(\d+\.\d) free/g, name: 'free' },
+        { regex: /(\d+\.\d) buffers/g, name: 'buffers' },
+        { regex: /(\d+\.\d) buff\/cache/g, name: 'buff_cache' },
+      ],
+    }),
 
     // swap:parseStatLine(data[4],
-      // {
-        // root:{regex:/MiB Swap/g,name:"swap"},//root line params
-        // params:[// parse variable values
-          // {regex: /(\d+\.\d) total/g, name:"total"},
-          // {regex: /(\d+\.\d) used/g, name:"used"},
-          // {regex: /(\d+\.\d) free/g, name:"free"},
-          // {regex: /(\d+\.\d) cached Mem/g, name:"cached_mem"},
-          // {regex: /(\d+\.\d) avail Mem/g, name:"avail_mem"},
-        // ]
-      // },
+    // {
+    // root:{regex:/MiB Swap/g,name:"swap"},//root line params
+    // params:[// parse variable values
+    // {regex: /(\d+\.\d) total/g, name:"total"},
+    // {regex: /(\d+\.\d) used/g, name:"used"},
+    // {regex: /(\d+\.\d) free/g, name:"free"},
+    // {regex: /(\d+\.\d) cached Mem/g, name:"cached_mem"},
+    // {regex: /(\d+\.\d) avail Mem/g, name:"avail_mem"},
+    // ]
+    // },
     // ),
-      
+
     // processes:[...( [
-        // (()=>{
-          // var result=[]
-          // for (var i=5;i<data.length-1;i++){
-            // var proc=null
-            // try{
-              // var proc=parseProcessLine(data[i])
-              // if(typeof options.pid_filter=="function"){
-                // proc=options.pid_filter(proc)
-              // }//if
-            // } catch(error) {console.error(error)}
-            // proc?result.push(proc):null            
-          // }//for
-          // return result.slice(0,options.pid_limit||result.length).sort(options.pid_sort)
-         // })()//for
+    // (()=>{
+    // var result=[]
+    // for (var i=5;i<data.length-1;i++){
+    // var proc=null
+    // try{
+    // var proc=parseProcessLine(data[i])
+    // if(typeof options.pid_filter=="function"){
+    // proc=options.pid_filter(proc)
+    // }//if
+    // } catch(error) {console.error(error)}
+    // proc?result.push(proc):null
+    // }//for
+    // return result.slice(0,options.pid_limit||result.length).sort(options.pid_sort)
+    // })()//for
     // ]
     // )]
-    
-  }//result
-  
-  return result
+  }; //result
+
+  return result;
 };
 
 // module.exports = {
 //   processTopData,
 // };
-
 
 // data=`top - 02:49:04 up 35 days, 23:26,  0 user,  load average: 0.42, 0.24, 0.11
 // Tasks:  32 total,   1 running,  31 sleeping,   0 stopped,   0 zombie
@@ -208,7 +208,6 @@ export const processTopData = (data, options={pid_sort(a,b){return a.cpu-b.cpu}}
 // 17727 root      20   0    2864   1536   1536 S   0.0   0.0   0:00.00 sleep
 // 17734 root      20   0    2580   1536   1536 S   0.0   0.0   0:00.00 sh
 // 17735 root      20   0    8808   4864   2944 R   0.0   0.1   0:00.00 top`
-
 
 // top: {
 // time: '04:13:09',
