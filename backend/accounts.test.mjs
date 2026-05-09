@@ -26,7 +26,11 @@ vi.mock('./db.mjs', () => ({
   dbAll: vi.fn(),
   dbRun: vi.fn(() => ({ success: true })),
   deleteEntry: (...args) => mockDeleteEntry(...args),
-  getTargetDict: vi.fn(() => ({ host: 'localhost', timeout: 10 })),
+  getTargetDict: vi.fn(() => ({
+    host: 'localhost',
+    timeout: 10,
+    setupPath: '/usr/local/bin/setup',
+  })),
   hashPassword: vi.fn(async () => ({ salt: 'x', hash: 'y' })),
   sql: {
     accounts: {
@@ -105,7 +109,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -139,7 +143,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -183,7 +187,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -217,7 +221,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -245,7 +249,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape (even when no aliases match)
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -267,7 +271,7 @@ describe('deleteAccount — alias cleanup', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_del',
-      { mailbox: 'user@example.com' },
+      { setup_path: '/usr/local/bin/setup', mailbox: 'user@example.com' },
       expect.objectContaining({ timeout: 60 })
     );
   });
@@ -293,7 +297,11 @@ describe('addAccount — happy path', () => {
     // Positive assertion on execAction call shape
     expect(mockExecAction).toHaveBeenCalledWith(
       'setup_email_add',
-      { mailbox: 'newuser@example.com', password: 'testpassword' },
+      {
+        setup_path: '/usr/local/bin/setup',
+        mailbox: 'newuser@example.com',
+        password: 'testpassword',
+      },
       expect.any(Object)
     );
   });
