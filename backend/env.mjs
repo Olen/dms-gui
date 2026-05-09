@@ -306,8 +306,16 @@ try:
   ACTIONS = load_manifest(MANIFEST_PATH)
   logger(f"Loaded {len(ACTIONS)} actions from {MANIFEST_PATH}")
 except FileNotFoundError:
-  logger(f"WARNING: manifest file not found at {MANIFEST_PATH}; "
-         f"action protocol disabled, only legacy {{command:}} path will work")
+  logger(
+    f"WARNING: manifest file not found at {MANIFEST_PATH}; "
+    f"action protocol disabled, only legacy {{command:}} path will work"
+  )
+  ACTIONS = types.MappingProxyType({})
+except (json.JSONDecodeError, ValueError, OSError) as e:
+  logger(
+    f"ERROR: failed to load manifest from {MANIFEST_PATH}: {type(e).__name__}: {e}; "
+    f"action protocol disabled, only legacy {{command:}} path will work"
+  )
   ACTIONS = types.MappingProxyType({})
 
 # ---- Declarative validators ----
@@ -328,9 +336,24 @@ def validate(spec, value):
       return False, None, "regex match failed"
     return True, value, None
   if 'int' in spec:
-    try:
+    # bool is a subclass of int in Python; reject it explicitly so a JSON
+    # 'true'/'false' doesn't silently coerce to 1/0.
+    if isinstance(value, bool):
+      return False, None, "not an integer (bool)"
+    if isinstance(value, float):
+      # Reject non-integer floats; '1.9' shouldn't silently become 1.
+      if not value.is_integer():
+        return False, None, "not an integer (non-integer float)"
       n = int(value)
-    except (TypeError, ValueError):
+    elif isinstance(value, int):
+      n = value
+    elif isinstance(value, str):
+      # Decimal-string input from the JSON-text-mode caller.
+      try:
+        n = int(value)
+      except ValueError:
+        return False, None, "not an integer (string parse failed)"
+    else:
       return False, None, "not an integer"
     r = spec['int']
     if 'min' in r and n < r['min']:
@@ -520,6 +543,15 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
     try:
       json_data = json.loads(post_data.decode('utf-8'))
       debugg(f"Received JSON data: {json_data}")
+
+      if not isinstance(json_data, dict):
+        response_message = {"status": "error", "error": "request body must be a JSON object"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
 
       action_id = json_data.get('action')
       command = json_data.get('command')
