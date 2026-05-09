@@ -93,3 +93,64 @@ describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
     );
   });
 });
+
+describe('rest-api.py interpreter wiring (Sprint A)', () => {
+  const py = mailserverRESTAPI.dms.api.content;
+
+  // ---- Manifest loading at startup ----
+  it('loads the manifest from MANIFEST_PATH at module import', () => {
+    expect(py).toContain('MANIFEST_PATH');
+    expect(py).toContain('def load_manifest(');
+    expect(py).toContain('/rest-api-manifest.json');
+    expect(py).toContain('raise ValueError');
+  });
+
+  // ---- Five validator types from the spec ----
+  it('implements all declared validator types', () => {
+    expect(py).toContain("'enum'");
+    expect(py).toContain("'regex'");
+    expect(py).toContain("'int'");
+    expect(py).toContain("'string'");
+    expect(py).toContain("'optional'");
+  });
+
+  it('uses re.fullmatch for regex validators (not re.match)', () => {
+    expect(py).toContain('re.fullmatch');
+    expect(py).not.toContain('re.match(');
+  });
+
+  // ---- Token-level substitution ----
+  it('does token-level template substitution, not string interpolation', () => {
+    expect(py).toMatch(/PLACEHOLDER\s*=\s*re\.compile/);
+    expect(py).toContain('def substitute(');
+  });
+
+  // ---- shell=False everywhere ----
+  it('runs subprocess.Popen with shell=False', () => {
+    expect(py).toContain('subprocess.Popen');
+    expect(py).toContain('shell=False');
+    expect(py).not.toContain('shell=True');
+  });
+
+  // ---- do_POST dispatch order ----
+  it('action branch precedes the legacy command branch', () => {
+    const actionBranch = py.indexOf("json_data.get('action')");
+    const commandBranch = py.indexOf("json_data.get('command')");
+    expect(actionBranch).toBeGreaterThan(0);
+    expect(commandBranch).toBeGreaterThan(0);
+    expect(actionBranch).toBeLessThan(commandBranch);
+  });
+
+  // ---- Unknown action → 403, not 200 ----
+  it('rejects unknown action ids with HTTP 403', () => {
+    const idx = py.indexOf('unknown action');
+    expect(idx).toBeGreaterThan(0);
+    expect(py.slice(Math.max(0, idx - 200), idx + 200)).toMatch(/403/);
+  });
+
+  // ---- Redirect target safety ----
+  it("rejects redirect targets that aren't absolute or contain '..'", () => {
+    expect(py).toMatch(/not target\.startswith\('\/'\)/);
+    expect(py).toMatch(/'\.\.' in target/);
+  });
+});
