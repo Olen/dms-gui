@@ -102,6 +102,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('deletes aliases where the mailbox is the source', async () => {
@@ -129,6 +135,12 @@ describe('deleteAccount — alias cleanup', () => {
       'test-mailserver',
       'user@example.com',
       'other@example.com'
+    );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
     );
   });
 
@@ -168,6 +180,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('handles comma-separated destinations when matching', async () => {
@@ -196,6 +214,12 @@ describe('deleteAccount — alias cleanup', () => {
       'info@example.com',
       'alice@example.com,user@example.com'
     );
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('does not delete unrelated aliases', async () => {
@@ -218,6 +242,12 @@ describe('deleteAccount — alias cleanup', () => {
     await deleteAccount('dms', 'test-mailserver', 'user@example.com');
 
     expect(mockDeleteAlias).not.toHaveBeenCalled();
+    // Positive assertion on execAction call shape (even when no aliases match)
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
   });
 
   it('handles empty alias list gracefully', async () => {
@@ -234,6 +264,38 @@ describe('deleteAccount — alias cleanup', () => {
 
     expect(mockDeleteAlias).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_del',
+      { mailbox: 'user@example.com' },
+      expect.objectContaining({ timeout: 60 })
+    );
+  });
+});
+
+describe('addAccount — happy path', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Default: DMS email add succeeds
+    mockExecAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+  });
+
+  it('adds an account with execAction call shape verification', async () => {
+    const result = await addAccount(
+      'dms',
+      'test-mailserver',
+      'newuser@example.com',
+      'testpassword'
+    );
+
+    // Should succeed
+    expect(result.success).toBe(true);
+    // Positive assertion on execAction call shape
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'setup_email_add',
+      { mailbox: 'newuser@example.com', password: 'testpassword' },
+      expect.any(Object)
+    );
   });
 });
 
