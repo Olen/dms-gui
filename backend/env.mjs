@@ -112,6 +112,18 @@ export const env = {
   // SMTP for password reset emails (local delivery to DMS container, no auth)
   SMTP_HOST: process.env.SMTP_HOST || 'mailserver',
   SMTP_PORT: Number(process.env.SMTP_PORT) || 25,
+  // SMTP TLS certificate verification. Defaults to true (proper CA
+  // validation, blocks MITM on the SMTP path). Set to "false" in
+  // .dms-gui.env if SMTP_HOST is a Docker container with a self-
+  // signed cert whose CN doesn't match the container name (the
+  // typical local-DMS deployment). Note that SMTP_TLS_REQUIRE
+  // (always true here) ensures we won't fall back to plaintext if
+  // verification fails — failure of the connection rather than
+  // silent downgrade.
+  SMTP_TLS_VERIFY:
+    (process.env.SMTP_TLS_VERIFY || '').toLowerCase() === 'false'
+      ? false
+      : true,
 
   // Base URL for password reset links (e.g., https://epost.example.com)
   // If not set, derived from X-Forwarded-Proto/Host headers (set by reverse proxy)

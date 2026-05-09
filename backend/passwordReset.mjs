@@ -1,18 +1,8 @@
 import crypto from 'node:crypto';
 import nodemailer from 'nodemailer';
 
-import {
-  debugLog,
-  errorLog,
-  infoLog,
-} from './backend.mjs';
-import {
-  changePassword,
-  dbAll,
-  dbGet,
-  dbRun,
-  sql,
-} from './db.mjs';
+import { debugLog, errorLog, infoLog } from './backend.mjs';
+import { changePassword, dbAll, dbGet, dbRun, sql } from './db.mjs';
 import { env } from './env.mjs';
 import { getLogin } from './logins.mjs';
 
@@ -22,14 +12,28 @@ const RATE_LIMIT_MAX = 3;
 
 let transporter = null;
 
+// Pure helper exported for test coverage of the TLS hardening (#34).
+// Keeps getTransporter() trivially testable without standing up the
+// whole module's mock graph.
+export const buildSmtpTransportConfig = (e) => ({
+  host: e.SMTP_HOST,
+  port: e.SMTP_PORT,
+  secure: false,
+  // requireTLS forces STARTTLS upgrade — without it, an attacker
+  // who can MITM the SMTP path could strip the upgrade and trick
+  // us into sending the reset link in plaintext.
+  requireTLS: true,
+  // rejectUnauthorized defaults to true (proper CA validation).
+  // Override via SMTP_TLS_VERIFY=false in .dms-gui.env when the
+  // SMTP target uses a self-signed cert whose CN doesn't match
+  // the host we connect to (common with internal Docker container
+  // names like 'mailserver').
+  tls: { rejectUnauthorized: e.SMTP_TLS_VERIFY },
+});
+
 const getTransporter = () => {
   if (!transporter) {
-    transporter = nodemailer.createTransport({
-      host: env.SMTP_HOST,
-      port: env.SMTP_PORT,
-      secure: false,
-      tls: { rejectUnauthorized: false },
-    });
+    transporter = nodemailer.createTransport(buildSmtpTransportConfig(env));
   }
   return transporter;
 };
@@ -39,7 +43,10 @@ const hashToken = (token) => {
 };
 
 export const requestPasswordReset = async (email, origin) => {
-  const genericResponse = { success: true, message: 'If that account exists, a reset link has been sent.' };
+  const genericResponse = {
+    success: true,
+    message: 'If that account exists, a reset link has been sent.',
+  };
 
   try {
     if (!email || typeof email !== 'string') return genericResponse;
@@ -52,7 +59,9 @@ export const requestPasswordReset = async (email, origin) => {
       const aliasResult = dbAll(
         `SELECT DISTINCT a.destination FROM aliases a
          JOIN configs c ON c.id = a.configID
-         WHERE c.plugin = 'mailserver' AND a.source = ?`, {}, email
+         WHERE c.plugin = 'mailserver' AND a.source = ?`,
+        {},
+        email
       );
       if (aliasResult.success && aliasResult.message?.length) {
         // Use the first destination mailbox
@@ -69,8 +78,17 @@ export const requestPasswordReset = async (email, origin) => {
     const now = Date.now();
 
     // Rate limit: max RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW_MS per mailbox
-    const recentResult = dbGet(sql.password_resets.select.countRecent, {}, loginId, now - RATE_LIMIT_WINDOW_MS);
-    if (recentResult.success && recentResult.message && recentResult.message.count >= RATE_LIMIT_MAX) {
+    const recentResult = dbGet(
+      sql.password_resets.select.countRecent,
+      {},
+      loginId,
+      now - RATE_LIMIT_WINDOW_MS
+    );
+    if (
+      recentResult.success &&
+      recentResult.message &&
+      recentResult.message.count >= RATE_LIMIT_MAX
+    ) {
       debugLog(`Password reset rate limited for ${email}`);
       return genericResponse; // silent rate limit — same response
     }
@@ -81,7 +99,14 @@ export const requestPasswordReset = async (email, origin) => {
     const expiresAt = now + TOKEN_EXPIRY_MS;
 
     // Store hash in DB
-    dbRun(sql.password_resets.insert.token, {}, loginId, tokenHash, expiresAt, now);
+    dbRun(
+      sql.password_resets.insert.token,
+      {},
+      loginId,
+      tokenHash,
+      expiresAt,
+      now
+    );
 
     // Build reset link using the Origin header from the request
     const resetUrl = `${origin}/reset-password?token=${rawToken}`;
@@ -105,11 +130,12 @@ export const requestPasswordReset = async (email, origin) => {
       });
       infoLog(`Password reset email sent to ${email}`);
     } catch (mailError) {
-      errorLog(`Failed to send password reset email to ${email}: ${mailError.message}`);
+      errorLog(
+        `Failed to send password reset email to ${email}: ${mailError.message}`
+      );
     }
 
     return genericResponse;
-
   } catch (error) {
     errorLog(`requestPasswordReset error: ${error.message}`);
     return genericResponse; // never reveal errors
@@ -125,13 +151,17 @@ export const validateResetToken = (token) => {
     const tokenHash = hashToken(token);
     const now = Date.now();
 
-    const result = dbGet(sql.password_resets.select.byTokenHash, {}, tokenHash, now);
+    const result = dbGet(
+      sql.password_resets.select.byTokenHash,
+      {},
+      tokenHash,
+      now
+    );
     if (!result.success || !result.message) {
       return { success: false, error: 'Invalid or expired token' };
     }
 
     return { success: true, mailbox: result.message.mailbox };
-
   } catch (error) {
     errorLog(`validateResetToken error: ${error.message}`);
     return { success: false, error: 'Invalid or expired token' };
@@ -144,43 +174,68 @@ export const executePasswordReset = async (token, password) => {
       return { success: false, error: 'Invalid token' };
     }
     if (!password || password.length < 8) {
-      return { success: false, error: 'Password must be at least 8 characters' };
+      return {
+        success: false,
+        error: 'Password must be at least 8 characters',
+      };
     }
 
     const tokenHash = hashToken(token);
     const now = Date.now();
 
-    const result = dbGet(sql.password_resets.select.byTokenHash, {}, tokenHash, now);
+    const result = dbGet(
+      sql.password_resets.select.byTokenHash,
+      {},
+      tokenHash,
+      now
+    );
     if (!result.success || !result.message) {
       return { success: false, error: 'Invalid or expired token' };
     }
 
-    const { id: resetId, loginId, mailbox, isAccount, mailserver } = result.message;
+    const {
+      id: resetId,
+      loginId,
+      mailbox,
+      isAccount,
+      mailserver,
+    } = result.message;
 
     // Atomically claim the token (prevents concurrent use via race condition)
-    const claimed = dbRun(sql.password_resets.update.markUsed, {}, now, resetId);
+    const claimed = dbRun(
+      sql.password_resets.update.markUsed,
+      {},
+      now,
+      resetId
+    );
     if (!claimed.success || !claimed.message?.changes) {
       return { success: false, error: 'Invalid or expired token' };
     }
-
 
     // Change the password using the appropriate flow
     let changeResult;
     if (isAccount && mailserver) {
       // DMS account: change password in the actual mail server (Dovecot) via setup.sh
-      changeResult = await changePassword('accounts', mailbox, password, null, mailserver);
+      changeResult = await changePassword(
+        'accounts',
+        mailbox,
+        password,
+        null,
+        mailserver
+      );
     } else {
       // GUI-only login: change password hash in the logins table
       changeResult = await changePassword('logins', loginId, password);
     }
     if (!changeResult.success) {
-      errorLog(`Password change failed for login ${loginId}: ${changeResult.error}`);
+      errorLog(
+        `Password change failed for login ${loginId}: ${changeResult.error}`
+      );
       return { success: false, error: 'Failed to reset password' };
     }
 
     infoLog(`Password reset completed for login ID ${loginId}`);
     return { success: true, message: 'Password has been reset successfully' };
-
   } catch (error) {
     errorLog(`executePasswordReset error: ${error.message}`);
     return { success: false, error: 'Failed to reset password' };
