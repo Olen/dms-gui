@@ -8,8 +8,7 @@ vi.mock('./backend.mjs', () => ({
   successLog: vi.fn(),
   warnLog: vi.fn(),
   infoLog: vi.fn(),
-  execCommand: vi.fn(),
-  execSetup: vi.fn(),
+  execAction: vi.fn(),
   formatDMSError: vi.fn(async (_label, stderr) => stderr || 'dms error'),
 }));
 
@@ -26,7 +25,13 @@ const mockDbAll = vi.fn();
 const mockDbRun = vi.fn();
 const mockDbGet = vi.fn();
 const mockDeleteEntry = vi.fn();
-const mockGetTargetDict = vi.fn(() => ({ host: 'localhost' }));
+const mockGetTargetDict = vi.fn(() => ({
+  host: 'localhost',
+  protocol: 'http',
+  port: 8888,
+  Authorization: 'test-key',
+  setupPath: '/usr/local/bin/setup',
+}));
 
 vi.mock('./db.mjs', () => ({
   dbAll: (...a) => mockDbAll(...a),
@@ -48,7 +53,7 @@ vi.mock('./settings.mjs', () => ({
   getConfigs: (...a) => mockGetConfigs(...a),
 }));
 
-import { execSetup, execCommand } from './backend.mjs';
+import { execAction } from './backend.mjs';
 import { updateAlias, getAliases } from './aliases.mjs';
 
 describe('updateAlias', () => {
@@ -59,129 +64,217 @@ describe('updateAlias', () => {
   it('returns no-op success when new destination equals old, without calling DMS or DB', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+      message: [
+        {
+          source: 'info@example.com',
+          destination: 'a@example.com,b@example.com',
+          regex: 0,
+        },
+      ],
     });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'a@example.com,b@example.com'
+    );
 
     expect(result.success).toBe(true);
     expect(result.message).toMatch(/no changes/i);
-    expect(execSetup).not.toHaveBeenCalled();
+    expect(execAction).not.toHaveBeenCalled();
     expect(mockDbRun).not.toHaveBeenCalled();
   });
 
   it('issues alias add for each added destination and updates DB on success', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+      message: [
+        { source: 'info@example.com', destination: 'a@example.com', regex: 0 },
+      ],
     });
-    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDbRun.mockReturnValue({ success: true });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'a@example.com,b@example.com'
+    );
 
     expect(result.success).toBe(true);
-    expect(execSetup).toHaveBeenCalledTimes(1);
-    expect(execSetup).toHaveBeenCalledWith(
-      expect.stringMatching(/^alias add 'info@example\.com' 'b@example\.com'$/),
-      expect.any(Object),
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction).toHaveBeenCalledWith(
+      'setup_alias_add',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'info@example.com',
+        destination: 'b@example.com',
+      },
+      expect.any(Object)
     );
     // DB updated with the merged set
     expect(mockDbRun).toHaveBeenCalledWith(
       expect.any(String),
-      expect.objectContaining({ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }),
-      'mailserver',
+      expect.objectContaining({
+        source: 'info@example.com',
+        destination: 'a@example.com,b@example.com',
+        regex: 0,
+      }),
+      'mailserver'
     );
   });
 
   it('issues alias del for each removed destination', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+      message: [
+        {
+          source: 'info@example.com',
+          destination: 'a@example.com,b@example.com',
+          regex: 0,
+        },
+      ],
     });
-    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDbRun.mockReturnValue({ success: true });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'a@example.com'
+    );
 
     expect(result.success).toBe(true);
-    expect(execSetup).toHaveBeenCalledTimes(1);
-    expect(execSetup).toHaveBeenCalledWith(
-      expect.stringMatching(/^alias del 'info@example\.com' 'b@example\.com'$/),
-      expect.any(Object),
+    expect(execAction).toHaveBeenCalledTimes(1);
+    expect(execAction).toHaveBeenCalledWith(
+      'setup_alias_del',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'info@example.com',
+        destination: 'b@example.com',
+      },
+      expect.any(Object)
     );
     expect(mockDbRun).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ destination: 'a@example.com' }),
-      'mailserver',
+      'mailserver'
     );
   });
 
   it('handles a mixed diff: removes one, adds one', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+      message: [
+        {
+          source: 'info@example.com',
+          destination: 'a@example.com,b@example.com',
+          regex: 0,
+        },
+      ],
     });
-    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDbRun.mockReturnValue({ success: true });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com,c@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'b@example.com,c@example.com'
+    );
 
     expect(result.success).toBe(true);
-    expect(execSetup).toHaveBeenCalledTimes(2);
+    expect(execAction).toHaveBeenCalledTimes(2);
     // First: del a@; second: add c@. Order: removals before additions.
-    expect(execSetup.mock.calls[0][0]).toMatch(/^alias del 'info@example\.com' 'a@example\.com'$/);
-    expect(execSetup.mock.calls[1][0]).toMatch(/^alias add 'info@example\.com' 'c@example\.com'$/);
+    expect(execAction.mock.calls[0]).toEqual([
+      'setup_alias_del',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'info@example.com',
+        destination: 'a@example.com',
+      },
+      expect.any(Object),
+    ]);
+    expect(execAction.mock.calls[1]).toEqual([
+      'setup_alias_add',
+      {
+        setup_path: '/usr/local/bin/setup',
+        source: 'info@example.com',
+        destination: 'c@example.com',
+      },
+      expect.any(Object),
+    ]);
   });
 
   it('rejects regex aliases without calling DMS', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: '/^info.*/', destination: 'a@example.com', regex: 1 }],
+      message: [
+        { source: '/^info.*/', destination: 'a@example.com', regex: 1 },
+      ],
     });
 
-    const result = await updateAlias('mailserver', '/^info.*/', 'b@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      '/^info.*/',
+      'b@example.com'
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/regex aliases is not supported/i);
-    expect(execSetup).not.toHaveBeenCalled();
+    expect(execAction).not.toHaveBeenCalled();
     expect(mockDbRun).not.toHaveBeenCalled();
   });
 
   it('rejects when the alias does not exist in the DB', async () => {
     mockDbAll.mockReturnValue({ success: true, message: [] });
 
-    const result = await updateAlias('mailserver', 'gone@example.com', 'a@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'gone@example.com',
+      'a@example.com'
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/not found/i);
-    expect(execSetup).not.toHaveBeenCalled();
+    expect(execAction).not.toHaveBeenCalled();
   });
 
   it('rejects empty newDestination', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+      message: [
+        { source: 'info@example.com', destination: 'a@example.com', regex: 0 },
+      ],
     });
 
     const result = await updateAlias('mailserver', 'info@example.com', '');
 
     expect(result.success).toBe(false);
-    expect(execSetup).not.toHaveBeenCalled();
+    expect(execAction).not.toHaveBeenCalled();
   });
 
   it('on partial failure, writes the actual surviving set to the DB', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com,b@example.com', regex: 0 }],
+      message: [
+        {
+          source: 'info@example.com',
+          destination: 'a@example.com,b@example.com',
+          regex: 0,
+        },
+      ],
     });
     // First call (del a@) succeeds, second call (add c@) fails.
-    execSetup
-      .mockResolvedValueOnce({ returncode: 0, stderr: '' })
-      .mockResolvedValueOnce({ returncode: 1, stderr: 'boom' });
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' })
+      .mockResolvedValueOnce({ returncode: 1, stdout: '', stderr: 'boom' });
     mockDbRun.mockReturnValue({ success: true });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com,c@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'b@example.com,c@example.com'
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/Partially updated/);
@@ -192,19 +285,25 @@ describe('updateAlias', () => {
     expect(mockDbRun).toHaveBeenCalledWith(
       expect.any(String),
       expect.objectContaining({ destination: 'b@example.com' }),
-      'mailserver',
+      'mailserver'
     );
   });
 
   it('on full failure, leaves DB unchanged and returns the spec-mandated error', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+      message: [
+        { source: 'info@example.com', destination: 'a@example.com', regex: 0 },
+      ],
     });
-    // All execSetup calls fail.
-    execSetup.mockResolvedValue({ returncode: 1, stderr: 'boom' });
+    // All execAction calls fail.
+    execAction.mockResolvedValue({ returncode: 1, stdout: '', stderr: 'boom' });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'b@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'b@example.com'
+    );
 
     expect(result.success).toBe(false);
     expect(result.error).toBe('Failed to update alias');
@@ -215,18 +314,23 @@ describe('updateAlias', () => {
   it('returns "DB out of sync" when DMS partially succeeds but DB write fails', async () => {
     mockDbAll.mockReturnValue({
       success: true,
-      message: [{ source: 'info@example.com', destination: 'a@example.com', regex: 0 }],
+      message: [
+        { source: 'info@example.com', destination: 'a@example.com', regex: 0 },
+      ],
     });
-    execSetup.mockResolvedValue({ returncode: 0, stderr: '' });
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDbRun.mockReturnValue({ success: false, error: 'disk full' });
 
-    const result = await updateAlias('mailserver', 'info@example.com', 'a@example.com,b@example.com');
+    const result = await updateAlias(
+      'mailserver',
+      'info@example.com',
+      'a@example.com,b@example.com'
+    );
     expect(result.success).toBe(false);
     expect(result.error).toMatch(/DB out of sync/);
     expect(result.error).toMatch(/disk full/);
   });
 });
-
 
 describe('getAliases — refresh path with non-admin roles', () => {
   // Regression test for a bug where the refresh path returned the
@@ -242,56 +346,84 @@ describe('getAliases — refresh path with non-admin roles', () => {
     // getConfigs returns a single dms-schema config for the mailserver.
     mockGetConfigs.mockResolvedValue({
       success: true,
-      message: [{ value: 'mailserver', plugin: 'mailserver', schema: 'dms', scope: 'dms-gui' }],
+      message: [
+        {
+          value: 'mailserver',
+          plugin: 'mailserver',
+          schema: 'dms',
+          scope: 'dms-gui',
+        },
+      ],
     });
 
     // Simulate the DMS `setup alias list` output: three aliases, two
     // pointing to the user's role and one to someone else's mailbox.
-    execSetup.mockResolvedValue({
-      returncode: 0,
-      stderr: '',
-      stdout: [
-        '* alias-a@example.com user@example.com',
-        '* alias-b@example.com user@example.com',
-        '* alias-c@example.com other@example.com',
-      ].join('\n'),
-    });
-
-    // Postfix-regex pull returns no entries.
-    execCommand.mockResolvedValue({ returncode: 0, stderr: '', stdout: '' });
+    // First execAction call is setup_alias_list; second is cat_postfix_regexp.
+    execAction
+      .mockResolvedValueOnce({
+        returncode: 0,
+        stderr: '',
+        stdout: [
+          '* alias-a@example.com user@example.com',
+          '* alias-b@example.com user@example.com',
+          '* alias-c@example.com other@example.com',
+        ].join('\n'),
+      })
+      .mockResolvedValueOnce({ returncode: 0, stderr: '', stdout: '' });
 
     // DB writes succeed.
     mockDbRun.mockReturnValue({ success: true });
     mockDeleteEntry.mockReturnValue({ success: true });
 
-    const result = await getAliases('mailserver', /*refresh*/ true, /*roles*/ ['user@example.com']);
+    const result = await getAliases(
+      'mailserver',
+      /*refresh*/ true,
+      /*roles*/ ['user@example.com']
+    );
 
     expect(result.success).toBe(true);
     // Only the two aliases destined for the user's role should be returned.
     expect(result.message).toHaveLength(2);
-    expect(result.message.every(a => a.destination === 'user@example.com')).toBe(true);
+    expect(
+      result.message.every((a) => a.destination === 'user@example.com')
+    ).toBe(true);
     // Make sure the leaked alias is not present.
-    expect(result.message.find(a => a.destination === 'other@example.com')).toBeUndefined();
+    expect(
+      result.message.find((a) => a.destination === 'other@example.com')
+    ).toBeUndefined();
   });
 
   it('on refresh, returns the full list to admin callers (roles=[])', async () => {
     mockGetConfigs.mockResolvedValue({
       success: true,
-      message: [{ value: 'mailserver', plugin: 'mailserver', schema: 'dms', scope: 'dms-gui' }],
+      message: [
+        {
+          value: 'mailserver',
+          plugin: 'mailserver',
+          schema: 'dms',
+          scope: 'dms-gui',
+        },
+      ],
     });
-    execSetup.mockResolvedValue({
-      returncode: 0,
-      stderr: '',
-      stdout: [
-        '* alias-a@example.com user@example.com',
-        '* alias-c@example.com other@example.com',
-      ].join('\n'),
-    });
-    execCommand.mockResolvedValue({ returncode: 0, stderr: '', stdout: '' });
+    // First execAction call is setup_alias_list; second is cat_postfix_regexp.
+    execAction
+      .mockResolvedValueOnce({
+        returncode: 0,
+        stderr: '',
+        stdout: [
+          '* alias-a@example.com user@example.com',
+          '* alias-c@example.com other@example.com',
+        ].join('\n'),
+      })
+      .mockResolvedValueOnce({ returncode: 0, stderr: '', stdout: '' });
     mockDbRun.mockReturnValue({ success: true });
     mockDeleteEntry.mockReturnValue({ success: true });
 
-    const result = await getAliases('mailserver', /*refresh*/ true, /*roles*/ []);
+    const result = await getAliases(
+      'mailserver',
+      /*refresh*/ true,
+      /*roles*/ []
+    );
 
     expect(result.success).toBe(true);
     expect(result.message).toHaveLength(2);

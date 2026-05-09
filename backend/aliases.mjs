@@ -1,5 +1,5 @@
 import {
-  escapeShellArg,
+  redactKey,
   reduxArrayOfObjByValue,
   regexEmailStrict,
   regexMatchPostfix,
@@ -7,14 +7,12 @@ import {
 import {
   debugLog,
   errorLog,
-  execCommand,
-  execSetup,
+  execAction,
   formatDMSError,
   infoLog,
   successLog,
   warnLog,
 } from './backend.mjs';
-import { env } from './env.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
 import { dbAll, dbRun, deleteEntry, getTargetDict, sql } from './db.mjs';
@@ -134,20 +132,26 @@ export const pullAliasesFromDMS = async (containerName = null) => {
   if (!containerName) return { success: false, error: 'containerName is null' };
 
   let aliases = [];
-  const command = 'alias list';
 
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
-    debugLog(`execSetup(${command})`);
-    const results = await execSetup(command, targetDict);
-    // debugLog('ddebug results',results)
+    debugLog(`execAction(setup_alias_list)`, {
+      ...targetDict,
+      // Redact the DMS API key before it reaches the log stream.
+      Authorization: redactKey(targetDict.Authorization),
+    });
+    const results = await execAction(
+      'setup_alias_list',
+      { setup_path: targetDict.setupPath },
+      targetDict
+    );
 
     if (!results.returncode) {
       aliases = await parseAliasesFromDMS(results.stdout);
       infoLog(`Found ${aliases.length} aliases`);
     } else {
-      let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+      let ErrorMsg = await formatDMSError('execAction', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -214,18 +218,21 @@ export const pullPostfixRegexFromDMS = async (containerName = null) => {
   if (!containerName) return { success: false, error: 'containerName is null' };
 
   let regexes = [];
-  const command = `cat ${env.DMS_CONFIG_PATH}/postfix-regexp.cf`;
 
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
-    debugLog(`execSetup(${command})`);
-    const results = await execCommand(command, targetDict);
+    debugLog(`execAction(cat_postfix_regexp)`, {
+      ...targetDict,
+      // Redact the DMS API key before it reaches the log stream.
+      Authorization: redactKey(targetDict.Authorization),
+    });
+    const results = await execAction('cat_postfix_regexp', {}, targetDict);
     if (!results.returncode) {
       regexes = await parsePostfixRegexFromDMS(results.stdout);
       infoLog(`Found ${regexes.length} regexes`);
     } else {
-      let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+      let ErrorMsg = await formatDMSError('execAction', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -286,8 +293,9 @@ export const addAlias = async (
     if (source.match(regexEmailStrict)) {
       debugLog(`Adding new alias: ${source} -> ${destination}`);
 
-      results = await execSetup(
-        `alias add ${escapeShellArg(source)} ${escapeShellArg(destination)}`,
+      results = await execAction(
+        'setup_alias_add',
+        { setup_path: targetDict.setupPath, source, destination },
         targetDict
       );
       if (!results.returncode) {
@@ -305,20 +313,20 @@ export const addAlias = async (
         }
         return result;
       }
-      let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+      let ErrorMsg = await formatDMSError('execAction', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
 
-      // this is a regex
+      // this is a regex — append line then reload postfix via sequential actions
     } else {
-      let command = `echo ${escapeShellArg(source + ' ' + destination)} >>${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
+      const line = `${source} ${destination}`;
       debugLog(`Adding new regex: ${source} -> ${destination}`);
 
-      results = await execCommand(command, targetDict);
+      // The legacy &&-chain (echo >> file && postfix reload) is replaced by
+      // two sequential execAction calls; the second only runs if the first succeeds.
+      results = await execAction('postfix_regexp_append', { line }, targetDict);
       if (!results.returncode) {
-        // reload postfix
-        command = `postfix reload`;
-        results = await execCommand(command, targetDict);
+        results = await execAction('postfix_reload', {}, targetDict);
         if (!results.returncode) {
           result = dbRun(
             sql.aliases.insert.alias,
@@ -385,8 +393,9 @@ export const deleteAlias = async (
         .filter(Boolean);
       const failed = [];
       for (const dest of destinations) {
-        results = await execSetup(
-          `alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+        results = await execAction(
+          'setup_alias_del',
+          { setup_path: targetDict.setupPath, source, destination: dest },
           targetDict
         );
         debugLog(
@@ -394,7 +403,7 @@ export const deleteAlias = async (
           results
         );
         if (results.returncode) {
-          let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+          let ErrorMsg = await formatDMSError('execAction', results.stderr);
           errorLog(`Failed to delete ${source} -> ${dest}: ${ErrorMsg}`);
           failed.push(dest);
         }
@@ -431,34 +440,49 @@ export const deleteAlias = async (
       source = JSON.stringify(source);
       debugLog(`Deleting alias regex: ${source}`);
 
-      let command = `grep -Fv ${escapeShellArg(source + ' ' + destination)} ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')} >/tmp/postfix-regexp.cf && mv /tmp/postfix-regexp.cf ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
-      results = await execCommand(command, targetDict);
+      // The legacy &&-chain (grep -Fv > tmp && mv tmp final && postfix reload)
+      // is replaced by three sequential execAction calls; each step only runs
+      // if the previous one succeeded.
+      const line = `${source} ${destination}`;
+      results = await execAction(
+        'postfix_regexp_filter_to_tmp',
+        { line },
+        targetDict
+      );
       debugLog(
         `------------------------------- Alias regex deleted results:`,
         results
       );
       if (!results.returncode) {
-        successLog(`Alias regex deleted: ${source}`);
-
-        const result = deleteEntry(
-          'aliases',
-          source,
-          'bySource',
-          containerName
+        results = await execAction(
+          'tmp_postfix_regexp_to_final',
+          {},
+          targetDict
         );
-        if (result.success) {
-          successLog(`Alias entry deleted: ${source}`);
+        if (!results.returncode) {
+          successLog(`Alias regex deleted: ${source}`);
 
-          // reload postfix
-          command = `postfix reload`;
-          results = await execCommand(command, targetDict);
-          if (!results.returncode) {
-            successLog(`postfix reloaded`);
-            return result;
-          }
-          errorLog(results.stderr);
-          return { success: false, error: results.stderr };
-        } else return result;
+          const result = deleteEntry(
+            'aliases',
+            source,
+            'bySource',
+            containerName
+          );
+          if (result.success) {
+            successLog(`Alias entry deleted: ${source}`);
+
+            // reload postfix
+            results = await execAction('postfix_reload', {}, targetDict);
+            if (!results.returncode) {
+              successLog(`postfix reloaded`);
+              return result;
+            }
+            errorLog(results.stderr);
+            return { success: false, error: results.stderr };
+          } else return result;
+        }
+        errorLog(results.stderr);
+        return { success: false, error: results.stderr };
       }
       errorLog(results.stderr);
       return { success: false, error: results.stderr };
@@ -531,24 +555,26 @@ export const updateAlias = async (
 
     // Removals first, so the alias is never temporarily over-fanned-out.
     for (const dest of removed) {
-      const r = await execSetup(
-        `alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+      const r = await execAction(
+        'setup_alias_del',
+        { setup_path: targetDict.setupPath, source, destination: dest },
         targetDict
       );
       if (r.returncode) {
-        const msg = await formatDMSError('execSetup', r.stderr);
+        const msg = await formatDMSError('execAction', r.stderr);
         errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
         failedRemove.push(dest);
       }
     }
 
     for (const dest of added) {
-      const r = await execSetup(
-        `alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+      const r = await execAction(
+        'setup_alias_add',
+        { setup_path: targetDict.setupPath, source, destination: dest },
         targetDict
       );
       if (r.returncode) {
-        const msg = await formatDMSError('execSetup', r.stderr);
+        const msg = await formatDMSError('execAction', r.stderr);
         errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
         failedAdd.push(dest);
       }
