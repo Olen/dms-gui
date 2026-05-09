@@ -4,12 +4,12 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
 
-describe('REST_API_MANIFEST (Sprint B — accounts.mjs migration)', () => {
+describe('REST_API_MANIFEST (action protocol)', () => {
   it('exports an array', () => {
     expect(Array.isArray(REST_API_MANIFEST)).toBe(true);
   });
 
-  it('contains the 12 actions accounts.mjs needs', () => {
+  it('contains the actions for accounts.mjs (Sprint B)', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);
     const required = [
       'setup_email_list',
@@ -24,6 +24,31 @@ describe('REST_API_MANIFEST (Sprint B — accounts.mjs migration)', () => {
       'doveadm_mailbox_status',
       'doveadm_force_resync',
       'doveadm_quota_get',
+    ];
+    for (const id of required) expect(ids).toContain(id);
+  });
+
+  it('contains the actions for aliases.mjs / sieve.mjs / logins.mjs (Sprint C)', () => {
+    const ids = REST_API_MANIFEST.map((a) => a.id);
+    const required = [
+      // aliases.mjs
+      'setup_alias_list',
+      'setup_alias_add',
+      'setup_alias_del',
+      'cat_postfix_regexp',
+      'postfix_regexp_append',
+      'postfix_regexp_filter_to_tmp',
+      'tmp_postfix_regexp_to_final',
+      'postfix_reload',
+      // sieve.mjs
+      'doveadm_sieve_list',
+      'doveadm_sieve_get',
+      'doveadm_sieve_put',
+      'doveadm_sieve_activate',
+      'doveadm_sieve_deactivate',
+      'doveadm_sieve_delete',
+      // logins.mjs
+      'doveadm_auth_test',
     ];
     for (const id of required) expect(ids).toContain(id);
   });

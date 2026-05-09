@@ -15,9 +15,9 @@
 //     redirect:  { mode: 'write'|'append', file: <path-template> } — optional file redirect
 //   }
 //
-// Sprint A shipped an empty manifest. Sprint B populates it with the
-// 12 actions accounts.mjs needs; Sprints C–E continue per-file as
-// migration progresses.
+// Sprint A shipped an empty manifest. Sprint B populated it with the
+// 12 actions accounts.mjs needs. Sprint C adds 15 more for aliases.mjs,
+// sieve.mjs, and logins.mjs; Sprints D–E continue.
 // setup_path is supplied per-call from targetDict.setupPath (populated by
 // getTargetDict() from the per-container settings DB, defaulting to
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
@@ -59,9 +59,28 @@ const BOX_VALIDATOR = {
   regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$',
   maxlen: 256,
 };
-// Generic password validator (currently only setup_email_add uses it,
-// but extracted as a preset for parity with the other validators and
-// to make Sprint C's doveadm_auth_test reuse trivial).
+// Postfix-regex alias source/destination line for echo+append. Each
+// half is a single token; together they form a postfix-regex map line.
+// Tightened against shell metas just in case future protocol-changes
+// expose argv tokens to a shell — `shell=False` makes them inert today.
+const POSTFIX_REGEXP_LINE_VALIDATOR = {
+  regex: '^[\\w./@\\-+ ]+$',
+  maxlen: 512,
+};
+// Generic 'short string' for things like alias source/destination
+// (where they're already constrained at the route layer to be email
+// shapes, but we add a manifest-level tight check too).
+const ALIAS_SOURCE_VALIDATOR = MAILBOX_VALIDATOR;
+const ALIAS_DESTINATION_VALIDATOR = MAILBOX_VALIDATOR;
+// Sieve script as base64. RFC 4648 alphabet: A-Z a-z 0-9 + / =.
+// Cap at 64 KB encoded (≈48 KB decoded) — well above any reasonable
+// sieve filter size, well below the rest-api's DMS_API_SIZE limit.
+const SIEVE_SCRIPT_B64_VALIDATOR = {
+  regex: '^[A-Za-z0-9+/=]+$',
+  maxlen: 65536,
+};
+// Generic password validator (Sprint B extracted this preset; Sprint C
+// reuses it for doveadm_auth_test).
 const PASSWORD_VALIDATOR = { string: { minlen: 1, maxlen: 256 } };
 
 export const REST_API_MANIFEST = [
@@ -207,6 +226,146 @@ export const REST_API_MANIFEST = [
     argv: ['doveadm', 'quota', 'get', '-u', '{mailbox}'],
     validate: {
       mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+
+  // ---- Sprint C: aliases.mjs actions ----
+  {
+    id: 'setup_alias_list',
+    argv: ['{setup_path}', 'alias', 'list'],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+    },
+  },
+  {
+    id: 'setup_alias_add',
+    argv: ['{setup_path}', 'alias', 'add', '{source}', '{destination}'],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      source: ALIAS_SOURCE_VALIDATOR,
+      destination: ALIAS_DESTINATION_VALIDATOR,
+    },
+  },
+  {
+    id: 'setup_alias_del',
+    argv: ['{setup_path}', 'alias', 'del', '{source}', '{destination}'],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      source: ALIAS_SOURCE_VALIDATOR,
+      destination: ALIAS_DESTINATION_VALIDATOR,
+    },
+  },
+  {
+    // Read the postfix regex aliases file. Path is fixed because the
+    // file lives at a well-known DMS-config-relative location.
+    id: 'cat_postfix_regexp',
+    argv: ['cat', '/tmp/docker-mailserver/postfix-regexp.cf'],
+  },
+  {
+    // Append a postfix-regex alias line to the file.
+    // line is a free-form string; constrained server-side and at the
+    // route layer (the JS caller composes "<src> <dst>" before the call).
+    id: 'postfix_regexp_append',
+    argv: ['echo', '{line}'],
+    redirect: {
+      mode: 'append',
+      file: '/tmp/docker-mailserver/postfix-regexp.cf',
+    },
+    validate: {
+      line: POSTFIX_REGEXP_LINE_VALIDATOR,
+    },
+  },
+  {
+    // Filter a line OUT of the postfix-regex file by writing the
+    // remaining content to /tmp/postfix-regexp.cf (intermediate file).
+    // The legacy code did `grep -Fv X file > /tmp/file && mv /tmp/file file`
+    // for atomic-ish replace; the action protocol splits this into two
+    // sequential calls (this one + tmp_postfix_regexp_to_final).
+    id: 'postfix_regexp_filter_to_tmp',
+    argv: ['grep', '-Fv', '{line}', '/tmp/docker-mailserver/postfix-regexp.cf'],
+    redirect: { mode: 'write', file: '/tmp/postfix-regexp.cf' },
+    validate: {
+      line: POSTFIX_REGEXP_LINE_VALIDATOR,
+    },
+  },
+  {
+    // Atomically replace the postfix-regex file with the filtered tmp.
+    // Pairs with postfix_regexp_filter_to_tmp.
+    id: 'tmp_postfix_regexp_to_final',
+    argv: [
+      'mv',
+      '/tmp/postfix-regexp.cf',
+      '/tmp/docker-mailserver/postfix-regexp.cf',
+    ],
+  },
+  {
+    id: 'postfix_reload',
+    argv: ['postfix', 'reload'],
+  },
+
+  // ---- Sprint C: sieve.mjs actions ----
+  {
+    id: 'doveadm_sieve_list',
+    argv: ['doveadm', 'sieve', 'list', '-u', '{mailbox}'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+  {
+    // The sieve script slot is the constant 'roundcube' (the dms-gui
+    // UI only manages roundcube's filter; that's fixed, not a parameter).
+    id: 'doveadm_sieve_get',
+    argv: ['doveadm', 'sieve', 'get', '-u', '{mailbox}', 'roundcube'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+  {
+    // sieve put receives the script via stdin: the JS caller base64-encodes
+    // the script first; the pipeline echoes the b64, decodes it, and pipes
+    // the raw script into doveadm sieve put. Three stages:
+    //   echo {b64} | base64 -d | doveadm sieve put -u {mailbox} roundcube
+    id: 'doveadm_sieve_put',
+    pipeline: [
+      { argv: ['echo', '{b64}'] },
+      { argv: ['base64', '-d'] },
+      { argv: ['doveadm', 'sieve', 'put', '-u', '{mailbox}', 'roundcube'] },
+    ],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+      b64: SIEVE_SCRIPT_B64_VALIDATOR,
+    },
+  },
+  {
+    id: 'doveadm_sieve_activate',
+    argv: ['doveadm', 'sieve', 'activate', '-u', '{mailbox}', 'roundcube'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+  {
+    id: 'doveadm_sieve_deactivate',
+    argv: ['doveadm', 'sieve', 'deactivate', '-u', '{mailbox}'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+  {
+    id: 'doveadm_sieve_delete',
+    argv: ['doveadm', 'sieve', 'delete', '-u', '{mailbox}', 'roundcube'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+    },
+  },
+
+  // ---- Sprint C: logins.mjs actions ----
+  {
+    // Used to verify a user's DMS dovecot password during dms-gui login.
+    id: 'doveadm_auth_test',
+    argv: ['doveadm', 'auth', 'test', '{mailbox}', '{password}'],
+    validate: {
+      mailbox: MAILBOX_VALIDATOR,
+      password: PASSWORD_VALIDATOR,
     },
   },
 ];
