@@ -32,7 +32,7 @@ const parseStatLine = (line, options) => {
 
 const parseProcessLine = (str) => {
   var result = {};
-  var regex = /(?<=)\S+/g; //capture values beetween spaces
+  var regex = /(?<=)\S+/g; //capture values between spaces
   try {
     var data = [...str.matchAll(regex)];
 

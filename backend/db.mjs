@@ -739,7 +739,7 @@ export const dbOpen = () => {
 // dbRun takes multiple anonymous parameters anonParams as an array of strings, for WHERE clause value(s) when needed
 export const dbRun = (sql, params = {}, ...anonParams) => {
   if (typeof sql != 'string') {
-    throw new Error('Error: sql argument must be a string: sql=', sql);
+    throw new Error(`Error: sql argument must be a string: sql=${sql}`);
   }
 
   let result, insertMany;
@@ -835,7 +835,7 @@ export const dbCount = (table, scope, schema) => {
 
 export const dbGet = (sql, params = {}, ...anonParams) => {
   if (typeof sql != 'string') {
-    throw new Error('Error: sql argument must be a string: sql=', sql);
+    throw new Error(`Error: sql argument must be a string: sql=${sql}`);
   }
 
   let result;
@@ -858,7 +858,7 @@ export const dbGet = (sql, params = {}, ...anonParams) => {
 // WARNING: use the spread syntax when passing an array in anonParams!
 export const dbAll = (sql, params = {}, ...anonParams) => {
   if (typeof sql != 'string') {
-    throw new Error('Error: sql argument must be a string: sql=', sql);
+    throw new Error(`Error: sql argument must be a string: sql=${sql}`);
   }
 
   let result;
