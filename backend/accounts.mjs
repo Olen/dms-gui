@@ -302,6 +302,11 @@ export const addAccount = async (
   if (!password) return { success: false, error: 'password is null' };
   if (!mailbox) return { success: false, error: 'mailbox is null' };
   if (!containerName) return { success: false, error: 'containerName is null' };
+  // Defence in depth: routes already allowlist-check, but a direct
+  // caller passing an unsupported schema would otherwise leave
+  // `results` undefined and crash on `results.returncode`.
+  if (!SUPPORTED_SCHEMAS.has(schema))
+    return { success: false, error: `unsupported schema '${schema}'` };
 
   const demo = demoWriteResponse(`Account created: ${mailbox}`);
   if (demo) return demo;
@@ -377,7 +382,7 @@ export const addAccount = async (
 // are not affected by this allowlist.)
 export const SUPPORTED_SCHEMAS = new Set(['dms']);
 
-// Function to delete an mailbox account; schema is needed because of the remote command involved
+// Function to delete a mailbox account; schema is needed because of the remote command involved
 export const deleteAccount = async (
   schema = 'dms',
   containerName = null,
@@ -385,6 +390,12 @@ export const deleteAccount = async (
 ) => {
   if (!mailbox) return { success: false, error: 'mailbox is null' };
   if (!containerName) return { success: false, error: 'containerName is null' };
+  // Defence in depth: see addAccount above for the same guard. The
+  // route layer also checks SUPPORTED_SCHEMAS, but a direct internal
+  // caller would crash on `results.returncode` for an unsupported
+  // schema without this.
+  if (!SUPPORTED_SCHEMAS.has(schema))
+    return { success: false, error: `unsupported schema '${schema}'` };
 
   const demo = demoWriteResponse(`Account deleted: ${mailbox}`);
   if (demo) return demo;

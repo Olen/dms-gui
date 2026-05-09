@@ -113,7 +113,7 @@ router.get(
  *       201:
  *         description: Account created successfully
  *       400:
- *         description: mailbox and password are required
+ *         description: Bad request — missing mailbox/password, or unsupported :schema
  *       500:
  *         description: Unable to create account
  */
@@ -242,7 +242,7 @@ router.put(
  * /api/accounts/{schema}/{containerName}/{mailbox}:
  *   delete:
  *     summary: Delete a mailbox account
- *     description: Delete an mailbox account from the docker-mailserver
+ *     description: Delete a mailbox account from the docker-mailserver
  *     parameters:
  *       - in: path
  *         name: schema
@@ -266,7 +266,7 @@ router.put(
  *       200:
  *         description: Account deleted successfully
  *       400:
- *         description: mailbox is required
+ *         description: Bad request — missing mailbox/containerName, or unsupported :schema
  *       500:
  *         description: Unable to delete account
  */
