@@ -249,6 +249,25 @@ A pre-2.2.0 deployment derived the password-reset URL from these headers. An att
 | `DMS_API_PORT` | `8888` | API listen port |
 | `DMS_API_KEY` | — | API authentication key (must match dms-gui Settings) |
 | `DMS_API_SIZE` | `1024` | Maximum request payload size |
+| `DMS_API_ALLOWED_BINS` | _audited default_ | Override the binary allowlist (comma-separated) |
+
+#### Command allowlist
+
+`rest-api.py` only executes commands whose leading binary is in a small,
+audited allowlist. The default covers everything dms-gui's backend
+currently invokes (`setup`, `doveadm`, `doveconf`, `dovecot`, `postfix`,
+`ps`, `df`, `top`, `tail`, `grep`, `cat`, `env`, `echo`, `mv`, `mkdir`,
+`cp`, `chown`, `awk`, `base64`, `redis-cli`). Anything outside that
+list — shells, interpreters, network tools, etc. — is rejected with
+HTTP-200 + `returncode: 126` and a server-side log line, so a leaked
+`DMS_API_KEY` cannot be used to spawn arbitrary processes inside the
+DMS container. The check applies to every stage of a piped command
+and to every stage of an `&&`-chained command.
+
+To extend the allowlist for custom needs, set
+`DMS_API_ALLOWED_BINS=setup,doveadm,...` on the DMS container; an
+explicit value fully replaces the default, so include every binary
+dms-gui needs (the default list above is a safe starting point).
 
 #### Hardening `DMS_API_HOST` (defense in depth)
 

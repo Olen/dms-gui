@@ -8,7 +8,11 @@ vi.hoisted(() => {
 });
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
-import { resolveSmtpTlsVerify } from './env.mjs';
+import {
+  resolveSmtpTlsVerify,
+  REST_API_DEFAULT_ALLOWED_BINS,
+  mailserverRESTAPI,
+} from './env.mjs';
 
 describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
   it('explicit "false" overrides everything else', () => {
@@ -65,5 +69,106 @@ describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
       resolveSmtpTlsVerify({ SMTP_TLS_VERIFY: 'yes', SMTP_HOST: 'x' })
     ).toBe(true);
     expect(resolveSmtpTlsVerify({ SMTP_TLS_VERIFY: 'yes' })).toBe(false);
+  });
+});
+
+describe('REST_API_DEFAULT_ALLOWED_BINS (Sprint 16 — #58)', () => {
+  it('contains every binary the backend currently invokes', () => {
+    // This list is the audited surface from a sweep of backend/*.mjs.
+    // If a future change adds a new binary, the audit must be updated
+    // alongside the allowlist — these assertions force that discipline.
+    const required = [
+      'setup',
+      'doveadm',
+      'doveconf',
+      'dovecot',
+      'postfix',
+      'ps',
+      'df',
+      'top',
+      'tail',
+      'grep',
+      'cat',
+      'env',
+      'echo',
+      'mv',
+      'mkdir',
+      'cp',
+      'chown',
+      'awk',
+      'base64',
+      'redis-cli',
+    ];
+    for (const bin of required) {
+      expect(REST_API_DEFAULT_ALLOWED_BINS).toContain(bin);
+    }
+  });
+
+  it('does not include shells or general-purpose interpreters', () => {
+    // The point of the allowlist is to deny "anything goes" execution
+    // even with a valid API key. Shells and interpreters defeat that
+    // purpose because they re-introduce arbitrary command execution.
+    const forbidden = [
+      'sh',
+      'bash',
+      'zsh',
+      'dash',
+      'ash',
+      'python',
+      'python3',
+      'perl',
+      'ruby',
+      'node',
+    ];
+    for (const bin of forbidden) {
+      expect(REST_API_DEFAULT_ALLOWED_BINS).not.toContain(bin);
+    }
+  });
+
+  it('does not include network/exfiltration tools', () => {
+    // Even read-only network tools shouldn't be in the default surface
+    // — they convert "command execution on mailserver" into "outbound
+    // egress on mailserver", which crosses a different security boundary.
+    const forbidden = ['curl', 'wget', 'nc', 'ncat', 'socat', 'ssh', 'scp'];
+    for (const bin of forbidden) {
+      expect(REST_API_DEFAULT_ALLOWED_BINS).not.toContain(bin);
+    }
+  });
+
+  it('has no duplicate entries', () => {
+    expect(REST_API_DEFAULT_ALLOWED_BINS.length).toBe(
+      new Set(REST_API_DEFAULT_ALLOWED_BINS).size
+    );
+  });
+});
+
+describe('rest-api.py allowlist wiring (Sprint 16 — #58)', () => {
+  const py = mailserverRESTAPI.dms.api.content;
+
+  it('renders the default allowlist as a Python set literal', () => {
+    // Spot-check: the JS array got interpolated into the Python set.
+    // Both 'setup' and 'doveadm' must appear quoted with surrounding
+    // braces so the rendered Python is a valid set literal, not a
+    // string concatenation.
+    expect(py).toContain("DMS_API_DEFAULT_ALLOWED_BINS = {'setup'");
+    expect(py).toContain("'doveadm'");
+    expect(py).toContain("'redis-cli'}");
+  });
+
+  it('reads DMS_API_ALLOWED_BINS from the environment as an override', () => {
+    expect(py).toContain("os.environ.get('DMS_API_ALLOWED_BINS', '')");
+  });
+
+  it('rejects any pipeline stage whose binary is not in the allowlist', () => {
+    // The guard must be present and must run before subprocess.Popen.
+    // We assert both: (a) the rejection branch exists, (b) the loop
+    // iterates over `stages` so every stage is checked (not just the
+    // first), and (c) the guard sits above the Popen loop.
+    expect(py).toContain('not in DMS_API_ALLOWED_BINS');
+    expect(py).toContain('os.path.basename(stage[0])');
+    const guardIdx = py.indexOf('not in DMS_API_ALLOWED_BINS');
+    const popenIdx = py.indexOf('subprocess.Popen(stage');
+    expect(guardIdx).toBeGreaterThan(0);
+    expect(popenIdx).toBeGreaterThan(guardIdx); // guard must precede Popen
   });
 });
