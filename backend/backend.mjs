@@ -391,7 +391,7 @@ export const execAction = async (
   targetDict = {},
   opts = {}
 ) => {
-  if (env.isDEMO) return { returncode: 0, stdout: 'mock response' };
+  if (env.isDEMO) return { returncode: 0, stdout: 'mock response', stderr: '' };
   let result;
   try {
     if (

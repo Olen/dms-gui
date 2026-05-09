@@ -115,7 +115,11 @@ describe('execAction', () => {
     const result = await execAction('setup_email_list', {}, validTarget);
 
     expect(fetchSpy).not.toHaveBeenCalled();
-    expect(result).toEqual({ returncode: 0, stdout: 'mock response' });
+    expect(result).toEqual({
+      returncode: 0,
+      stdout: 'mock response',
+      stderr: '',
+    });
   });
 
   it('returns returncode 99 when targetDict is missing required keys', async () => {

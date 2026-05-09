@@ -115,7 +115,7 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
     }
   });
 
-  it('every execAction(literal, ...) call site references a manifest action', () => {
+  it("every execAction(literal, ...) and actionId: '...' literal references a manifest action", () => {
     const ids = new Set(REST_API_MANIFEST.map((a) => a.id));
     const here = fileURLToPath(import.meta.url);
     const backendDir = dirname(here);
@@ -127,7 +127,10 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
       'settings.mjs',
       'db.mjs',
     ];
+    // (a) Direct calls: execAction('foo', ...)
     const callRe = /execAction\(\s*['"]([a-z][a-z0-9_]*)['"]/g;
+    // (b) Config-table dispatch: actionId: 'foo' (e.g. accounts.mjs's doveadm map)
+    const configRe = /\bactionId:\s*['"]([a-z][a-z0-9_]*)['"]/g;
     for (const f of files) {
       const filePath = resolve(backendDir, f);
       if (!existsSync(filePath)) continue;
@@ -138,6 +141,13 @@ describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
         expect(
           ids,
           `${f}: execAction('${m[1]}') has no manifest entry`
+        ).toContain(m[1]);
+      }
+      configRe.lastIndex = 0;
+      while ((m = configRe.exec(src)) !== null) {
+        expect(
+          ids,
+          `${f}: actionId: '${m[1]}' has no manifest entry`
         ).toContain(m[1]);
       }
     }
