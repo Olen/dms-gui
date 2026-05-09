@@ -14,44 +14,38 @@ import {
   successLog,
   warnLog,
 } from './backend.mjs';
-import {
-  env
-} from './env.mjs';
+import { env } from './env.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
-import {
-  dbAll,
-  dbRun,
-  deleteEntry,
-  getTargetDict,
-  sql
-} from './db.mjs';
+import { dbAll, dbRun, deleteEntry, getTargetDict, sql } from './db.mjs';
 import { getConfigs } from './settings.mjs';
 
-
-export const getAliases = async (containerName=null, refresh=false, roles=[]) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const getAliases = async (
+  containerName = null,
+  refresh = false,
+  roles = []
+) => {
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoResponse('aliases');
   if (demo) {
-    if (roles.length) demo.message = reduxArrayOfObjByValue(demo.message, 'destination', roles);
+    if (roles.length)
+      demo.message = reduxArrayOfObjByValue(demo.message, 'destination', roles);
     return demo;
   }
 
   let aliases = [];
   let regexes = [];
   let result, config;
-  
+
   try {
-    
     // refresh
     if (refresh) {
-
       // get schema
       result = await getConfigs('mailserver', undefined, containerName);
       if (result.success) {
         config = result.message[0];
-      
+
         // virtual aliases: -------------------------------
         if (config?.schema == 'dms') {
           result = await pullAliasesFromDMS(containerName);
@@ -59,25 +53,32 @@ export const getAliases = async (containerName=null, refresh=false, roles=[]) =>
           errorLog(`unknown schema: ${config?.schema}`, result);
           throw new Error(`unknown schema: ${config?.schema}`);
         }
-        
+
         if (result.success) {
-          infoLog(`got ${result.message.length} aliases from pullAliasesFromDMS(${containerName})`);
+          infoLog(
+            `got ${result.message.length} aliases from pullAliasesFromDMS(${containerName})`
+          );
 
           // now add the alias type and scope
-          aliases = result.message.map(alias => { return { ...alias, regex: 0, scope:containerName }; });
+          aliases = result.message.map((alias) => {
+            return { ...alias, regex: 0, scope: containerName };
+          });
 
           // regex aliases: -------------------------------
           result = await pullPostfixRegexFromDMS(containerName);
           if (result.success) {
-            
-            infoLog(`got ${result.message.length} regexes from pullPostfixRegexFromDMS(${containerName})`);
+            infoLog(
+              `got ${result.message.length} regexes from pullPostfixRegexFromDMS(${containerName})`
+            );
             // now add the alias type
-            regexes = result.message.map(alias => { return { ...alias, regex: 1, scope:containerName }; });
+            regexes = result.message.map((alias) => {
+              return { ...alias, regex: 1, scope: containerName };
+            });
           }
-          
+
           // now merge aliases and regexes ---------------
-          aliases = [ ...aliases, ...regexes ];
-          
+          aliases = [...aliases, ...regexes];
+
           // now save aliases in db ----------------------
           // Clear stale aliases before inserting fresh set from DMS
           deleteEntry('aliases', containerName, 'byConfig', containerName);
@@ -86,85 +87,87 @@ export const getAliases = async (containerName=null, refresh=false, roles=[]) =>
             errorLog(result?.error);
           }
 
-          if (roles.length) aliases = reduxArrayOfObjByValue(aliases, 'destination', roles);
-          return {success: true, message: aliases};
-
+          if (roles.length)
+            aliases = reduxArrayOfObjByValue(aliases, 'destination', roles);
+          return { success: true, message: aliases };
         } else errorLog('pullPostfixRegexFromDMS:', result?.error);
-
       } else errorLog(`getConfigs: ${containerName} not found`);
     }
 
     result = dbAll(sql.aliases.select.aliases, {}, containerName);
     if (result.success) {
-      
       // we could read DB_Logins and it is valid
       if (result.message.length) {
         infoLog(`Found ${result.message.length} entries in aliases`);
-        result.message = result.message.map(alias => { return { ...alias, source: (alias.regex) ? JSON.parse(alias.source) : alias.source}; });
-        
+        result.message = result.message.map((alias) => {
+          return {
+            ...alias,
+            source: alias.regex ? JSON.parse(alias.source) : alias.source,
+          };
+        });
       } else {
         warnLog(`db aliases seems empty:`, aliases);
       }
     }
 
-    if (roles.length) result.message = reduxArrayOfObjByValue(result.message, 'destination', roles);
+    if (roles.length)
+      result.message = reduxArrayOfObjByValue(
+        result.message,
+        'destination',
+        roles
+      );
     return result;
-    
   } catch (error) {
     let backendError = `${error.message}`;
     errorLog(backendError);
     throw new Error(backendError);
     // TODO: we should return smth to the index API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
-
 // Function to retrieve aliases from DMS: returnes [{source, destination}]
-export const pullAliasesFromDMS = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const pullAliasesFromDMS = async (containerName = null) => {
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   let aliases = [];
   const command = 'alias list';
-  
+
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`execSetup(${command})`);
     const results = await execSetup(command, targetDict);
     // debugLog('ddebug results',results)
-    
+
     if (!results.returncode) {
       aliases = await parseAliasesFromDMS(results.stdout);
       infoLog(`Found ${aliases.length} aliases`);
-      
     } else {
       let ErrorMsg = await formatDMSError('execSetup', results.stderr);
       errorLog(ErrorMsg);
-      return {success: false, error:ErrorMsg};
+      return { success: false, error: ErrorMsg };
     }
 
-    return {success: true, message: aliases};
-    
+    return { success: true, message: aliases };
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
   }
 };
 
-
-export const parseAliasesFromDMS = async (stdout='') => {
+export const parseAliasesFromDMS = async (stdout = '') => {
   var aliases = [];
-  
+
   // Parse each line in the format "* source destination"
   const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
   debugLog(`Raw alias list response:`, lines);
 
   // Modified regex to be more tolerant of control characters that might appear in the output
-  const emailLineValidChars = /[^\w\.\~\.\-_@\s\*\%,]/g;
+  const emailLineValidChars = /[^\w.~\-_@\s*%,]/g;
   const regexAliasDMS = /\*\s+(\S*@\S+)\s+(\S+@\S+)/;
 
   // Parse each line and merge destinations for the same source
@@ -185,8 +188,8 @@ export const parseAliasesFromDMS = async (stdout='') => {
         if (aliasMap.has(source)) {
           const existing = aliasMap.get(source);
           // Avoid duplicating destinations already in the string
-          const existingDests = existing.split(',').map(d => d.trim());
-          const newDests = destination.split(',').map(d => d.trim());
+          const existingDests = existing.split(',').map((d) => d.trim());
+          const newDests = destination.split(',').map((d) => d.trim());
           for (const d of newDests) {
             if (!existingDests.includes(d)) existingDests.push(d);
           }
@@ -207,40 +210,35 @@ export const parseAliasesFromDMS = async (stdout='') => {
   return aliases;
 };
 
-
-export const pullPostfixRegexFromDMS = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const pullPostfixRegexFromDMS = async (containerName = null) => {
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   let regexes = [];
   const command = `cat ${env.DMS_CONFIG_PATH}/postfix-regexp.cf`;
-  
+
   try {
     const targetDict = getTargetDict('mailserver', containerName);
 
     debugLog(`execSetup(${command})`);
     const results = await execCommand(command, targetDict);
     if (!results.returncode) {
-      
       regexes = await parsePostfixRegexFromDMS(results.stdout);
       infoLog(`Found ${regexes.length} regexes`);
-    
     } else {
       let ErrorMsg = await formatDMSError('execSetup', results.stderr);
       errorLog(ErrorMsg);
-      return {success: false, error: ErrorMsg};
+      return { success: false, error: ErrorMsg };
     }
-    return {success: true, message: regexes};
-    
+    return { success: true, message: regexes };
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
   }
 };
 
-
-export const parsePostfixRegexFromDMS = async (stdout='') => {
+export const parsePostfixRegexFromDMS = async (stdout = '') => {
   var regexes = [];
-  
+
   // Parse each line in the format "* source destination"
   const lines = stdout.split('\n').filter((line) => line.trim().length > 0);
   debugLog(`Raw regex list response:`, lines);
@@ -268,12 +266,15 @@ export const parsePostfixRegexFromDMS = async (stdout='') => {
   return regexes;
 };
 
-
 // Function to add an alias
-export const addAlias = async (containerName=null, source=null, destination=null) => {
-  if (!destination) return {success: false, error: 'destination is null'};
-  if (!source) return {success: false, error: 'source is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const addAlias = async (
+  containerName = null,
+  source = null,
+  destination = null
+) => {
+  if (!destination) return { success: false, error: 'destination is null' };
+  if (!source) return { success: false, error: 'source is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Alias created: ${source} -> ${destination}`);
   if (demo) return demo;
@@ -284,69 +285,85 @@ export const addAlias = async (containerName=null, source=null, destination=null
 
     if (source.match(regexEmailStrict)) {
       debugLog(`Adding new alias: ${source} -> ${destination}`);
-    
-      results = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(destination)}`, targetDict);
+
+      results = await execSetup(
+        `alias add ${escapeShellArg(source)} ${escapeShellArg(destination)}`,
+        targetDict
+      );
       if (!results.returncode) {
-        
-        result = dbRun(sql.aliases.insert.alias, {source:source, destination:destination, regex:0}, containerName);
+        result = dbRun(
+          sql.aliases.insert.alias,
+          { source: source, destination: destination, regex: 0 },
+          containerName
+        );
         if (result.success) {
           successLog(`Alias created: ${source} -> ${destination}`);
-          return { success: true, message: `Alias created: ${source} -> ${destination}` };
-          
+          return {
+            success: true,
+            message: `Alias created: ${source} -> ${destination}`,
+          };
         }
         return result;
-        
       }
       let ErrorMsg = await formatDMSError('execSetup', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
-      
-    // this is a regex
+
+      // this is a regex
     } else {
       let command = `echo ${escapeShellArg(source + ' ' + destination)} >>${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
       debugLog(`Adding new regex: ${source} -> ${destination}`);
-      
+
       results = await execCommand(command, targetDict);
       if (!results.returncode) {
-        
         // reload postfix
         command = `postfix reload`;
         results = await execCommand(command, targetDict);
         if (!results.returncode) {
-          
-          result = dbRun(sql.aliases.insert.alias, {source:JSON.stringify(source), destination:destination, regex:1}, containerName);
+          result = dbRun(
+            sql.aliases.insert.alias,
+            {
+              source: JSON.stringify(source),
+              destination: destination,
+              regex: 1,
+            },
+            containerName
+          );
           if (result.success) {
             successLog(`Alias regex created: ${source} -> ${destination}`);
-            return { success: true, message: `Alias regex created: ${source} -> ${destination}` };
-            
+            return {
+              success: true,
+              message: `Alias regex created: ${source} -> ${destination}`,
+            };
           }
           return result;
-          
         }
         errorLog(results.stderr);
         return { success: false, error: results.stderr };
-        
       }
       errorLog(results.stderr);
       return { success: false, error: results.stderr };
     }
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to theindex API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
 
 // Function to delete an alias
-export const deleteAlias = async (containerName=null, source=null, destination=null) => {
-  if (!destination) return {success: false, error: 'destination is null'};
-  if (!source) return {success: false, error: 'source is null'};
-  if (!containerName) return {success: false, error: 'containerName is null'};
+export const deleteAlias = async (
+  containerName = null,
+  source = null,
+  destination = null
+) => {
+  if (!destination) return { success: false, error: 'destination is null' };
+  if (!source) return { success: false, error: 'source is null' };
+  if (!containerName) return { success: false, error: 'containerName is null' };
 
   const demo = demoWriteResponse(`Alias deleted: ${source}`);
   if (demo) return demo;
@@ -362,11 +379,20 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
       // DMS setup alias del only removes one destination at a time,
       // so split comma-separated destinations and delete each.
       // Continue on failure to avoid leaving DMS and DB out of sync.
-      const destinations = destination.split(',').map(d => d.trim()).filter(Boolean);
+      const destinations = destination
+        .split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
       const failed = [];
       for (const dest of destinations) {
-        results = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
-        debugLog(`------------------------------- Alias deleted results (${dest}):`, results);
+        results = await execSetup(
+          `alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+          targetDict
+        );
+        debugLog(
+          `------------------------------- Alias deleted results (${dest}):`,
+          results
+        );
         if (results.returncode) {
           let ErrorMsg = await formatDMSError('execSetup', results.stderr);
           errorLog(`Failed to delete ${source} -> ${dest}: ${ErrorMsg}`);
@@ -386,25 +412,40 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
       } else if (failed.length < destinations.length) {
         // Partial failure — update DB to reflect remaining destinations
         deleteEntry('aliases', source, 'bySource', containerName);
-        dbRun(sql.aliases.insert.alias, {source, destination: failed.join(','), regex: 0}, containerName);
-        return { success: false, error: `Partially deleted. Failed to remove: ${failed.join(', ')}` };
+        dbRun(
+          sql.aliases.insert.alias,
+          { source, destination: failed.join(','), regex: 0 },
+          containerName
+        );
+        return {
+          success: false,
+          error: `Partially deleted. Failed to remove: ${failed.join(', ')}`,
+        };
       } else {
         // All failed — DB unchanged
         return { success: false, error: `Failed to delete alias ${source}` };
       }
-    
-    // this is regex, must stringify
+
+      // this is regex, must stringify
     } else {
       source = JSON.stringify(source);
       debugLog(`Deleting alias regex: ${source}`);
-      
+
       let command = `grep -Fv ${escapeShellArg(source + ' ' + destination)} ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')} >/tmp/postfix-regexp.cf && mv /tmp/postfix-regexp.cf ${escapeShellArg(env.DMS_CONFIG_PATH + '/postfix-regexp.cf')}`;
       results = await execCommand(command, targetDict);
-      debugLog(`------------------------------- Alias regex deleted results:`, results);
+      debugLog(
+        `------------------------------- Alias regex deleted results:`,
+        results
+      );
       if (!results.returncode) {
         successLog(`Alias regex deleted: ${source}`);
-        
-        const result = deleteEntry('aliases', source, 'bySource', containerName);
+
+        const result = deleteEntry(
+          'aliases',
+          source,
+          'bySource',
+          containerName
+        );
         if (result.success) {
           successLog(`Alias entry deleted: ${source}`);
 
@@ -412,28 +453,23 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
           command = `postfix reload`;
           results = await execCommand(command, targetDict);
           if (!results.returncode) {
-            
             successLog(`postfix reloaded`);
             return result;
           }
           errorLog(results.stderr);
           return { success: false, error: results.stderr };
-          
-        } else  return result;
-        
+        } else return result;
       }
       errorLog(results.stderr);
       return { success: false, error: results.stderr };
-
     }
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
     // TODO: we should return smth to theindex API instead of throwing an error
     // return {
-      // status: 'unknown',
-      // error: error.message,
+    // status: 'unknown',
+    // error: error.message,
     // };
   }
 };
@@ -441,10 +477,14 @@ export const deleteAlias = async (containerName=null, source=null, destination=n
 // Function to update an alias by diffing destination sets.
 // Source stays read-only; we add new destinations and remove gone ones.
 // Regex aliases (regex=1) are not supported.
-export const updateAlias = async (containerName=null, source=null, newDestination=null) => {
-  if (!containerName) return {success: false, error: 'containerName is null'};
-  if (!source) return {success: false, error: 'source is null'};
-  if (!newDestination) return {success: false, error: 'destination is null'};
+export const updateAlias = async (
+  containerName = null,
+  source = null,
+  newDestination = null
+) => {
+  if (!containerName) return { success: false, error: 'containerName is null' };
+  if (!source) return { success: false, error: 'source is null' };
+  if (!newDestination) return { success: false, error: 'destination is null' };
 
   const demo = demoWriteResponse(`Alias updated: ${source}`);
   if (demo) return demo;
@@ -453,27 +493,36 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     // Look up existing alias from the DB cache.
     const allRes = dbAll(sql.aliases.select.aliases, {}, containerName);
     if (!allRes.success) return allRes;
-    const existing = (allRes.message || []).find(a => a.source === source);
-    if (!existing) return {success: false, error: 'Alias not found'};
-    if (existing.regex) return {success: false, error: 'Editing regex aliases is not supported'};
+    const existing = (allRes.message || []).find((a) => a.source === source);
+    if (!existing) return { success: false, error: 'Alias not found' };
+    if (existing.regex)
+      return {
+        success: false,
+        error: 'Editing regex aliases is not supported',
+      };
 
     // Split, trim, drop empties.
-    const splitTrim = (s) => String(s).split(',').map(d => d.trim()).filter(Boolean);
+    const splitTrim = (s) =>
+      String(s)
+        .split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
     const oldList = splitTrim(existing.destination);
     const newList = splitTrim(newDestination);
 
-    if (newList.length === 0) return {success: false, error: 'destination is null'};
+    if (newList.length === 0)
+      return { success: false, error: 'destination is null' };
 
     // Case-insensitive set diff. Lowercase set membership; preserve original
     // case in the strings we pass to DMS and write back to the DB.
     const lower = (s) => s.toLowerCase();
     const oldLower = new Set(oldList.map(lower));
     const newLower = new Set(newList.map(lower));
-    const added = newList.filter(d => !oldLower.has(lower(d)));
-    const removed = oldList.filter(d => !newLower.has(lower(d)));
+    const added = newList.filter((d) => !oldLower.has(lower(d)));
+    const removed = oldList.filter((d) => !newLower.has(lower(d)));
 
     if (added.length === 0 && removed.length === 0) {
-      return {success: true, message: 'No changes'};
+      return { success: true, message: 'No changes' };
     }
 
     const targetDict = getTargetDict('mailserver', containerName);
@@ -482,7 +531,10 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
 
     // Removals first, so the alias is never temporarily over-fanned-out.
     for (const dest of removed) {
-      const r = await execSetup(`alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+      const r = await execSetup(
+        `alias del ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+        targetDict
+      );
       if (r.returncode) {
         const msg = await formatDMSError('execSetup', r.stderr);
         errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
@@ -491,7 +543,10 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     }
 
     for (const dest of added) {
-      const r = await execSetup(`alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`, targetDict);
+      const r = await execSetup(
+        `alias add ${escapeShellArg(source)} ${escapeShellArg(dest)}`,
+        targetDict
+      );
       if (r.returncode) {
         const msg = await formatDMSError('execSetup', r.stderr);
         errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
@@ -500,7 +555,10 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     }
 
     // If every operation failed, do not touch the DB.
-    if (failedRemove.length === removed.length && failedAdd.length === added.length) {
+    if (
+      failedRemove.length === removed.length &&
+      failedAdd.length === added.length
+    ) {
       return { success: false, error: 'Failed to update alias' };
     }
 
@@ -509,17 +567,24 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     const removedLower = new Set(removed.map(lower));
     const failedRemoveLower = new Set(failedRemove.map(lower));
     const failedAddLower = new Set(failedAdd.map(lower));
-    const survivingFromOld = oldList.filter(d => !removedLower.has(lower(d)) || failedRemoveLower.has(lower(d)));
-    const successfulAdds = added.filter(d => !failedAddLower.has(lower(d)));
+    const survivingFromOld = oldList.filter(
+      (d) => !removedLower.has(lower(d)) || failedRemoveLower.has(lower(d))
+    );
+    const successfulAdds = added.filter((d) => !failedAddLower.has(lower(d)));
     const actualSet = [...survivingFromOld, ...successfulAdds];
 
-    const dbResult = dbRun(sql.aliases.insert.alias,
+    const dbResult = dbRun(
+      sql.aliases.insert.alias,
       { source, destination: actualSet.join(','), regex: 0 },
-      containerName);
+      containerName
+    );
 
     if (!dbResult.success) {
       errorLog(`DB write failed after partial DMS update for ${source}`);
-      return { success: false, error: `DB out of sync: ${dbResult.error || 'write failed'}` };
+      return {
+        success: false,
+        error: `DB out of sync: ${dbResult.error || 'write failed'}`,
+      };
     }
 
     if (failedRemove.length === 0 && failedAdd.length === 0) {
@@ -528,8 +593,10 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
     }
 
     const failed = [...failedRemove, ...failedAdd];
-    return { success: false, error: `Partially updated. Failed: ${failed.join(', ')}` };
-
+    return {
+      success: false,
+      error: `Partially updated. Failed: ${failed.join(', ')}`,
+    };
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
@@ -541,5 +608,3 @@ export const updateAlias = async (containerName=null, source=null, newDestinatio
 //   addAlias,
 //   deleteAlias,
 // };
-
-

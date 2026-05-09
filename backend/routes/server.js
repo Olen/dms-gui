@@ -1,6 +1,20 @@
 import { Router } from 'express';
-import { authenticateToken, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
-import { getNodeInfos, getServerEnvs, getServerStatus, getMailLogs, getMailBounces, initAPI, killContainer } from '../settings.mjs';
+import {
+  authenticateToken,
+  requireActive,
+  requireAdmin,
+  serverError,
+  validateContainerName,
+} from '../middleware.js';
+import {
+  getNodeInfos,
+  getServerEnvs,
+  getServerStatus,
+  getMailLogs,
+  getMailBounces,
+  initAPI,
+  killContainer,
+} from '../settings.mjs';
 import { dbCount } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
 
@@ -42,30 +56,37 @@ router.param('containerName', validateContainerName);
  *       500:
  *         description: Unable to connect to docker-mailserver
  */
-router.post('/status/:plugin/:containerName',
+router.post(
+  '/status/:plugin/:containerName',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { plugin, containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    const test = ('test' in req.query) ? req.query.test : null;
-    const { settings } = req.body;
+  async (req, res) => {
+    try {
+      const { plugin, containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      const test = 'test' in req.query ? req.query.test : null;
+      const { settings } = req.body;
 
-    const status = await getServerStatus(plugin, containerName, test, settings);
+      const status = await getServerStatus(
+        plugin,
+        containerName,
+        test,
+        settings
+      );
 
-    // Non-admin users only get connection status, not server resources or DB counts
-    if (!req.user.isAdmin && status.success && status.message) {
-      delete status.message.resources;
-      delete status.message.db;
+      // Non-admin users only get connection status, not server resources or DB counts
+      if (!req.user.isAdmin && status.success && status.message) {
+        delete status.message.resources;
+        delete status.message.db;
+      }
+
+      res.json(status);
+    } catch (error) {
+      serverError(res, 'POST /api/status', error);
     }
-
-    res.json(status);
-
-  } catch (error) {
-    serverError(res, 'POST /api/status', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -79,10 +100,7 @@ async (req, res) => {
  *       500:
  *         description: Unable to connect to docker-mailserver
  */
-router.get('/infos',
-  authenticateToken,
-  requireActive,
-async (req, res) => {
+router.get('/infos', authenticateToken, requireActive, async (req, res) => {
   try {
     const infos = await getNodeInfos();
     res.json(infos);
@@ -132,25 +150,33 @@ async (req, res) => {
  *       500:
  *         description: Unable to connect to docker-mailserver
  */
-router.get('/envs/:plugin/:containerName',
+router.get(
+  '/envs/:plugin/:containerName',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { plugin, containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { plugin, containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const refresh = ('refresh' in req.query) ? req.query.refresh   : false;
-    const name = ('name' in req.query) ? req.query.name : null;
-    debugLog('ddebug req.query:', req.query);
+      // Robust to both the production query parser (booleans) and any
+      // caller / test that uses Express's default parser (strings).
+      // `?refresh=false` must NOT trigger a refresh.
+      const refresh =
+        req.query.refresh === true ||
+        req.query.refresh === 'true' ||
+        req.query.refresh === '1';
+      const name = 'name' in req.query ? req.query.name : null;
+      debugLog('ddebug req.query:', req.query);
 
-    const envs = await getServerEnvs(plugin, containerName, refresh, name);
-    res.json(envs);
-
-  } catch (error) {
-    serverError(res, 'GET /api/envs', error);
+      const envs = await getServerEnvs(plugin, containerName, refresh, name);
+      res.json(envs);
+    } catch (error) {
+      serverError(res, 'GET /api/envs', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -183,26 +209,27 @@ async (req, res) => {
  *       500:
  *         description: Unable to read logs
  */
-router.get('/logs/:containerName',
+router.get(
+  '/logs/:containerName',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const source = req.query.source || 'mail';
-    const lines = req.query.lines ?? 100;
+      const source = req.query.source || 'mail';
+      const lines = req.query.lines ?? 100;
 
-    const result = await getMailLogs(containerName, source, lines);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'GET /api/logs', error);
+      const result = await getMailLogs(containerName, source, lines);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/logs', error);
+    }
   }
-});
-
+);
 
 /**
  * @swagger
@@ -229,25 +256,26 @@ async (req, res) => {
  *       500:
  *         description: Unable to read logs
  */
-router.get('/bounces/:containerName',
+router.get(
+  '/bounces/:containerName',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const hours = req.query.hours ?? 48;
+      const hours = req.query.hours ?? 48;
 
-    const result = await getMailBounces(containerName, hours);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'GET /api/bounces', error);
+      const result = await getMailBounces(containerName, hours);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/bounces', error);
+    }
   }
-});
-
+);
 
 /**
  * @swagger
@@ -282,26 +310,27 @@ async (req, res) => {
  *       500:
  *         description: Unable to count table
  */
-router.get('/getCount/:table{/:containerName}{/:schema}',
+router.get(
+  '/getCount/:table{/:containerName}{/:schema}',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { table, containerName, schema } = req.params;
-    if (!table) return res.status(400).json({ error: 'table is required' });
+  async (req, res) => {
+    try {
+      const { table, containerName, schema } = req.params;
+      if (!table) return res.status(400).json({ error: 'table is required' });
 
-    const ALLOWED_TABLES = ['logins', 'accounts', 'aliases', 'domains'];
-    if (!ALLOWED_TABLES.includes(table)) return res.status(400).json({ error: 'invalid table name' });
+      const ALLOWED_TABLES = ['logins', 'accounts', 'aliases', 'domains'];
+      if (!ALLOWED_TABLES.includes(table))
+        return res.status(400).json({ error: 'invalid table name' });
 
-    const count = dbCount(table, containerName, schema);
-    res.json(count);
-
-  } catch (error) {
-    serverError(res, 'GET /api/getCount', error);
+      const count = dbCount(table, containerName, schema);
+      res.json(count);
+    } catch (error) {
+      serverError(res, 'GET /api/getCount', error);
+    }
   }
-});
-
+);
 
 /**
  * @swagger
@@ -346,24 +375,30 @@ async (req, res) => {
  *       500:
  *         description: Unable to generate DMS_API_KEY
  */
-router.post('/initAPI/:plugin/:schema/:containerName',
+router.post(
+  '/initAPI/:plugin/:schema/:containerName',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { plugin, schema, containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    const { dms_api_key_param } = req.body;
+  async (req, res) => {
+    try {
+      const { plugin, schema, containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      const { dms_api_key_param } = req.body;
 
-    const dms_api_key_response = await initAPI(plugin, schema, containerName, dms_api_key_param);
-    res.json(dms_api_key_response);
-
-  } catch (error) {
-    serverError(res, 'POST /api/initAPI', error);
+      const dms_api_key_response = await initAPI(
+        plugin,
+        schema,
+        containerName,
+        dms_api_key_param
+      );
+      res.json(dms_api_key_response);
+    } catch (error) {
+      serverError(res, 'POST /api/initAPI', error);
+    }
   }
-});
-
+);
 
 /**
  * @swagger
@@ -398,20 +433,21 @@ async (req, res) => {
  *       500:
  *         description: Unable to restart container
  */
-router.post('/killContainer{/:plugin}{/:schema}{/:containerName}',
+router.post(
+  '/killContainer{/:plugin}{/:schema}{/:containerName}',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { plugin, schema, containerName } = req.params;
+  async (req, res) => {
+    try {
+      const { plugin, schema, containerName } = req.params;
 
-    const result = killContainer(plugin, schema, containerName);
-    res.json({success:true, message: result?.message});
-
-  } catch (error) {
-    serverError(res, 'POST /api/killContainer', error);
+      const result = killContainer(plugin, schema, containerName);
+      res.json({ success: true, message: result?.message });
+    } catch (error) {
+      serverError(res, 'POST /api/killContainer', error);
+    }
   }
-});
+);
 
 export default router;

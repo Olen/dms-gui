@@ -12,68 +12,69 @@ import {
   funcName,
   reduxPropertiesOfObj,
   regexColors,
-  regexPrintOnly
+  regexPrintOnly,
 } from '../common.mjs';
-import {
-  env
-} from './env.mjs';
-
+import { env } from './env.mjs';
 
 // const log = require('log-utils');   // https://www.npmjs.com/package/log-utils
-export const color = (env.LOG_COLORS) ? {
-  end: '\x1B[0m',
-  k: '\x1B[30m',
-  r: '\x1B[31m',
-  g: '\x1B[32m',
-  y: '\x1B[33m',
-  b: '\x1B[34m',
-  m: '\x1B[35m',
-  c: '\x1B[36m',
-  w: '\x1B[37m',
-  HIG: '\x1B[1m',
-  LOW: '\x1B[2m',
-  REV: '\x1B[3m',
-  UND: '\x1B[4m',
-  HGL: '\x1B[5m',
-  kLOW: '\x1B[90m',
-} : {
-  end: '',
-  k: '',
-  r: '',
-  g: '',
-  y: '',
-  b: '',
-  m: '',
-  c: '',
-  w: '',
-  HIG: '',
-  LOW: '',
-  REV: '',
-  UND: '',
-  HGL: '',
-  kLOW: '',
-}
-export const ICON = (env.LOG_COLORS) ? {
-  success:  '\x1B[92m✔️\x1B[39m ',
-  error:    '\x1B[31m❌\x1B[39m',
-  warn:     '\x1B[33m🔺\x1B[39m',
-  info:     '\x1B[36m💬\x1B[39m',
-  debug:    '\x1B[35m🔎\x1B[39m',
-} : {
-  success:  '✔️ ',
-  error:    '❌ ',
-  warn:     '🔺',
-  info:     '💬',
-  debug:    '🔎',
-}
+export const color = env.LOG_COLORS
+  ? {
+      end: '\x1B[0m',
+      k: '\x1B[30m',
+      r: '\x1B[31m',
+      g: '\x1B[32m',
+      y: '\x1B[33m',
+      b: '\x1B[34m',
+      m: '\x1B[35m',
+      c: '\x1B[36m',
+      w: '\x1B[37m',
+      HIG: '\x1B[1m',
+      LOW: '\x1B[2m',
+      REV: '\x1B[3m',
+      UND: '\x1B[4m',
+      HGL: '\x1B[5m',
+      kLOW: '\x1B[90m',
+    }
+  : {
+      end: '',
+      k: '',
+      r: '',
+      g: '',
+      y: '',
+      b: '',
+      m: '',
+      c: '',
+      w: '',
+      HIG: '',
+      LOW: '',
+      REV: '',
+      UND: '',
+      HGL: '',
+      kLOW: '',
+    };
+export const ICON = env.LOG_COLORS
+  ? {
+      success: '\x1B[92m✔️\x1B[39m ',
+      error: '\x1B[31m❌\x1B[39m',
+      warn: '\x1B[33m🔺\x1B[39m',
+      info: '\x1B[36m💬\x1B[39m',
+      debug: '\x1B[35m🔎\x1B[39m',
+    }
+  : {
+      success: '✔️ ',
+      error: '❌ ',
+      warn: '🔺',
+      info: '💬',
+      debug: '🔎',
+    };
 
 export const LEVEL = {
-  success:  color.g+color.LOW+'[SUCCESS]'+color.end,
-  error:    color.r+color.LOW+'[ERROR]  '+color.end,
-  warn:     color.y+color.LOW+'[WARN]   '+color.end,
-  info:     color.k+color.HIG+'[INFO]   '+color.end,
-  debug:    color.k+color.HIG+'[DEBUG]  '+color.end,
-}
+  success: color.g + color.LOW + '[SUCCESS]' + color.end,
+  error: color.r + color.LOW + '[ERROR]  ' + color.end,
+  warn: color.y + color.LOW + '[WARN]   ' + color.end,
+  info: color.k + color.HIG + '[INFO]   ' + color.end,
+  debug: color.k + color.HIG + '[DEBUG]  ' + color.end,
+};
 
 // ['debug','log','info','warn','error'].forEach((method, level)=>{
 // const type = method.toUpperCase(), native = console[method];
@@ -87,46 +88,66 @@ export const LEVEL = {
 // these were `async` for no reason, returning a Promise the callers usually
 // did not await; that wasted a microtask and made awaited callers (rare)
 // pay for a no-op promise tick.
-export const logger = (level, message='', ...data) => {
-  console.log(`[${color.kLOW}${(new Date).toLocaleTimeString()}]${color.end}`, ICON[level], color.k+color.HIG+LEVEL[level], color.LOW+funcName(4)+(level == 'debug' ? '' : color.end), message, ...data, color.end);
+export const logger = (level, message = '', ...data) => {
+  console.log(
+    `[${color.kLOW}${new Date().toLocaleTimeString()}]${color.end}`,
+    ICON[level],
+    color.k + color.HIG + LEVEL[level],
+    color.LOW + funcName(4) + (level == 'debug' ? '' : color.end),
+    message,
+    ...data,
+    color.end
+  );
 };
 
-export const successLog = (message, ...data) => { logger('success', message, ...data) };
-export const errorLog   = (message, ...data) => { logger('error', message, ...data) };
-export const warnLog    = (message, ...data) => { logger('warn', message, ...data) };
-export const infoLog    = (message, ...data) => { logger('info', message, ...data) };
-export const debugLog   = (message, ...data) => { if (env.debug) logger('debug', message, ...data) };
-
+export const successLog = (message, ...data) => {
+  logger('success', message, ...data);
+};
+export const errorLog = (message, ...data) => {
+  logger('error', message, ...data);
+};
+export const warnLog = (message, ...data) => {
+  logger('warn', message, ...data);
+};
+export const infoLog = (message, ...data) => {
+  logger('info', message, ...data);
+};
+export const debugLog = (message, ...data) => {
+  if (env.debug) logger('debug', message, ...data);
+};
 
 /** Redact passwords from command strings before logging */
-const redactCommand = (cmd) => cmd
-  .replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/gi, '$1 ********')
-  .replace(/(auth\s+test\s+\S+)\s+\S+/gi, '$1 ********');
+const redactCommand = (cmd) =>
+  cmd
+    .replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/gi, '$1 ********')
+    .replace(/(auth\s+test\s+\S+)\s+\S+/gi, '$1 ********');
 
 /**
  * Executes a setup.sh command in the docker-mailserver container
  * @param {string} setupCommand Command to pass to setup.sh
  * @return {Promise<string>} stdout from the command
  */
-export const execSetup = async (setupCommand=null, targetDict={}, ...rest) => {
+export const execSetup = async (
+  setupCommand = null,
+  targetDict = {},
+  ...rest
+) => {
   // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
-  
+
   // const command = `${env.DMS_SETUP_SCRIPT} ${setupCommand}`;
   const command = `${targetDict.setupPath} ${setupCommand}`;
   debugLog(`Executing setup command: ${redactCommand(setupCommand)}`);
   return execCommand(command, targetDict, ...rest);
 };
 
-
-export const execCommand = async (command=null, targetDict={}, ...rest) => {
+export const execCommand = async (command = null, targetDict = {}, ...rest) => {
   // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
-  
+
   debugLog(`Executing system command: ${redactCommand(command)}`);
   const result = await execInContainerAPI(command, targetDict, ...rest);
   // debugLog('ddebug result', result)
   return result;
 };
-
 
 /**
  * Executes a command in the docker-mailserver container through docker.sock
@@ -192,24 +213,22 @@ async function execInContainer(command, containerName) {
 }
 */
 
-
 /**
  * Executes a checkPort connect to a server
  * @param {object} targetDict with protocol, host, port, Authorization
  * @return {Promise<object>} with returncode, stdout and stderr
  */
-export const checkPort = async (targetDict={}) => {
+export const checkPort = async (targetDict = {}) => {
   return new Promise((resolve) => {
-
-    if (env.isDEMO) return resolve({success: true, message: 'port_open'});
+    if (env.isDEMO) return resolve({ success: true, message: 'port_open' });
     try {
       const socket = new net.Socket();
-      socket.setTimeout((targetDict?.timeout ?? 0.3) * 1000);   // we don't accept less then 300ms reply time
+      socket.setTimeout((targetDict?.timeout ?? 0.3) * 1000); // we don't accept less then 300ms reply time
 
       // Attempt to connect to the specified host and port
       socket.connect(targetDict.port, targetDict.host, () => {
         socket.end(); // Close the connection immediately after success
-        resolve({success: true, message: 'port_open'});
+        resolve({ success: true, message: 'port_open' });
       });
 
       socket.on('error', (error) => {
@@ -219,53 +238,47 @@ export const checkPort = async (targetDict={}) => {
         // console.error(`Address: ${error.address}`);         // 172.19.0.3
         // console.error(`Port: ${error.port}`);               // 8888
         socket.destroy();
-        resolve({success: false, message: 'port_closed: ' + error.code});
+        resolve({ success: false, message: 'port_closed: ' + error.code });
       });
 
       // Handle 'timeout' events
       socket.on('timeout', () => {
         socket.destroy();
-        resolve({success: false, message: 'port_timeout'});
+        resolve({ success: false, message: 'port_timeout' });
       });
 
-      return {success: false, message: 'port_unknown'};       // should never happen
-
+      return { success: false, message: 'port_unknown' }; // should never happen
     } catch (error) {
       errorLog('error:', error.message);
-      return {success: false, message: error.message};
+      return { success: false, message: error.message };
     }
   });
-}
-
+};
 
 /**
  * Executes a ping to a server
  * @param {string} host
  * @return {Promise<object>} with returncode, stdout and stderr
  */
-export const ping = async (host=null) => {
-
-  if (env.isDEMO) return {success: true, message: "mock response"};
+export const ping = async (host = null) => {
+  if (env.isDEMO) return { success: true, message: 'mock response' };
   try {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(host)) {
-      return {success: false, error: 'Invalid hostname'};
+      return { success: false, error: 'Invalid hostname' };
     }
     const { stdout, stderr } = await exec(`ping -q -c 1 -A ${host}`);
     // debugLog(`stdout: ${stdout}`);
     if (stderr) {
       errorLog(`stderr: ${stderr}`);
-      return {success: false, error: stderr};
+      return { success: false, error: stderr };
     }
 
-    return {success: true, message: stdout};
-
+    return { success: true, message: stdout };
   } catch (error) {
     errorLog('error:', error.message);
-    return {success: false, error: error.message};
+    return { success: false, error: error.message };
   }
-
-}
-
+};
 
 /**
  * Executes a command in the docker-mailserver container through an http API
@@ -273,44 +286,64 @@ export const ping = async (host=null) => {
  * @param {object} targetDict with protocol, host, port, Authorization and maybe timeout
  * @return {Promise<object>} with returncode, stdout and stderr
  */
-export const execInContainerAPI = async (command=null, targetDict={}, ...rest) => {
-  
-  if (env.isDEMO) return {returncode:0, stdout:"mock response"};
+export const execInContainerAPI = async (
+  command = null,
+  targetDict = {},
+  ...rest
+) => {
+  if (env.isDEMO) return { returncode: 0, stdout: 'mock response' };
   let result;
   try {
     // debugLog('ddebug targetDict', targetDict);
     // debugLog("ddebug reduxPropertiesOfObj(targetDict, ['protocol', 'host', 'port', 'Authorization']))", reduxPropertiesOfObj(targetDict, ['protocol', 'host', 'port', 'Authorization']));
-    if (!targetDict || (targetDict && Object.keys(reduxPropertiesOfObj(targetDict, ['protocol', 'host', 'port', 'Authorization'])).length < 4) ) {
+    if (
+      !targetDict ||
+      (targetDict &&
+        Object.keys(
+          reduxPropertiesOfObj(targetDict, [
+            'protocol',
+            'host',
+            'port',
+            'Authorization',
+          ])
+        ).length < 4)
+    ) {
       return {
         returncode: 99,
         stderr: 'targetDict needs 4 keys: protocol, host, port, Authorization',
       };
-    };
+    }
 
     result = await checkPort(targetDict);
     // debugLog('ddebug checkPort result',result)   // { success: false, error: 'running' } // whyyyyyyyyyyyyy
     if (result.success) {
-
-      const jsonData = Object.assign({}, 
+      const jsonData = Object.assign(
+        {},
         {
           command: command,
           timeout: Number(targetDict?.timeout ?? env.timeout),
         },
-        ...rest);
+        ...rest
+      );
 
-      debugLog(`${targetDict.protocol}://${targetDict.host}:${targetDict.port}`)
+      debugLog(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`
+      );
       // debugLog(`targetDict`, targetDict);
       // debugLog(`jsonData`, jsonData);
-      const response = await postJsonToApi(`${targetDict.protocol}://${targetDict.host}:${targetDict.port}`, jsonData, targetDict.Authorization)
+      const response = await postJsonToApi(
+        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`,
+        jsonData,
+        targetDict.Authorization
+      );
       // debugLog('ddebug response',response)
 
       if ('error' in response) {
         errorLog('response:', response);
         return {
           returncode: 99,
-          stderr: response.error.toString('utf8'),    // example: Invalid api_key: api_error: xxx-491c1cfd-86ec-49ba-b962-ce0bce5ff189
+          stderr: response.error.toString('utf8'), // example: Invalid api_key: api_error: xxx-491c1cfd-86ec-49ba-b962-ce0bce5ff189
         };
-        
       } else {
         successLog('command:', redactCommand(command));
         return {
@@ -326,7 +359,6 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
         stderr: result.message,
       };
     }
-
   } catch (error) {
     errorLog('error:', error.message);
     return {
@@ -336,23 +368,26 @@ export const execInContainerAPI = async (command=null, targetDict={}, ...rest) =
   }
 };
 
-
 /**
  * Generic API function post
  * @param {string} apiUrl API url like http://whatever:8888
  * @return {Promise<string>} stdout from the fetch
  */
-export const postJsonToApi = async (apiUrl=null, jsonData={}, Authorization=null) => {
+export const postJsonToApi = async (
+  apiUrl = null,
+  jsonData = {},
+  Authorization = null
+) => {
   // debugLog('ddebug apiUrl', apiUrl)
   // debugLog('ddebug DMS_API_KEY', DMS_API_KEY)
   // debugLog('ddebug jsonData', jsonData)
-  
+
   try {
     const response = await fetch(apiUrl, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
-        'Authorization': Authorization
+        Authorization: Authorization,
       },
       body: JSON.stringify(jsonData),
     });
@@ -399,27 +434,24 @@ export const postJsonToApi = async (apiUrl=null, jsonData={}, Authorization=null
     const responseData = await response.json(); // Parse the JSON response
     // debugLog('API response:', responseData);
     return responseData;
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
   }
 };
 
-
 /**
  * Generic API function get
  * @param {string} apiUrl API url like http://whatever:8888
  * @return {Promise<string>} stdout from the fetch
  */
-export const getJsonFromApi = async (apiUrl=null, Authorization=null) => {
-
+export const getJsonFromApi = async (apiUrl = null, Authorization = null) => {
   try {
     const response = await fetch(apiUrl, {
       method: 'GET',
       headers: {
-        'Accept': 'application/json',
-        'Authorization': Authorization,
+        Accept: 'application/json',
+        Authorization: Authorization,
       },
     });
 
@@ -431,13 +463,11 @@ export const getJsonFromApi = async (apiUrl=null, Authorization=null) => {
     const responseData = await response.json(); // Parse the JSON response
     debugLog('Received JSON data:', responseData);
     return responseData;
-    
   } catch (error) {
     errorLog(error.message);
     throw new Error(error.message);
   }
 };
-
 
 /**
  * // https://github.com/orgs/docker-mailserver/discussions/2908#discussioncomment-14867771
@@ -471,7 +501,6 @@ try {
 }
 }
 */
-
 
 /**
  * Executes a command in the docker-mailserver container
@@ -529,60 +558,55 @@ try {
 }
 */
 
-
-
-export const writeFile = async (file=null, content='') => {
-  
+export const writeFile = async (file = null, content = '') => {
   try {
-
     // fs.writeFileSync(file, content, 'utf8');
     await fs.promises.writeFile(file, content, 'utf8');
     successLog(`${file}`);
-    return {success: true, message: file};
-
-    
+    return { success: true, message: file };
   } catch (error) {
     errorLog(error.message);
-    return {success: false, error: error.message};
+    return { success: false, error: error.message };
     // throw new Error(error.message);
   }
 };
 
-
-export const formatDMSError = async (errorMsg=null, error=null) => {
+export const formatDMSError = async (errorMsg = null, error = null) => {
   // Unfortunately, we cannot list all the error types from dms just here
   // var patterns = [
-    // /'?\S+'? is already an alias for recipient: '?\S+'?/i,
+  // /'?\S+'? is already an alias for recipient: '?\S+'?/i,
   // ]
-  
+
   // patterns.forEach(function(regex){
-    // if (typeof error == "string") {
-      // if (error.match(regex)) errorMsg = `${errorMsg}: ` + error.match(regex)[0].replace(/[\"\'\:]/g, "");
-    // } else {
-      // if (error.message.match(regex)) errorMsg = `${errorMsg}: ` + error.message.match(regex)[0].replace(/[\"\'\:]/g, "");
-    // }
+  // if (typeof error == "string") {
+  // if (error.match(regex)) errorMsg = `${errorMsg}: ` + error.match(regex)[0].replace(/[\"\'\:]/g, "");
+  // } else {
+  // if (error.message.match(regex)) errorMsg = `${errorMsg}: ` + error.message.match(regex)[0].replace(/[\"\'\:]/g, "");
+  // }
   // });
-  
+
   var splitErrorClean = '';
   if (error) {
     var split;
     const regexSplit = /ERROR:?|\n/i;
-    const regexCleanup = /[\"\'\:\`]/g;
-    
-    if (typeof error == "string") {
+    const regexCleanup = /["':`]/g;
+
+    if (typeof error == 'string') {
       split = error.split(regexSplit);
     } else {
       split = error.message.split(regexSplit);
     }
-    
-    const splitError = (split.length > 1) ? split[1] : split[0];
-    splitErrorClean = splitError.replace(regexColors,"").replace(regexPrintOnly,"").replace(regexCleanup, "")
+
+    const splitError = split.length > 1 ? split[1] : split[0];
+    splitErrorClean = splitError
+      .replace(regexColors, '')
+      .replace(regexPrintOnly, '')
+      .replace(regexCleanup, '');
   }
-  
+
   errorMsg = `${errorMsg}: ${splitErrorClean}`;
   return errorMsg;
 };
-
 
 /*
 // foolproof future where we can deal with multiple containers
@@ -592,7 +616,6 @@ export const getContainer = containerName => {
   return live.containers[containerName];
 };
 */
-
 
 // module.exports = {
 //   funcName,

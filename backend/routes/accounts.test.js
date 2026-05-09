@@ -102,6 +102,29 @@ describe('GET /api/accounts/:containerName', () => {
       'user@test.com',
     ]);
   });
+
+  it('?refresh=false is correctly parsed as false (regression guard)', async () => {
+    // The test app uses Express's default query parser, so
+    // req.query.refresh arrives as the string "false" — which is
+    // truthy. The route must coerce it to boolean false explicitly.
+    mockGetAccounts.mockResolvedValue({ success: true, message: [] });
+
+    await request(app)
+      .get('/api/accounts/mailserver?refresh=false')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false);
+  });
+
+  it('?refresh=true is correctly parsed as true', async () => {
+    mockGetAccounts.mockResolvedValue({ success: true, message: [] });
+
+    await request(app)
+      .get('/api/accounts/mailserver?refresh=true')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', true);
+  });
 });
 
 describe('POST /api/accounts/:schema/:containerName', () => {

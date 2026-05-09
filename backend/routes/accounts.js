@@ -57,7 +57,13 @@ router.get(
       const { containerName } = req.params;
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
-      const refresh = 'refresh' in req.query ? req.query.refresh : false;
+      // Robust to both the production query parser (booleans) and any
+      // caller / test that uses Express's default parser (strings).
+      // `?refresh=false` must NOT trigger a refresh.
+      const refresh =
+        req.query.refresh === true ||
+        req.query.refresh === 'true' ||
+        req.query.refresh === '1';
 
       // Users can only pull their own mailboxes or those in their roles (unless admin)
       let accounts;
