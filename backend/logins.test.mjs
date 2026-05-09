@@ -52,7 +52,7 @@ vi.mock('./demoMode.mjs', () => ({
 }));
 
 import { addLogin, getLogin, getRoles } from './logins.mjs';
-import { dbGet } from './db.mjs';
+import { dbGet, sql } from './db.mjs';
 
 describe('addLogin — password redaction', () => {
   beforeEach(() => {
@@ -137,7 +137,9 @@ describe('getLogin — key validation', () => {
     // mailbox-shape input.
     dbGet.mockReturnValueOnce({ success: false });
     await getLogin('user@example.com');
-    expect(dbGet).toHaveBeenCalledWith(expect.stringContaining('mailbox'), {
+    // Assert the *exact* prepared statement, not a substring — a column
+    // list that happens to mention "mailbox" elsewhere mustn't pass.
+    expect(dbGet).toHaveBeenCalledWith(sql.logins.select.loginByMailbox, {
       mailbox: 'user@example.com',
     });
   });
@@ -171,7 +173,8 @@ describe('getRoles — key validation', () => {
     // string path keyed by the primary-key id column instead.
     dbGet.mockReturnValueOnce({ success: true, message: '["user@test.com"]' });
     await getRoles('user@test.com');
-    expect(dbGet).toHaveBeenCalledWith(expect.stringContaining('mailbox'), {
+    // Assert the *exact* prepared statement, not a substring.
+    expect(dbGet).toHaveBeenCalledWith(sql.logins.select.rolesByMailbox, {
       mailbox: 'user@test.com',
     });
   });

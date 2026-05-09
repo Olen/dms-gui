@@ -55,15 +55,15 @@ export const getLogin = async (credential, guess = false) => {
     // We accept:
     //   - an object {id|mailbox|username: value} → looked up via the
     //     matching static-statement (see the dispatch below);
-    //   - a string credential, which is interpreted as a MAILBOX. This
-    //     matches the GET /api/roles/:credential and login-flow contracts:
-    //     non-admins are restricted to req.user.mailbox at the route
-    //     layer, and the password-reset / loginUser flows pass mailbox-
-    //     or-username strings (always with guess=true). Looking up by
-    //     mailbox makes the !guess path actually work for any future
-    //     caller; the previous {[sql.logins.id]: credential} form keyed
-    //     by primary-key id and silently returned 0 rows for any
-    //     mailbox-shape input.
+    //   - a string credential, with semantics that depend on `guess`:
+    //       guess=true  → mailbox-OR-username (loginGuess statement,
+    //                      used by the login flow and password-reset
+    //                      lookups where users may type either).
+    //       guess=false → mailbox only (loginByMailbox statement; the
+    //                      #39 fix). The previous {[sql.logins.id]:
+    //                      credential} form keyed by primary-key id
+    //                      and silently returned 0 rows for any
+    //                      mailbox-shape input.
     if (typeof credential === 'string') {
       // loginGuess should only be used for login purposes, and takes a string
       if (guess) {
