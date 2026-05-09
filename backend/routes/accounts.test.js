@@ -26,12 +26,16 @@ const mockDoveadm = vi.fn();
 const mockSetQuota = vi.fn();
 const mockUpdateDB = vi.fn();
 
+// Include a second schema so passthrough tests can use a value other
+// than 'dms' — that way an assertion of `deleteAccount called with
+// 'altschema'` catches a regression where someone hardcodes 'dms'.
 vi.mock('../accounts.mjs', () => ({
   getAccounts: (...args) => mockGetAccounts(...args),
   addAccount: (...args) => mockAddAccount(...args),
   deleteAccount: (...args) => mockDeleteAccount(...args),
   doveadm: (...args) => mockDoveadm(...args),
   setQuota: (...args) => mockSetQuota(...args),
+  SUPPORTED_SCHEMAS: new Set(['dms', 'altschema']),
 }));
 
 vi.mock('../db.mjs', () => ({
@@ -161,16 +165,30 @@ describe('POST /api/accounts/:schema/:containerName', () => {
     expect(res.status).toBe(201);
     expect(res.body.success).toBe(true);
   });
+
+  it('rejects unknown schemas with 400 instead of crashing addAccount()', async () => {
+    // Same allowlist guard as DELETE — addAccount() also branches on
+    // schema==='dms' and would crash with results.returncode on
+    // undefined for any other value.
+    const res = await request(app)
+      .post('/api/accounts/customschema/mailserver')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ mailbox: 'new@test.com', password: 'test123' });
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsupported schema/i);
+    expect(mockAddAccount).not.toHaveBeenCalled();
+  });
 });
 
-describe('DELETE /api/accounts/:containerName/:mailbox', () => {
+describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
   beforeEach(() => {
     vi.clearAllMocks();
   });
 
   it('returns 403 for non-admin', async () => {
     const res = await request(app)
-      .delete('/api/accounts/mailserver/user@test.com')
+      .delete('/api/accounts/dms/mailserver/user@test.com')
       .set('Cookie', [`accessToken=${userToken}`]);
 
     expect(res.status).toBe(403);
@@ -183,11 +201,61 @@ describe('DELETE /api/accounts/:containerName/:mailbox', () => {
     });
 
     const res = await request(app)
-      .delete('/api/accounts/mailserver/old@test.com')
+      .delete('/api/accounts/dms/mailserver/old@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
+  });
+
+  it('passes the schema path param through to deleteAccount (not hardcoded "dms")', async () => {
+    // Send a non-'dms' schema (allowlisted via the mock so the route
+    // doesn't reject it) and assert deleteAccount sees that exact
+    // value. If the handler ever re-introduces a hardcoded `'dms'`
+    // literal in the deleteAccount() call, this assertion fails.
+    mockDeleteAccount.mockResolvedValue({
+      success: true,
+      message: 'Account deleted',
+    });
+
+    await request(app)
+      .delete('/api/accounts/altschema/mailserver/old@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockDeleteAccount).toHaveBeenCalledWith(
+      'altschema',
+      'mailserver',
+      'old@test.com'
+    );
+  });
+
+  it('rejects unknown schemas with 400 instead of crashing deleteAccount()', async () => {
+    // deleteAccount() only initializes `results` when schema==='dms';
+    // any other value would slip through and crash with `results.returncode`
+    // on an undefined access. The route now allowlist-checks first.
+    const res = await request(app)
+      .delete('/api/accounts/customschema/mailserver/old@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(400);
+    expect(res.body.error).toMatch(/unsupported schema/i);
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
+  });
+
+  it('rejects the legacy 2-segment path (regression guard for issue #38)', async () => {
+    // The route used to be registered as `/accounts/:containerName/:mailbox`
+    // (only 2 segments after `/accounts/`). The frontend, the Swagger doc,
+    // and every sibling accounts route used the 3-segment
+    // `/:schema/:containerName/:mailbox` shape, so the frontend's
+    // 3-segment requests 404'd — that was the production bug. After this
+    // PR the route accepts the 3-segment shape and rejects the legacy
+    // 2-segment shape; lock that contract here.
+    const res = await request(app)
+      .delete('/api/accounts/mailserver/user@test.com')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(404);
+    expect(mockDeleteAccount).not.toHaveBeenCalled();
   });
 });
 

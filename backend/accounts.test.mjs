@@ -31,7 +31,10 @@ vi.mock('./db.mjs', () => ({
   getTargetDict: vi.fn(() => ({ host: 'localhost', timeout: 10 })),
   hashPassword: vi.fn(async () => ({ salt: 'x', hash: 'y' })),
   sql: {
-    accounts: { select: { accounts: 'SELECT ...', count: 'SELECT ...' }, insert: { account: 'INSERT ...' } },
+    accounts: {
+      select: { accounts: 'SELECT ...', count: 'SELECT ...' },
+      insert: { account: 'INSERT ...' },
+    },
     logins: { insert: { login: 'INSERT ...' } },
   },
 }));
@@ -45,7 +48,7 @@ vi.mock('./aliases.mjs', () => ({
 vi.mock('../common.mjs', () => ({
   escapeShellArg: (arg) => `'${arg}'`,
   reduxArrayOfObjByValue: (array, key, values) =>
-    array.filter(item => values.includes(item[key])),
+    array.filter((item) => values.includes(item[key])),
 }));
 
 vi.mock('./env.mjs', () => ({
@@ -57,10 +60,13 @@ vi.mock('./logins.mjs', () => ({
 }));
 
 vi.mock('./settings.mjs', () => ({
-  getConfigs: vi.fn(async () => ({ success: true, message: [{ schema: 'dms' }] })),
+  getConfigs: vi.fn(async () => ({
+    success: true,
+    message: [{ schema: 'dms' }],
+  })),
 }));
 
-import { deleteAccount } from './accounts.mjs';
+import { addAccount, deleteAccount } from './accounts.mjs';
 
 describe('deleteAccount — alias cleanup', () => {
   beforeEach(() => {
@@ -77,8 +83,16 @@ describe('deleteAccount — alias cleanup', () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
-        { source: 'info@example.com', destination: 'user@example.com', regex: 0 },
-        { source: 'admin@example.com', destination: 'other@example.com', regex: 0 },
+        {
+          source: 'info@example.com',
+          destination: 'user@example.com',
+          regex: 0,
+        },
+        {
+          source: 'admin@example.com',
+          destination: 'other@example.com',
+          regex: 0,
+        },
       ],
     });
 
@@ -89,7 +103,7 @@ describe('deleteAccount — alias cleanup', () => {
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'info@example.com',
-      'user@example.com',
+      'user@example.com'
     );
   });
 
@@ -97,8 +111,16 @@ describe('deleteAccount — alias cleanup', () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
-        { source: 'user@example.com', destination: 'other@example.com', regex: 0 },
-        { source: 'admin@example.com', destination: 'boss@example.com', regex: 0 },
+        {
+          source: 'user@example.com',
+          destination: 'other@example.com',
+          regex: 0,
+        },
+        {
+          source: 'admin@example.com',
+          destination: 'boss@example.com',
+          regex: 0,
+        },
       ],
     });
 
@@ -109,7 +131,7 @@ describe('deleteAccount — alias cleanup', () => {
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'user@example.com',
-      'other@example.com',
+      'other@example.com'
     );
   });
 
@@ -117,9 +139,21 @@ describe('deleteAccount — alias cleanup', () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
-        { source: 'user@example.com', destination: 'other@example.com', regex: 0 },
-        { source: 'info@example.com', destination: 'user@example.com', regex: 0 },
-        { source: 'admin@example.com', destination: 'boss@example.com', regex: 0 },
+        {
+          source: 'user@example.com',
+          destination: 'other@example.com',
+          regex: 0,
+        },
+        {
+          source: 'info@example.com',
+          destination: 'user@example.com',
+          regex: 0,
+        },
+        {
+          source: 'admin@example.com',
+          destination: 'boss@example.com',
+          regex: 0,
+        },
       ],
     });
 
@@ -130,12 +164,12 @@ describe('deleteAccount — alias cleanup', () => {
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'user@example.com',
-      'other@example.com',
+      'other@example.com'
     );
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'info@example.com',
-      'user@example.com',
+      'user@example.com'
     );
   });
 
@@ -143,8 +177,16 @@ describe('deleteAccount — alias cleanup', () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
-        { source: 'info@example.com', destination: 'alice@example.com,user@example.com', regex: 0 },
-        { source: 'admin@example.com', destination: 'boss@example.com', regex: 0 },
+        {
+          source: 'info@example.com',
+          destination: 'alice@example.com,user@example.com',
+          regex: 0,
+        },
+        {
+          source: 'admin@example.com',
+          destination: 'boss@example.com',
+          regex: 0,
+        },
       ],
     });
 
@@ -155,7 +197,7 @@ describe('deleteAccount — alias cleanup', () => {
     expect(mockDeleteAlias).toHaveBeenCalledWith(
       'test-mailserver',
       'info@example.com',
-      'alice@example.com,user@example.com',
+      'alice@example.com,user@example.com'
     );
   });
 
@@ -163,8 +205,16 @@ describe('deleteAccount — alias cleanup', () => {
     mockGetAliases.mockResolvedValue({
       success: true,
       message: [
-        { source: 'admin@example.com', destination: 'boss@example.com', regex: 0 },
-        { source: 'info@example.com', destination: 'support@example.com', regex: 0 },
+        {
+          source: 'admin@example.com',
+          destination: 'boss@example.com',
+          regex: 0,
+        },
+        {
+          source: 'info@example.com',
+          destination: 'support@example.com',
+          regex: 0,
+        },
       ],
     });
 
@@ -179,9 +229,44 @@ describe('deleteAccount — alias cleanup', () => {
       message: [],
     });
 
-    const result = await deleteAccount('dms', 'test-mailserver', 'user@example.com');
+    const result = await deleteAccount(
+      'dms',
+      'test-mailserver',
+      'user@example.com'
+    );
 
     expect(mockDeleteAlias).not.toHaveBeenCalled();
     expect(result.success).toBe(true);
+  });
+});
+
+describe('addAccount / deleteAccount — schema allowlist (defence in depth)', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('addAccount returns a structured error for an unsupported schema (does not crash)', async () => {
+    const result = await addAccount(
+      'mailcow',
+      'test-mailserver',
+      'u@e.com',
+      'pw'
+    );
+    expect(result).toEqual({
+      success: false,
+      error: "unsupported schema 'mailcow'",
+    });
+    // Crucially, the function returned cleanly — no execSetup invoked,
+    // no exception thrown despite results never being initialised.
+    expect(mockExecSetup).not.toHaveBeenCalled();
+  });
+
+  it('deleteAccount returns a structured error for an unsupported schema (does not crash)', async () => {
+    const result = await deleteAccount('mailcow', 'test-mailserver', 'u@e.com');
+    expect(result).toEqual({
+      success: false,
+      error: "unsupported schema 'mailcow'",
+    });
+    expect(mockExecSetup).not.toHaveBeenCalled();
   });
 });

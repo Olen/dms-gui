@@ -13,6 +13,7 @@ import {
   doveadm,
   getAccounts,
   setQuota,
+  SUPPORTED_SCHEMAS,
 } from '../accounts.mjs';
 import { getSieveRules, saveSieveRules, deleteSieveRules } from '../sieve.mjs';
 import { updateDB } from '../db.mjs';
@@ -118,7 +119,7 @@ router.get(
  *       201:
  *         description: Account created successfully
  *       400:
- *         description: mailbox and password are required
+ *         description: Bad request — missing mailbox/password, or unsupported :schema
  *       500:
  *         description: Unable to create account
  */
@@ -130,6 +131,15 @@ router.post(
   async (req, res) => {
     try {
       const { schema, containerName } = req.params;
+      if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!SUPPORTED_SCHEMAS.has(schema)) {
+        // Same allowlist guard as DELETE — addAccount() also branches
+        // on schema==='dms' and would crash with `results undefined`
+        // for any other value.
+        return res
+          .status(400)
+          .json({ error: `unsupported schema '${schema}'` });
+      }
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
 
@@ -238,7 +248,7 @@ router.put(
  * /api/accounts/{schema}/{containerName}/{mailbox}:
  *   delete:
  *     summary: Delete a mailbox account
- *     description: Delete an mailbox account from the docker-mailserver
+ *     description: Delete a mailbox account from the docker-mailserver
  *     parameters:
  *       - in: path
  *         name: schema
@@ -262,24 +272,33 @@ router.put(
  *       200:
  *         description: Account deleted successfully
  *       400:
- *         description: mailbox is required
+ *         description: Bad request — missing mailbox/containerName, or unsupported :schema
  *       500:
  *         description: Unable to delete account
  */
 router.delete(
-  '/accounts/:containerName/:mailbox',
+  '/accounts/:schema/:containerName/:mailbox',
   authenticateToken,
   requireActive,
   requireAdmin,
   async (req, res) => {
     try {
-      const { containerName, mailbox } = req.params;
+      const { schema, containerName, mailbox } = req.params;
+      if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!SUPPORTED_SCHEMAS.has(schema)) {
+        // Validate against the allowlist so unknown schemas don't slip
+        // into deleteAccount() — it only initializes its `results` for
+        // schema==='dms' and would crash on any other value.
+        return res
+          .status(400)
+          .json({ error: `unsupported schema '${schema}'` });
+      }
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
       if (!mailbox) {
         return res.status(400).json({ error: 'Mailbox is required' });
       }
-      const result = await deleteAccount('dms', containerName, mailbox);
+      const result = await deleteAccount(schema, containerName, mailbox);
       res.json(result);
     } catch (error) {
       serverError(res, 'DELETE /api/accounts', error);
