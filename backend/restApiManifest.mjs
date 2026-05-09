@@ -17,4 +17,124 @@
 //
 // Sprint A ships an empty manifest. Sprints B–E populate it as
 // individual call sites migrate from the legacy {command:} protocol.
-export const REST_API_MANIFEST = [];
+export const REST_API_MANIFEST = [
+  // ---- Setup-based actions ----
+  {
+    id: 'setup_email_list',
+    argv: ['/usr/local/bin/setup', 'email', 'list'],
+  },
+  {
+    id: 'setup_email_add',
+    argv: ['/usr/local/bin/setup', 'email', 'add', '{mailbox}', '{password}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      password: { string: { minlen: 1, maxlen: 256 } },
+    },
+  },
+  {
+    id: 'setup_email_del',
+    argv: ['/usr/local/bin/setup', 'email', 'del', '-y', '{mailbox}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+  {
+    id: 'setup_quota_del',
+    argv: ['/usr/local/bin/setup', 'quota', 'del', '{mailbox}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+  {
+    id: 'setup_quota_set',
+    argv: ['/usr/local/bin/setup', 'quota', 'set', '{mailbox}', '{quota}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      // setup quota set accepts strings like '1G', '500M', or 'unlimited'.
+      quota: { regex: '^(?:[0-9]+[BKMGT]?|unlimited)$', maxlen: 16 },
+    },
+  },
+
+  // ---- doveadm-based actions ----
+  {
+    id: 'doveadm_index',
+    // Original shell form had '\\*' to escape the glob. With shell=False
+    // the argv token is just the literal '*'.
+    argv: ['doveadm', 'index', '-u', '{mailbox}', '-q', '*'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+  {
+    id: 'doveadm_mailbox_list',
+    argv: ['doveadm', 'mailbox', 'list', '-u', '{mailbox}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+  {
+    id: 'doveadm_mailbox_list_subscribed',
+    argv: ['doveadm', 'mailbox', 'list', '-u', '{mailbox}', '-s'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+  {
+    id: 'doveadm_mailbox_metadata_list',
+    argv: [
+      'doveadm',
+      'mailbox',
+      'metadata',
+      'list',
+      '-p',
+      '-u',
+      '{mailbox}',
+      '{box}',
+    ],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      // dovecot folder names: alphanumeric + ./-_ + slash for hierarchy + space.
+      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+    },
+  },
+  {
+    id: 'doveadm_mailbox_status',
+    argv: [
+      'doveadm',
+      'mailbox',
+      'status',
+      '-u',
+      '{mailbox}',
+      '{field}',
+      '{box}',
+    ],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      // Single field name (e.g. 'all', 'messages') OR a space-separated list.
+      field: { regex: '^[a-z_]+(?: [a-z_]+)*$', maxlen: 128 },
+      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+    },
+  },
+  {
+    id: 'doveadm_force_resync',
+    argv: [
+      'doveadm',
+      'force-resync',
+      '-u',
+      '{mailbox}',
+      '--mailbox-mask',
+      '{box}',
+    ],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+      box: { regex: '^[A-Za-z0-9 ._/\\-]+$', maxlen: 256 },
+    },
+  },
+  {
+    id: 'doveadm_quota_get',
+    argv: ['doveadm', 'quota', 'get', '-u', '{mailbox}'],
+    validate: {
+      mailbox: { regex: '^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$', maxlen: 254 },
+    },
+  },
+];

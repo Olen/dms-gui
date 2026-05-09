@@ -9,6 +9,7 @@ vi.hoisted(() => {
 vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
 import { resolveSmtpTlsVerify, mailserverRESTAPI, env } from './env.mjs';
+import { REST_API_MANIFEST } from './restApiManifest.mjs';
 
 describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
   it('explicit "false" overrides everything else', () => {
@@ -81,7 +82,7 @@ describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
   it('manifest content is valid JSON matching REST_API_MANIFEST', () => {
     const parsed = JSON.parse(mailserverRESTAPI.dms.manifest.content);
     expect(Array.isArray(parsed)).toBe(true);
-    expect(parsed).toEqual([]);
+    expect(parsed).toEqual(REST_API_MANIFEST);
   });
 
   it('manifest path is exactly DMSGUI_CONFIG_PATH + filename', () => {
