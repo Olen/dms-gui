@@ -422,7 +422,16 @@ export const execAction = async (
       };
     }
 
-    result = await checkPort(targetDict);
+    // Resolve the effective timeout once and use it for BOTH the
+    // socket-connect probe (checkPort) and the request body. Without
+    // this, opts.timeout=60 would set the request timeout but the
+    // checkPort still used targetDict.timeout (or default ~0.3s) — a
+    // long-running action could fail the pre-flight TCP probe long
+    // before its own timeout kicked in.
+    const effectiveTimeout = Number(
+      opts?.timeout ?? targetDict?.timeout ?? env.timeout
+    );
+    result = await checkPort({ ...targetDict, timeout: effectiveTimeout });
     if (result.success) {
       const jsonData = {
         action: actionId,
@@ -431,7 +440,7 @@ export const execAction = async (
         // contract violation that should surface as the interpreter's
         // 400 (args must be an object) rather than be silently fixed up.
         args,
-        timeout: Number(opts?.timeout ?? targetDict?.timeout ?? env.timeout),
+        timeout: effectiveTimeout,
       };
 
       debugLog(

@@ -1,14 +1,18 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 
 // Hoist env config so vi.mock factory can reference it.
-const { mockEnv } = vi.hoisted(() => {
+const { mockEnv, socketSetTimeoutSpy } = vi.hoisted(() => {
   const mockEnv = {
     isDEMO: false,
     timeout: 4,
     debug: false,
     LOG_COLORS: false,
   };
-  return { mockEnv };
+  // Captures the ms argument passed to socket.setTimeout in checkPort,
+  // so the test can verify checkPort and the request body see the same
+  // effective timeout (e.g. when opts.timeout overrides).
+  const socketSetTimeoutSpy = vi.fn();
+  return { mockEnv, socketSetTimeoutSpy };
 });
 
 vi.mock('./env.mjs', () => ({
@@ -22,7 +26,7 @@ vi.mock('node:net', async () => {
   const { EventEmitter } = await import('node:events');
   function MockSocket() {
     EventEmitter.call(this);
-    this.setTimeout = vi.fn();
+    this.setTimeout = (ms) => socketSetTimeoutSpy(ms);
     this.end = vi.fn();
     this.destroy = vi.fn();
     // Simulate a successful connection: call the connect callback synchronously.
@@ -147,6 +151,21 @@ describe('execAction', () => {
     const body = JSON.parse(init.body);
 
     expect(body.timeout).toBe(30);
+  });
+
+  it('uses the same effective timeout for checkPort and the request body', async () => {
+    // opts.timeout=60 should reach BOTH the socket setTimeout (used by
+    // checkPort's TCP probe) AND the request body. Without this,
+    // checkPort would still use targetDict.timeout — a long-running
+    // action could fail the pre-flight TCP probe long before its own
+    // timeout kicked in.
+    await execAction('setup_email_list', {}, validTarget, { timeout: 60 });
+
+    expect(socketSetTimeoutSpy).toHaveBeenCalledWith(60 * 1000);
+
+    const [, init] = fetchSpy.mock.calls[0];
+    const body = JSON.parse(init.body);
+    expect(body.timeout).toBe(60);
   });
 
   it('passes explicit null args through to the body without coercion', async () => {
