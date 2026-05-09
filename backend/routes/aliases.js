@@ -60,7 +60,13 @@ router.get(
       const { containerName } = req.params;
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
-      const refresh = 'refresh' in req.query ? req.query.refresh : false;
+      // Robust to both the production query parser (booleans) and any
+      // caller / test that uses Express's default parser (strings).
+      // `?refresh=false` must NOT trigger a refresh.
+      const refresh =
+        req.query.refresh === true ||
+        req.query.refresh === 'true' ||
+        req.query.refresh === '1';
 
       // Users can only act on their own mailboxes or those in their roles (unless admin)
       let result;
@@ -158,23 +164,19 @@ router.post(
         result = await addAlias(containerName, source, destination);
       } else {
         if (!isUserAliasAllowed(containerName)) {
-          return res
-            .status(403)
-            .json({
-              success: false,
-              error: 'Alias creation is disabled for non-admin users',
-            });
+          return res.status(403).json({
+            success: false,
+            error: 'Alias creation is disabled for non-admin users',
+          });
         }
 
         let domainSource = source.match(/.*@([_\-.\w]+)/);
         let domainDest = destination.match(/.*@([_\-.\w]+)/);
         if (!domainSource || !domainDest) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error: 'Source and destination must contain a valid @domain',
-            });
+          return res.status(400).json({
+            success: false,
+            error: 'Source and destination must contain a valid @domain',
+          });
         }
         let domainsMatch =
           domainSource.length === 2 &&
@@ -251,12 +253,10 @@ router.delete(
         result = await deleteAlias(containerName, source, destination);
       } else {
         if (!isUserAliasAllowed(containerName)) {
-          return res
-            .status(403)
-            .json({
-              success: false,
-              error: 'Alias management is disabled for non-admin users',
-            });
+          return res.status(403).json({
+            success: false,
+            error: 'Alias management is disabled for non-admin users',
+          });
         }
 
         if (!req.user.roles.includes(destination)) {
@@ -332,12 +332,10 @@ router.put(
         result = await updateAlias(containerName, source, destination);
       } else {
         if (!isUserAliasAllowed(containerName)) {
-          return res
-            .status(403)
-            .json({
-              success: false,
-              error: 'Alias management is disabled for non-admin users',
-            });
+          return res.status(403).json({
+            success: false,
+            error: 'Alias management is disabled for non-admin users',
+          });
         }
 
         // Non-admin: every destination must be in the user's roles, and source
@@ -348,33 +346,27 @@ router.put(
           .map((d) => d.trim())
           .filter(Boolean);
         if (dests.length === 0) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error: 'At least one destination is required',
-            });
+          return res.status(400).json({
+            success: false,
+            error: 'At least one destination is required',
+          });
         }
         const sourceMatch = source.match(/.*@([_\-.\w]+)/);
         if (!sourceMatch) {
-          return res
-            .status(400)
-            .json({
-              success: false,
-              error: 'Source must contain a valid @domain',
-            });
+          return res.status(400).json({
+            success: false,
+            error: 'Source must contain a valid @domain',
+          });
         }
         const sourceDomain = sourceMatch[1].toLowerCase();
 
         for (const d of dests) {
           const m = d.match(/.*@([_\-.\w]+)/);
           if (!m) {
-            return res
-              .status(400)
-              .json({
-                success: false,
-                error: 'Destinations must contain a valid @domain',
-              });
+            return res.status(400).json({
+              success: false,
+              error: 'Destinations must contain a valid @domain',
+            });
           }
           if (m[1].toLowerCase() !== sourceDomain) {
             return res

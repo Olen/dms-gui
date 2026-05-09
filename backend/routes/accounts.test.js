@@ -38,11 +38,15 @@ vi.mock('../db.mjs', () => ({
   updateDB: (...args) => mockUpdateDB(...args),
 }));
 
-import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import {
+  createTestApp,
+  adminToken,
+  userToken,
+  inactiveToken,
+} from '../test/routeHelper.mjs';
 import accountRoutes from './accounts.js';
 
 const app = createTestApp(accountRoutes);
-
 
 describe('GET /api/accounts/:containerName', () => {
   beforeEach(() => {
@@ -90,10 +94,34 @@ describe('GET /api/accounts/:containerName', () => {
 
     expect(res.status).toBe(200);
     // Non-admin call: getAccounts(containerName, false, roles)
-    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false, ['user@test.com']);
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false, [
+      'user@test.com',
+    ]);
+  });
+
+  it('?refresh=false is correctly parsed as false (regression guard)', async () => {
+    // The test app uses Express's default query parser, so
+    // req.query.refresh arrives as the string "false" — which is
+    // truthy. The route must coerce it to boolean false explicitly.
+    mockGetAccounts.mockResolvedValue({ success: true, message: [] });
+
+    await request(app)
+      .get('/api/accounts/mailserver?refresh=false')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', false);
+  });
+
+  it('?refresh=true is correctly parsed as true', async () => {
+    mockGetAccounts.mockResolvedValue({ success: true, message: [] });
+
+    await request(app)
+      .get('/api/accounts/mailserver?refresh=true')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(mockGetAccounts).toHaveBeenCalledWith('mailserver', true);
   });
 });
-
 
 describe('POST /api/accounts/:schema/:containerName', () => {
   beforeEach(() => {
@@ -120,7 +148,10 @@ describe('POST /api/accounts/:schema/:containerName', () => {
   });
 
   it('returns 201 on successful creation', async () => {
-    mockAddAccount.mockResolvedValue({ success: true, message: 'Account created' });
+    mockAddAccount.mockResolvedValue({
+      success: true,
+      message: 'Account created',
+    });
 
     const res = await request(app)
       .post('/api/accounts/dms/mailserver')
@@ -131,7 +162,6 @@ describe('POST /api/accounts/:schema/:containerName', () => {
     expect(res.body.success).toBe(true);
   });
 });
-
 
 describe('DELETE /api/accounts/:containerName/:mailbox', () => {
   beforeEach(() => {
@@ -147,7 +177,10 @@ describe('DELETE /api/accounts/:containerName/:mailbox', () => {
   });
 
   it('returns 200 on successful deletion', async () => {
-    mockDeleteAccount.mockResolvedValue({ success: true, message: 'Account deleted' });
+    mockDeleteAccount.mockResolvedValue({
+      success: true,
+      message: 'Account deleted',
+    });
 
     const res = await request(app)
       .delete('/api/accounts/mailserver/old@test.com')
@@ -157,7 +190,6 @@ describe('DELETE /api/accounts/:containerName/:mailbox', () => {
     expect(res.body.success).toBe(true);
   });
 });
-
 
 describe('PATCH /api/accounts/:schema/:containerName/:mailbox', () => {
   beforeEach(() => {
@@ -223,7 +255,6 @@ describe('PATCH /api/accounts/:schema/:containerName/:mailbox', () => {
   });
 });
 
-
 describe('PUT /api/accounts/:containerName/:mailbox/quota', () => {
   beforeEach(() => {
     vi.clearAllMocks();
@@ -249,6 +280,10 @@ describe('PUT /api/accounts/:containerName/:mailbox/quota', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
-    expect(mockSetQuota).toHaveBeenCalledWith('mailserver', 'user@test.com', '500M');
+    expect(mockSetQuota).toHaveBeenCalledWith(
+      'mailserver',
+      'user@test.com',
+      '500M'
+    );
   });
 });
