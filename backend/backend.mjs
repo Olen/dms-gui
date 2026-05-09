@@ -416,7 +416,11 @@ export const execAction = async (
     if (result.success) {
       const jsonData = {
         action: actionId,
-        args: args || {},
+        // No `args || {}` fallback: the signature default catches a
+        // missing arg, but an explicit `null` from the caller is a
+        // contract violation that should surface as the interpreter's
+        // 400 (args must be an object) rather than be silently fixed up.
+        args,
         timeout: Number(opts?.timeout ?? targetDict?.timeout ?? env.timeout),
       };
 
