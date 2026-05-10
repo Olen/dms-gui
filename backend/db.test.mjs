@@ -190,3 +190,92 @@ describe('getTargetDict — protocol allowlist (SSRF defense)', () => {
     });
   }
 });
+
+describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
+  // Hostnames flow into fetch() as `${protocol}://${host}:${port}`.
+  // The regex sanitizer in getTargetDict is the structural barrier
+  // CodeQL recognises; a host failing it never reaches the URL.
+  const settingsWithHost = (host) => [
+    { name: 'protocol', value: 'http' },
+    { name: 'containerName', value: host },
+    { name: 'DMS_API_PORT', value: '8888' },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  for (const ok of [
+    'mailserver',
+    'mail.example.com',
+    'dms-gui',
+    'dms_gui',
+    'dms-gui_mailserver_1',
+    'a.b.c.d.example.com',
+    'MAIL.EXAMPLE.COM', // case-insensitive
+  ]) {
+    it(`accepts hostname '${ok}'`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithHost(ok));
+      expect(r.host).toBe(ok);
+      expect(r.success).toBeUndefined(); // no failure shape
+    });
+  }
+
+  for (const bad of [
+    '127.0.0.1', // loopback
+    '169.254.169.254', // AWS metadata
+    '10.0.0.5', // private LAN
+    '192.168.1.1', // private LAN
+    '0.0.0.0',
+    '[::1]', // IPv6 loopback
+    'mailserver:8888/path', // URL metacharacters
+    'mailserver/foo',
+    'foo bar', // whitespace
+    'foo@bar', // @ metachar
+    '?internal=true',
+    '', // empty
+  ]) {
+    it(`rejects host ${JSON.stringify(bad)}`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithHost(bad));
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/host must be a valid hostname/);
+    });
+  }
+});
+
+describe('getTargetDict — port validation', () => {
+  const settingsWithPort = (port) => [
+    { name: 'protocol', value: 'http' },
+    { name: 'containerName', value: 'mailserver' },
+    { name: 'DMS_API_PORT', value: port },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  it('accepts a typical port string', () => {
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('8888'));
+    expect(r.port).toBe('8888');
+  });
+
+  it('accepts the high end of the range', () => {
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('65535'));
+    expect(r.port).toBe('65535');
+  });
+
+  for (const bad of [
+    '0',
+    '65536',
+    '99999',
+    '-1',
+    '8888.0',
+    'abc',
+    '',
+    ' 8888',
+  ]) {
+    it(`rejects port ${JSON.stringify(bad)}`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithPort(bad));
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/port must be an integer/);
+    });
+  }
+});

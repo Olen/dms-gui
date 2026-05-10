@@ -1664,6 +1664,29 @@ export const refreshTokens = async (credentials) => {
 // reach non-HTTP resources via fetch().
 const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 
+// Hostname allowlist for the targetDict.host. The regex matches RFC
+// 1035-ish hostname syntax: each label is alphanumeric (with internal
+// hyphens / underscores allowed for docker-compose names like
+// `dms-gui_mailserver_1`), labels separated by single dots, no leading
+// digit on the first label (so `1.2.3.4`-style IP literals are
+// rejected). This is the structural SSRF barrier — CodeQL recognises
+// this regex check as a sanitizer for the user-controlled host that
+// flows into fetch(). Rejected by design:
+//   - IPv4 / IPv6 literals (e.g. `169.254.169.254` cloud metadata,
+//     `127.0.0.1` loopback, `10.x.x.x` LAN) — not used in any
+//     legitimate dms-gui setup; container names or FQDNs only.
+//   - Anything containing `:` `/` `?` `#` `@` (URL metacharacters
+//     that would let an attacker forge a non-host portion of the URL).
+//   - Whitespace, control chars.
+// `1024` cap is well above any realistic FQDN.
+const TARGET_HOST_RE = /^[a-z][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*$/i;
+
+// Port must be a numeric string in the valid TCP/UDP range. Anything
+// else (negative, scientific notation, leading zeros, etc.) bypasses
+// fetch's URL parser into undefined territory.
+const TARGET_PORT_RE = /^[1-9][0-9]{0,4}$/;
+const isValidPortNumber = (n) => Number.isInteger(n) && n >= 1 && n <= 65535;
+
 export const getTargetDict = (
   plugin = null,
   containerName = null,
@@ -1679,11 +1702,35 @@ export const getTargetDict = (
           error: `protocol must be one of: ${[...ALLOWED_TARGET_PROTOCOLS].join(', ')}`,
         };
       }
+      const host = getValueFromArrayOfObj(settings, 'containerName');
+      if (
+        typeof host !== 'string' ||
+        !TARGET_HOST_RE.test(host) ||
+        host.length > 1024
+      ) {
+        return {
+          success: false,
+          error:
+            'host must be a valid hostname (alphanumeric labels separated by dots; IP literals not allowed)',
+        };
+      }
+      const portRaw = getValueFromArrayOfObj(settings, 'DMS_API_PORT');
+      const portStr = typeof portRaw === 'number' ? String(portRaw) : portRaw;
+      if (
+        typeof portStr !== 'string' ||
+        !TARGET_PORT_RE.test(portStr) ||
+        !isValidPortNumber(Number(portStr))
+      ) {
+        return {
+          success: false,
+          error: 'port must be an integer between 1 and 65535',
+        };
+      }
       let targetDict = {
-        containerName: getValueFromArrayOfObj(settings, 'containerName'),
+        containerName: host,
         protocol,
-        host: getValueFromArrayOfObj(settings, 'containerName'),
-        port: getValueFromArrayOfObj(settings, 'DMS_API_PORT'),
+        host,
+        port: portStr,
         Authorization: getValueFromArrayOfObj(settings, 'DMS_API_KEY'),
         setupPath: getValueFromArrayOfObj(settings, 'setupPath'),
         timeout: getValueFromArrayOfObj(settings, 'timeout'),
