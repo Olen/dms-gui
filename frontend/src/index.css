@@ -39,11 +39,12 @@ body {
   background-color: #f8f9fa;
 }
 
-.btn-group-xs > .btn, .btn-xs {
+.btn-group-xs > .btn,
+.btn-xs {
   --bs-btn-padding-y: 0.25rem;
-  --bs-btn-padding-x: 0.10rem;
+  --bs-btn-padding-x: 0.1rem;
   --bs-btn-font-size: 0.875rem;
-  --bs-btn-border-radius: .25rem;
+  --bs-btn-border-radius: 0.25rem;
 }
 
 .card-clickable {
@@ -56,8 +57,7 @@ body {
   width: 0;
 }
 
-tr .form-control, 
-tr .MuiChip-root  {
+tr .form-control {
   color: inherit;
 }
 
@@ -107,17 +107,15 @@ tr .MuiChip-root  {
   display: none;
 }
 
-.leftsidebar-collapse-footer{
+.leftsidebar-collapse-footer {
   margin-top: auto;
 }
-.leftsidebar-collapse-btn{
+.leftsidebar-collapse-btn {
   /* position: absolute; */
   /* bottom: .5rem; */
 }
 
 /* -------------------- leftsidebar -------------------- */
-
-
 
 .main-content {
   padding: 20px;
@@ -148,7 +146,9 @@ tr .MuiChip-root  {
   margin: 0 auto;
 }
 
-.cursor-pointer {cursor: pointer;}
+.cursor-pointer {
+  cursor: pointer;
+}
 
 .top-right {
   top: 1rem;
@@ -158,12 +158,24 @@ tr .MuiChip-root  {
 /* -------------------- DataTable -------------------- */
 /* --- Highlight animation --- */
 @keyframes highlight {
-  0%    { background-color: yellow; }
-  4%    { background-color: transparent; }
-  5%    { background-color: yellow; }
-  9%    { background-color: transparent; }
-  10%   { background-color: yellow; }
-  100%  { background-color: transparent; }
+  0% {
+    background-color: yellow;
+  }
+  4% {
+    background-color: transparent;
+  }
+  5% {
+    background-color: yellow;
+  }
+  9% {
+    background-color: transparent;
+  }
+  10% {
+    background-color: yellow;
+  }
+  100% {
+    background-color: transparent;
+  }
 }
 
 .highlight-change {
@@ -173,7 +185,7 @@ tr .MuiChip-root  {
 
 /* opacity for text in td only, not the buttons or icons */
 .td-opacity-25 td span {
-  opacity: .25;
+  opacity: 0.25;
 }
 
 /* text-danger or any text color applied at row lever is superseeded by the below, from table class */
@@ -181,11 +193,3 @@ tr .MuiChip-root  {
   color: inherit;
 }
 /* -------------------- DataTable -------------------- */
-
-
-/* -------------------- Autocomplete -------------------- */
-/* do not hold a minimum width to avoid unnecessary larger boxes */
-.MuiAutocomplete-input {
-  min-width: 1px !important;
-}
-/* -------------------- Autocomplete -------------------- */
