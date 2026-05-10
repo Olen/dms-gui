@@ -6,7 +6,7 @@ const mockErrorLog = vi.fn();
 const mockSuccessLog = vi.fn();
 const mockWarnLog = vi.fn();
 const mockInfoLog = vi.fn();
-const mockExecCommand = vi.fn();
+const mockExecAction = vi.fn();
 
 vi.mock('./backend.mjs', () => ({
   debugLog: (...args) => mockDebugLog(...args),
@@ -14,7 +14,7 @@ vi.mock('./backend.mjs', () => ({
   successLog: (...args) => mockSuccessLog(...args),
   warnLog: (...args) => mockWarnLog(...args),
   infoLog: (...args) => mockInfoLog(...args),
-  execCommand: (...args) => mockExecCommand(...args),
+  execAction: (...args) => mockExecAction(...args),
 }));
 
 vi.mock('./db.mjs', () => ({
@@ -51,7 +51,7 @@ vi.mock('./demoMode.mjs', () => ({
   demoWriteResponse: vi.fn(() => null),
 }));
 
-import { addLogin, getLogin, getRoles } from './logins.mjs';
+import { addLogin, getLogin, getRoles, loginUser } from './logins.mjs';
 import { dbGet, sql } from './db.mjs';
 
 describe('addLogin — password redaction', () => {
@@ -180,5 +180,78 @@ describe('getRoles — key validation', () => {
     expect(dbGet).toHaveBeenCalledWith(sql.logins.select.rolesByMailbox, {
       mailbox: 'user@test.com',
     });
+  });
+});
+
+describe('loginUser — doveadm auth test dispatch', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it('calls execAction doveadm_auth_test with correct mailbox/password and returns success on returncode 0', async () => {
+    // getLogin (guess=true) uses dbGet with loginGuess statement.
+    // Return a login row with isAccount=1 so the doveadm path is taken.
+    dbGet.mockReturnValueOnce({
+      success: true,
+      message: {
+        mailbox: 'user@example.com',
+        username: 'user@example.com',
+        isAdmin: 0,
+        isActive: 1,
+        isAccount: 1,
+        mailserver: 'test-mailserver',
+        roles: '[]',
+      },
+    });
+    mockExecAction.mockResolvedValueOnce({
+      returncode: 0,
+      stdout: '',
+      stderr: '',
+    });
+
+    const result = await loginUser('user@example.com', 'correctpassword');
+
+    expect(result.success).toBe(true);
+    expect(mockExecAction).toHaveBeenCalledTimes(1);
+    expect(mockExecAction).toHaveBeenCalledWith(
+      'doveadm_auth_test',
+      { mailbox: 'user@example.com', password: 'correctpassword' },
+      expect.objectContaining({ timeout: 5 })
+    );
+  });
+
+  it('returns success=false with invalid-password message when doveadm returns non-zero', async () => {
+    dbGet.mockReturnValueOnce({
+      success: true,
+      message: {
+        mailbox: 'user@example.com',
+        username: 'user@example.com',
+        isAdmin: 0,
+        isActive: 1,
+        isAccount: 1,
+        mailserver: 'test-mailserver',
+        roles: '[]',
+      },
+    });
+    mockExecAction.mockResolvedValueOnce({
+      returncode: 1,
+      stdout: '',
+      stderr: 'auth error',
+    });
+
+    const result = await loginUser('user@example.com', 'wrongpassword');
+
+    expect(result.success).toBe(false);
+    // The message should reference the credential and indicate invalid password
+    expect(result.message).toMatch(/password invalid/i);
+  });
+
+  it('does NOT call execAction when the user does not exist in DB', async () => {
+    dbGet.mockReturnValueOnce({ success: false, message: 'not found' });
+
+    const result = await loginUser('nobody@example.com', 'somepassword');
+
+    expect(result.success).toBe(false);
+    expect(mockExecAction).not.toHaveBeenCalled();
   });
 });

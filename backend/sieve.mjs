@@ -1,17 +1,6 @@
-import {
-  escapeShellArg,
-} from '../common.mjs';
-import {
-  debugLog,
-  errorLog,
-  execCommand,
-  successLog,
-} from './backend.mjs';
-import {
-  getTargetDict,
-} from './db.mjs';
+import { debugLog, errorLog, execAction, successLog } from './backend.mjs';
+import { getTargetDict } from './db.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
-
 
 // --- Sieve script generation ---
 
@@ -65,22 +54,25 @@ export const generateSieveScript = (rules) => {
   sections.push(MARKER_BEGIN('block'));
   sections.push(MARKER_KV('block', 'enabled', !!blk.enabled));
   const addrs = blk.addresses || [];
-  if (addrs.length) sections.push(MARKER_KV('block', 'addresses', addrs.join(',')));
+  if (addrs.length)
+    sections.push(MARKER_KV('block', 'addresses', addrs.join(',')));
   if (blk.enabled && addrs.length) {
     requires.add('reject');
-    const addrList = addrs.map(a => `"${a}"`).join(', ');
+    const addrList = addrs.map((a) => `"${a}"`).join(', ');
     sections.push(`if address :is "from" [${addrList}] { reject "Blocked"; }`);
   }
   sections.push(MARKER_END('block'));
 
   // Build require line
   const reqLine = requires.size
-    ? `require [${[...requires].sort().map(r => `"${r}"`).join(', ')}];\n`
+    ? `require [${[...requires]
+        .sort()
+        .map((r) => `"${r}"`)
+        .join(', ')}];\n`
     : '';
 
   return reqLine + sections.join('\n') + '\n';
 };
-
 
 // --- Sieve script parsing ---
 
@@ -120,7 +112,8 @@ export const parseSieveScript = (scriptContent) => {
         else if (key === 'days') rules.vacation.days = parseInt(value, 10) || 7;
       } else if (currentType === 'block') {
         if (key === 'enabled') rules.block.enabled = value === 'true';
-        else if (key === 'addresses') rules.block.addresses = value ? value.split(',') : [];
+        else if (key === 'addresses')
+          rules.block.addresses = value ? value.split(',') : [];
       }
     }
   }
@@ -128,11 +121,11 @@ export const parseSieveScript = (scriptContent) => {
   return rules;
 };
 
-
 // --- CRUD operations ---
 
 export const getSieveRules = async (containerName, mailbox) => {
-  if (!containerName) return { success: false, error: 'containerName is required' };
+  if (!containerName)
+    return { success: false, error: 'containerName is required' };
   if (!mailbox) return { success: false, error: 'mailbox is required' };
 
   const demo = demoResponse('sieveRules');
@@ -143,16 +136,30 @@ export const getSieveRules = async (containerName, mailbox) => {
     targetDict.timeout = 10;
 
     // List sieve scripts
-    const listCmd = `doveadm sieve list -u ${escapeShellArg(mailbox)}`;
-    const listResult = await execCommand(listCmd, targetDict);
+    const listResult = await execAction(
+      'doveadm_sieve_list',
+      { mailbox },
+      targetDict
+    );
+
+    if (listResult.returncode !== 0) {
+      errorLog(`doveadm_sieve_list failed: ${listResult.stderr}`);
+      return {
+        success: false,
+        error: listResult.stderr || 'sieve list failed',
+      };
+    }
 
     let scriptExists = false;
     let isActive = false;
 
-    if (listResult.returncode === 0 && listResult.stdout) {
+    if (listResult.stdout) {
       for (const line of listResult.stdout.split('\n')) {
         const trimmed = line.trim();
-        if (trimmed === 'roundcube ACTIVE' || trimmed.startsWith('roundcube ')) {
+        if (
+          trimmed === 'roundcube ACTIVE' ||
+          trimmed.startsWith('roundcube ')
+        ) {
           scriptExists = true;
           if (trimmed.includes('ACTIVE')) isActive = true;
         }
@@ -160,31 +167,47 @@ export const getSieveRules = async (containerName, mailbox) => {
     }
 
     if (!scriptExists) {
-      return { success: true, message: { rules: null, scriptExists: false, isActive: false, rawScript: null } };
+      return {
+        success: true,
+        message: {
+          rules: null,
+          scriptExists: false,
+          isActive: false,
+          rawScript: null,
+        },
+      };
     }
 
     // Get the script content
-    const getCmd = `doveadm sieve get -u ${escapeShellArg(mailbox)} roundcube`;
-    const getResult = await execCommand(getCmd, targetDict);
+    const getResult = await execAction(
+      'doveadm_sieve_get',
+      { mailbox },
+      targetDict
+    );
 
     if (getResult.returncode !== 0) {
-      return { success: false, error: `Failed to read sieve script: ${getResult.stderr}` };
+      return {
+        success: false,
+        error: `Failed to read sieve script: ${getResult.stderr}`,
+      };
     }
 
     const rawScript = getResult.stdout;
     const rules = parseSieveScript(rawScript);
 
-    return { success: true, message: { rules, scriptExists: true, isActive, rawScript } };
-
+    return {
+      success: true,
+      message: { rules, scriptExists: true, isActive, rawScript },
+    };
   } catch (error) {
     errorLog('getSieveRules', error);
     return { success: false, error: error.message };
   }
 };
 
-
 export const saveSieveRules = async (containerName, mailbox, rules) => {
-  if (!containerName) return { success: false, error: 'containerName is required' };
+  if (!containerName)
+    return { success: false, error: 'containerName is required' };
   if (!mailbox) return { success: false, error: 'mailbox is required' };
 
   const demo = demoWriteResponse('Sieve rules saved');
@@ -196,35 +219,45 @@ export const saveSieveRules = async (containerName, mailbox, rules) => {
 
     const script = generateSieveScript(rules);
     const b64 = Buffer.from(script).toString('base64');
-    const escapedMailbox = escapeShellArg(mailbox);
 
     // Two separate calls — deployed rest-api.py doesn't support && chaining
-    const putCmd = `echo ${escapeShellArg(b64)} | base64 -d | doveadm sieve put -u ${escapedMailbox} roundcube`;
-    const putResult = await execCommand(putCmd, targetDict);
+    const putResult = await execAction(
+      'doveadm_sieve_put',
+      { mailbox, b64 },
+      targetDict
+    );
 
     if (putResult.returncode !== 0) {
-      return { success: false, error: `Failed to save sieve script: ${putResult.stderr}` };
+      return {
+        success: false,
+        error: `Failed to save sieve script: ${putResult.stderr}`,
+      };
     }
 
-    const activateCmd = `doveadm sieve activate -u ${escapedMailbox} roundcube`;
-    const activateResult = await execCommand(activateCmd, targetDict);
+    const activateResult = await execAction(
+      'doveadm_sieve_activate',
+      { mailbox },
+      targetDict
+    );
 
     if (activateResult.returncode !== 0) {
-      return { success: false, error: `Failed to activate sieve script: ${activateResult.stderr}` };
+      return {
+        success: false,
+        error: `Failed to activate sieve script: ${activateResult.stderr}`,
+      };
     }
 
     successLog(`Sieve rules saved for ${mailbox}`);
     return { success: true, message: 'Sieve rules saved' };
-
   } catch (error) {
     errorLog('saveSieveRules', error);
     return { success: false, error: error.message };
   }
 };
 
-
 export const deleteSieveRules = async (containerName, mailbox) => {
-  if (!containerName) return { success: false, error: 'containerName is required' };
+  if (!containerName)
+    return { success: false, error: 'containerName is required' };
   if (!mailbox) return { success: false, error: 'mailbox is required' };
 
   const demo = demoWriteResponse('Sieve rules deleted');
@@ -234,33 +267,40 @@ export const deleteSieveRules = async (containerName, mailbox) => {
     const targetDict = getTargetDict('mailserver', containerName);
     targetDict.timeout = 10;
 
-    const escapedMailbox = escapeShellArg(mailbox);
-
     // Two separate calls — deployed rest-api.py doesn't support && chaining
-    const deactivateCmd = `doveadm sieve deactivate -u ${escapedMailbox}`;
-    const deactivateResult = await execCommand(deactivateCmd, targetDict);
+    const deactivateResult = await execAction(
+      'doveadm_sieve_deactivate',
+      { mailbox },
+      targetDict
+    );
 
     // Deactivate may fail if no active script — that's OK, continue to delete
     if (deactivateResult.returncode !== 0) {
-      debugLog(`sieve deactivate returned ${deactivateResult.returncode}: ${deactivateResult.stderr}`);
+      debugLog(
+        `sieve deactivate returned ${deactivateResult.returncode}: ${deactivateResult.stderr}`
+      );
     }
 
-    const deleteCmd = `doveadm sieve delete -u ${escapedMailbox} roundcube`;
-    const deleteResult = await execCommand(deleteCmd, targetDict);
+    const deleteResult = await execAction(
+      'doveadm_sieve_delete',
+      { mailbox },
+      targetDict
+    );
 
     if (deleteResult.returncode !== 0) {
-      return { success: false, error: `Failed to delete sieve script: ${deleteResult.stderr}` };
+      return {
+        success: false,
+        error: `Failed to delete sieve script: ${deleteResult.stderr}`,
+      };
     }
 
     successLog(`Sieve rules deleted for ${mailbox}`);
     return { success: true, message: 'Sieve rules deleted' };
-
   } catch (error) {
     errorLog('deleteSieveRules', error);
     return { success: false, error: error.message };
   }
 };
-
 
 // Export internals for unit testing
 export const _test = { generateSieveScript, parseSieveScript, defaultRules };
