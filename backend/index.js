@@ -2,6 +2,7 @@ import { debugLog, errorLog, infoLog } from './backend.mjs';
 import { env } from './env.mjs';
 
 import { dbInit, refreshTokens } from './db.mjs';
+import { parseCorsOrigins } from './corsConfig.mjs';
 
 import { killContainer } from './settings.mjs';
 
@@ -57,14 +58,14 @@ if (trustProxy !== undefined) {
   debugLog('trust proxy =', value);
 }
 
-// CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
+// CORS_ORIGINS env: comma-separated allowed origins, or unset for
+// same-origin only. Each entry must be a fully-qualified
+// http:// or https:// origin (no trailing path) — wildcards (`*`)
+// and bare hostnames are silently dropped. See corsConfig.mjs for
+// the validation regex and the rationale.
 debugLog('env.API_URL', env.API_URL);
 debugLog('env.FRONTEND_URL', env.FRONTEND_URL);
-const corsOriginsList = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  : null;
+const corsOriginsList = parseCorsOrigins(process.env.CORS_ORIGINS, debugLog);
 const corsOptions = {
   origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
   credentials: true,
