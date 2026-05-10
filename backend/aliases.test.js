@@ -435,7 +435,7 @@ describe('addAlias — email path', () => {
     vi.clearAllMocks();
   });
 
-  it('calls setup_alias_add with correct args and returns success', async () => {
+  it('calls setup_alias_add with correct args and returns success (single destination)', async () => {
     execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDbRun.mockReturnValue({ success: true });
 
@@ -468,7 +468,36 @@ describe('addAlias — email path', () => {
     );
   });
 
-  it('returns error (no DB write) when setup_alias_add fails', async () => {
+  it('dispatches one setup_alias_add per comma-separated destination (Fix 4)', async () => {
+    execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await addAlias(
+      'mailserver',
+      'alias@example.com',
+      'a@example.com,b@example.com'
+    );
+
+    expect(result.success).toBe(true);
+    expect(execAction).toHaveBeenCalledTimes(2);
+    expect(execAction.mock.calls[0][1]).toMatchObject({
+      destination: 'a@example.com',
+    });
+    expect(execAction.mock.calls[1][1]).toMatchObject({
+      destination: 'b@example.com',
+    });
+    // DB stores the joined set of successfully-added destinations.
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({
+        destination: 'a@example.com,b@example.com',
+        regex: 0,
+      }),
+      'mailserver'
+    );
+  });
+
+  it('returns error (no DB write) when all setup_alias_add calls fail', async () => {
     execAction.mockResolvedValue({
       returncode: 1,
       stdout: '',
@@ -484,6 +513,28 @@ describe('addAlias — email path', () => {
     expect(result.success).toBe(false);
     expect(execAction).toHaveBeenCalledTimes(1);
     expect(mockDbRun).not.toHaveBeenCalled();
+  });
+
+  it('on partial failure (one dest fails), writes only successful destinations to DB', async () => {
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // a@ succeeds
+      .mockResolvedValueOnce({ returncode: 1, stdout: '', stderr: 'err' }); // b@ fails
+    mockDbRun.mockReturnValue({ success: true });
+
+    const result = await addAlias(
+      'mailserver',
+      'alias@example.com',
+      'a@example.com,b@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    expect(result.error).toMatch(/Partially created/);
+    expect(result.error).toMatch(/b@example\.com/);
+    expect(mockDbRun).toHaveBeenCalledWith(
+      expect.any(String),
+      expect.objectContaining({ destination: 'a@example.com', regex: 0 }),
+      'mailserver'
+    );
   });
 });
 
@@ -599,7 +650,7 @@ describe('deleteAlias — regex path', () => {
     vi.clearAllMocks();
   });
 
-  it('calls 3 actions in sequence and returns success', async () => {
+  it('calls 4 actions in sequence (filter, mv, reload, db-delete) and returns success', async () => {
     const regexSource = '/^abuse@.*$/';
     execAction.mockResolvedValue({ returncode: 0, stdout: '', stderr: '' });
     mockDeleteEntry.mockReturnValue({ success: true });
@@ -611,18 +662,33 @@ describe('deleteAlias — regex path', () => {
     );
 
     expect(result.success).toBe(true);
+    // 3 execAction calls: filter, mv, reload. deleteEntry is a DB call, not execAction.
     expect(execAction).toHaveBeenCalledTimes(3);
+
+    // Step 1: filter — must use RAW source (not JSON.stringify'd) so awk matches
+    // what addAlias wrote to postfix-regexp.cf; tmp_id is a per-request random hex.
     expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
-    // The {line} arg must use the RAW source — not JSON.stringify'd — so
-    // the grep -Fv matches what addAlias wrote to postfix-regexp.cf.
-    // Re-introducing JSON.stringify(source) before this line build would
-    // cause phantom deletion (DB cleared, file line stays). This assertion
-    // is the regression guard.
-    expect(execAction.mock.calls[0][1]).toEqual({
+    expect(execAction.mock.calls[0][1]).toMatchObject({
       line: '/^abuse@.*$/ admin@example.com',
+      tmp_id: expect.stringMatching(/^[a-f0-9]{24}$/),
     });
+
+    // Step 2: mv — must pass the same tmp_id to target the correct tmp file.
     expect(execAction.mock.calls[1][0]).toBe('tmp_postfix_regexp_to_final');
+    expect(execAction.mock.calls[1][1]).toMatchObject({
+      tmp_id: expect.stringMatching(/^[a-f0-9]{24}$/),
+    });
+    // Both calls share the same tmp_id value (consistent per-request id).
+    expect(execAction.mock.calls[0][1].tmp_id).toBe(
+      execAction.mock.calls[1][1].tmp_id
+    );
+
+    // Step 3: reload happens BEFORE DB delete (Fix 3 ordering — postfix stays
+    // in sync with the file even if the DB write subsequently fails).
     expect(execAction.mock.calls[2][0]).toBe('postfix_reload');
+
+    // DB delete happens last (after reload).
+    expect(mockDeleteEntry).toHaveBeenCalled();
   });
 
   it('does NOT call tmp_postfix_regexp_to_final if filter step fails', async () => {
@@ -630,7 +696,7 @@ describe('deleteAlias — regex path', () => {
     execAction.mockResolvedValue({
       returncode: 1,
       stdout: '',
-      stderr: 'grep error',
+      stderr: 'awk error',
     });
 
     const result = await deleteAlias(
@@ -642,8 +708,10 @@ describe('deleteAlias — regex path', () => {
     expect(result.success).toBe(false);
     expect(execAction).toHaveBeenCalledTimes(1);
     expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
-    expect(execAction.mock.calls[0][1]).toEqual({
+    // tmp_id is present and valid even on failure (generated before the first call).
+    expect(execAction.mock.calls[0][1]).toMatchObject({
       line: '/^abuse@.*$/ admin@example.com',
+      tmp_id: expect.stringMatching(/^[a-f0-9]{24}$/),
     });
     expect(mockDeleteEntry).not.toHaveBeenCalled();
   });
@@ -664,5 +732,31 @@ describe('deleteAlias — regex path', () => {
     expect(execAction).toHaveBeenCalledTimes(2);
     expect(execAction.mock.calls[0][0]).toBe('postfix_regexp_filter_to_tmp');
     expect(execAction.mock.calls[1][0]).toBe('tmp_postfix_regexp_to_final');
+    // DB must not be touched when file mv failed.
+    expect(mockDeleteEntry).not.toHaveBeenCalled();
+  });
+
+  it('does NOT call deleteEntry if postfix_reload fails (Fix 3: reload-before-db ordering)', async () => {
+    const regexSource = '/^abuse@.*$/';
+    execAction
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // filter succeeds
+      .mockResolvedValueOnce({ returncode: 0, stdout: '', stderr: '' }) // mv succeeds
+      .mockResolvedValueOnce({
+        returncode: 1,
+        stdout: '',
+        stderr: 'reload error',
+      }); // reload fails
+
+    const result = await deleteAlias(
+      'mailserver',
+      regexSource,
+      'admin@example.com'
+    );
+
+    expect(result.success).toBe(false);
+    expect(execAction).toHaveBeenCalledTimes(3);
+    expect(execAction.mock.calls[2][0]).toBe('postfix_reload');
+    // DB entry must NOT be deleted — the reload failed so we surface the error.
+    expect(mockDeleteEntry).not.toHaveBeenCalled();
   });
 });

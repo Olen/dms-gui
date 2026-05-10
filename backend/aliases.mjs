@@ -1,3 +1,5 @@
+import crypto from 'node:crypto';
+
 import {
   redactKey,
   reduxArrayOfObjByValue,
@@ -293,29 +295,54 @@ export const addAlias = async (
     if (source.match(regexEmailStrict)) {
       debugLog(`Adding new alias: ${source} -> ${destination}`);
 
-      results = await execAction(
-        'setup_alias_add',
-        { setup_path: targetDict.setupPath, source, destination },
-        targetDict
-      );
-      if (!results.returncode) {
-        result = dbRun(
-          sql.aliases.insert.alias,
-          { source: source, destination: destination, regex: 0 },
-          containerName
+      // Split comma-separated destinations and dispatch one setup_alias_add
+      // per destination, mirroring how updateAlias and deleteAlias already
+      // iterate the destination set. This handles the case where the caller
+      // passes "a@example.com,b@example.com" — the validator only accepts
+      // single email addresses, so passing the raw joined string would fail
+      // with HTTP 400 from the action protocol layer.
+      const destinations = String(destination)
+        .split(',')
+        .map((d) => d.trim())
+        .filter(Boolean);
+      const failed = [];
+      for (const dest of destinations) {
+        results = await execAction(
+          'setup_alias_add',
+          { setup_path: targetDict.setupPath, source, destination: dest },
+          targetDict
         );
-        if (result.success) {
+        if (results.returncode) {
+          let ErrorMsg = await formatDMSError('execAction', results.stderr);
+          errorLog(`addAlias failed for ${source} -> ${dest}: ${ErrorMsg}`);
+          failed.push(dest);
+        }
+      }
+      if (failed.length === destinations.length) {
+        // All destinations failed — return error without writing to DB.
+        return { success: false, error: `Failed to add alias ${source}` };
+      }
+      const addedDests = destinations.filter((d) => !failed.includes(d));
+      result = dbRun(
+        sql.aliases.insert.alias,
+        { source: source, destination: addedDests.join(','), regex: 0 },
+        containerName
+      );
+      if (result.success) {
+        if (failed.length === 0) {
           successLog(`Alias created: ${source} -> ${destination}`);
           return {
             success: true,
             message: `Alias created: ${source} -> ${destination}`,
           };
         }
-        return result;
+        // Partial success
+        return {
+          success: false,
+          error: `Partially created. Failed to add: ${failed.join(', ')}`,
+        };
       }
-      let ErrorMsg = await formatDMSError('execAction', results.stderr);
-      errorLog(ErrorMsg);
-      return { success: false, error: ErrorMsg };
+      return result;
 
       // this is a regex — append line then reload postfix via sequential actions
     } else {
@@ -447,12 +474,21 @@ export const deleteAlias = async (
       debugLog(`Deleting alias regex: ${rawSource}`);
 
       // The legacy &&-chain (grep -Fv > tmp && mv tmp final && postfix reload)
-      // is replaced by three sequential execAction calls; each step only runs
+      // is replaced by four sequential execAction calls; each step only runs
       // if the previous one succeeded.
+      //
+      // A per-request tmp_id namespaces the intermediate file so two concurrent
+      // regex-alias deletes don't clobber each other's tmp between filter and mv.
+      //
+      // Ordering rationale: postfix_reload runs BEFORE deleteEntry so that if
+      // the DB write fails the runtime is already in sync with the file — the
+      // alias is gone from postfix. The inverse order (DB then reload) left
+      // postfix serving stale config until manually restarted on DB failure.
+      const tmpId = crypto.randomBytes(12).toString('hex'); // 24 hex chars
       const line = `${rawSource} ${destination}`;
       results = await execAction(
         'postfix_regexp_filter_to_tmp',
-        { line },
+        { line, tmp_id: tmpId },
         targetDict
       );
       debugLog(
@@ -462,30 +498,32 @@ export const deleteAlias = async (
       if (!results.returncode) {
         results = await execAction(
           'tmp_postfix_regexp_to_final',
-          {},
+          { tmp_id: tmpId },
           targetDict
         );
         if (!results.returncode) {
           successLog(`Alias regex deleted: ${rawSource}`);
 
-          const result = deleteEntry(
-            'aliases',
-            stringifiedSource,
-            'bySource',
-            containerName
-          );
-          if (result.success) {
-            successLog(`Alias entry deleted: ${rawSource}`);
+          // Reload postfix BEFORE the DB delete so the runtime stays in sync
+          // with the file even if the DB write subsequently fails.
+          results = await execAction('postfix_reload', {}, targetDict);
+          if (!results.returncode) {
+            successLog(`postfix reloaded`);
 
-            // reload postfix
-            results = await execAction('postfix_reload', {}, targetDict);
-            if (!results.returncode) {
-              successLog(`postfix reloaded`);
+            const result = deleteEntry(
+              'aliases',
+              stringifiedSource,
+              'bySource',
+              containerName
+            );
+            if (result.success) {
+              successLog(`Alias entry deleted: ${rawSource}`);
               return result;
             }
-            errorLog(results.stderr);
-            return { success: false, error: results.stderr };
-          } else return result;
+            return result;
+          }
+          errorLog(results.stderr);
+          return { success: false, error: results.stderr };
         }
         errorLog(results.stderr);
         return { success: false, error: results.stderr };

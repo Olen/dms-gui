@@ -23,6 +23,14 @@
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
 // settings UI that a hardcoded constant would silently ignore.
 
+import dotenv from 'dotenv';
+// Load the same env file env.mjs uses. If env.mjs's dotenv.config() has
+// already run (when this module is re-imported), the second call is a
+// no-op (dotenv default override is false). If env.mjs hasn't yet loaded
+// dotenv (because env.mjs imports us BEFORE its own dotenv.config call),
+// we ensure DMS_CONFIG_PATH from .dms-gui.env is visible here too.
+dotenv.config({ path: '/app/config/.dms-gui.env' });
+
 // DMS config path — the directory where postfix-regexp.cf lives. Read
 // from process.env directly (rather than ./env.mjs) to avoid the
 // circular import that env.mjs ↔ restApiManifest.mjs would otherwise
@@ -80,6 +88,13 @@ const BOX_VALIDATOR = {
 const POSTFIX_REGEXP_LINE_VALIDATOR = {
   regex: '^[^-\\s][^\\x00-\\x1f\\x7f]*$',
   maxlen: 512,
+};
+// Per-request id used to namespace the regex-alias-delete tmp file so
+// concurrent deletes don't clobber each other's intermediate state.
+// Caller generates a random hex string (e.g. crypto.randomBytes(12).toString('hex')).
+const TMP_ID_VALIDATOR = {
+  regex: '^[a-z0-9]{16,32}$',
+  maxlen: 32,
 };
 // Generic 'short string' for things like alias source/destination
 // (where they're already constrained at the route layer to be email
@@ -294,25 +309,42 @@ export const REST_API_MANIFEST = [
   },
   {
     // Filter a line OUT of the postfix-regex file by writing the
-    // remaining content to /tmp/postfix-regexp.cf (intermediate file).
+    // remaining content to a per-request tmp file (intermediate file).
     // The legacy code did `grep -Fv X file > /tmp/file && mv /tmp/file file`
     // for atomic-ish replace; the action protocol splits this into two
     // sequential calls (this one + tmp_postfix_regexp_to_final).
+    //
+    // awk replaces the legacy `grep -Fv` here: awk exits 0 even when
+    // output is empty (i.e. the last remaining regex alias is deleted),
+    // whereas GNU grep exits 1 on no-match — the legacy grep form silently
+    // failed on "delete last regex alias" because callers treated exit 1
+    // as a hard failure and skipped the mv+reload steps.
+    //
+    // The tmp filename is parameterised with {tmp_id} (a per-request
+    // random hex string) so two concurrent deletes don't clobber each
+    // other's intermediate state between the filter and mv steps.
     id: 'postfix_regexp_filter_to_tmp',
-    // -- terminates option parsing — `grep -Fv -- '-x' file` searches for
-    // literal '-x' even if grep would otherwise treat it as an option.
-    // Belt-and-suspenders with the validator's no-leading-dash rule.
-    argv: ['grep', '-Fv', '--', '{line}', POSTFIX_REGEXP_FILE],
-    redirect: { mode: 'write', file: '/tmp/postfix-regexp.cf' },
+    // awk program: keep lines where the substring p (passed via -v) is
+    // NOT found. `index($0, p) == 0` is the awk equivalent of grep -Fv.
+    argv: ['awk', '-v', 'p={line}', 'index($0, p) == 0', POSTFIX_REGEXP_FILE],
+    redirect: {
+      mode: 'write',
+      file: '/tmp/postfix-regexp.cf.{tmp_id}',
+    },
     validate: {
       line: POSTFIX_REGEXP_LINE_VALIDATOR,
+      tmp_id: TMP_ID_VALIDATOR,
     },
   },
   {
     // Atomically replace the postfix-regex file with the filtered tmp.
-    // Pairs with postfix_regexp_filter_to_tmp.
+    // Pairs with postfix_regexp_filter_to_tmp. Uses the same {tmp_id}
+    // so the mv targets the correct per-request intermediate file.
     id: 'tmp_postfix_regexp_to_final',
-    argv: ['mv', '/tmp/postfix-regexp.cf', POSTFIX_REGEXP_FILE],
+    argv: ['mv', '/tmp/postfix-regexp.cf.{tmp_id}', POSTFIX_REGEXP_FILE],
+    validate: {
+      tmp_id: TMP_ID_VALIDATOR,
+    },
   },
   {
     id: 'postfix_reload',
