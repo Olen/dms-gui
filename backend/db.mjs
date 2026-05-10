@@ -1664,22 +1664,35 @@ export const refreshTokens = async (credentials) => {
 // reach non-HTTP resources via fetch().
 const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 
-// Hostname allowlist for the targetDict.host. The regex matches RFC
-// 1035-ish hostname syntax: each label is alphanumeric (with internal
-// hyphens / underscores allowed for docker-compose names like
-// `dms-gui_mailserver_1`), labels separated by single dots, no leading
-// digit on the first label (so `1.2.3.4`-style IP literals are
-// rejected). This is the structural SSRF barrier — CodeQL recognises
-// this regex check as a sanitizer for the user-controlled host that
-// flows into fetch(). Rejected by design:
-//   - IPv4 / IPv6 literals (e.g. `169.254.169.254` cloud metadata,
-//     `127.0.0.1` loopback, `10.x.x.x` LAN) — not used in any
-//     legitimate dms-gui setup; container names or FQDNs only.
-//   - Anything containing `:` `/` `?` `#` `@` (URL metacharacters
-//     that would let an attacker forge a non-host portion of the URL).
-//   - Whitespace, control chars.
+// Hostname allowlist for the targetDict.host. Two layered checks:
+//
+//   1. HOSTNAME_SHAPE_RE: same shape as middleware.js's
+//      validateContainerName (alphanumeric labels with `._-`,
+//      leading digit allowed) so a docker container named
+//      `1mailserver` works. Rejects URL metacharacters
+//      (`:` `/` `?` `#` `@` `\s`) by exclusion.
+//   2. NOT_IPV4_RE: separately reject the all-digits-and-dots
+//      shape used by IPv4 literals. Combined with #1's
+//      exclusion of `:` `[` `]`, this also rules out IPv6
+//      bracketed literals and bare colon-separated forms.
+//
+// This is the structural SSRF barrier — CodeQL recognises the
+// regex-based check on the user-controlled value as a sanitizer.
+// Rejected:
+//   - IPv4 literals via NOT_IPV4_RE (`169.254.169.254`, `127.0.0.1`,
+//     `10.x.x.x` LAN, `0.0.0.0`).
+//   - IPv6 literals via HOSTNAME_SHAPE_RE's char-class exclusion
+//     (`[::1]`, `2001:db8::1`).
+//   - URL metacharacter injection (`host/path`, `host?query`).
 // `1024` cap is well above any realistic FQDN.
-const TARGET_HOST_RE = /^[a-z][a-z0-9_-]*(\.[a-z0-9][a-z0-9_-]*)*$/i;
+const HOSTNAME_SHAPE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
+const NOT_IPV4_RE = /^[0-9.]+$/;
+const isValidTargetHost = (s) =>
+  typeof s === 'string' &&
+  s.length > 0 &&
+  s.length <= 1024 &&
+  HOSTNAME_SHAPE_RE.test(s) &&
+  !NOT_IPV4_RE.test(s);
 
 // Port must be a numeric string in the valid TCP/UDP range. Anything
 // else (negative, scientific notation, leading zeros, etc.) bypasses
@@ -1703,11 +1716,7 @@ export const getTargetDict = (
         };
       }
       const host = getValueFromArrayOfObj(settings, 'containerName');
-      if (
-        typeof host !== 'string' ||
-        !TARGET_HOST_RE.test(host) ||
-        host.length > 1024
-      ) {
+      if (!isValidTargetHost(host)) {
         return {
           success: false,
           error:
@@ -1806,11 +1815,7 @@ export const getTargetDict = (
           };
         }
         const host = getValueFromArrayOfObj(result.message, 'containerName');
-        if (
-          typeof host !== 'string' ||
-          !TARGET_HOST_RE.test(host) ||
-          host.length > 1024
-        ) {
+        if (!isValidTargetHost(host)) {
           return {
             success: false,
             error:

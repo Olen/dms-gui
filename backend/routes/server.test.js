@@ -150,6 +150,63 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
     expect(mockGetServerStatus).not.toHaveBeenCalled();
   });
 
+  it('does not let `settings: []` (truthy-but-empty) bypass the containerName presence check', async () => {
+    // Regression for the override-detection tightening: an empty
+    // array is truthy in JS but carries no actual override. If the
+    // route treated it as "override present" and skipped the
+    // getConfigs gate, an admin could still probe arbitrary
+    // hostnames via the path param because getTargetDict falls back
+    // to the DB path when settings.length is 0.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [],
+    });
+
+    const res = await request(app)
+      .post('/api/status/mailserver/random-host')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ settings: [] });
+
+    expect(res.status).toBe(403);
+    expect(mockGetServerStatus).not.toHaveBeenCalled();
+    // The DB-presence check ran because hasOverride was false.
+    expect(mockGetConfigs).toHaveBeenCalled();
+  });
+
+  it('does not let `settings: {}` (truthy non-array) bypass either', async () => {
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [],
+    });
+
+    const res = await request(app)
+      .post('/api/status/mailserver/random-host')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({ settings: {} });
+
+    expect(res.status).toBe(403);
+    expect(mockGetConfigs).toHaveBeenCalled();
+  });
+
+  it('surfaces a 500 when getConfigs fails (not 403 — operational error vs. permission)', async () => {
+    // Without this branch, a DB hiccup during dashboard polling
+    // would mask as 403 Permission denied to every user, which is
+    // both misleading and breaks legitimate access.
+    mockGetConfigs.mockResolvedValue({
+      success: false,
+      error: 'database is locked',
+    });
+
+    const res = await request(app)
+      .post('/api/status/mailserver/dms')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({});
+
+    expect(res.status).toBe(500);
+    expect(res.body.error).toMatch(/getConfigs failed.*database is locked/);
+    expect(mockGetServerStatus).not.toHaveBeenCalled();
+  });
+
   it('admin without settings on a configured container reaches getServerStatus', async () => {
     // Existing happy path for the dashboard polling: admin loads the
     // status of a container they already configured.

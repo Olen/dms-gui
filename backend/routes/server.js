@@ -50,10 +50,19 @@ router.param('containerName', validateContainerName);
  *             properties:
  *               settings:
  *                 type: array
- *                 description: array of settings to build getTargetdict
+ *                 description: |
+ *                   Override target dict (host/port/protocol/API key)
+ *                   used to probe a container that isn't yet stored in
+ *                   the DB. **Admin-only**: requests from non-admin
+ *                   callers ignore this field and always use the
+ *                   DB-stored target dict for the path-param
+ *                   containerName. A truthy-but-empty value (`[]`/`{}`)
+ *                   is also ignored.
  *     responses:
  *       200:
  *         description: Server status
+ *       403:
+ *         description: Permission denied (containerName not in caller's accessible configs)
  *       500:
  *         description: Unable to connect to docker-mailserver
  */
@@ -73,10 +82,19 @@ router.post(
       // those values directly to construct the URL passed to fetch(),
       // so accepting them from non-admin authenticated callers is
       // SSRF-equivalent: any user could trigger an outbound request
-      // to a host they choose. Restrict the override path to admins;
-      // non-admins fall back to the DB-stored target dict for the
-      // requested container.
-      const settings = req.user.isAdmin ? req.body.settings : undefined;
+      // to a host they choose. Restrict the override path to admins.
+      //
+      // Tighten "override present" detection: only a non-empty array
+      // counts. A truthy-but-empty payload like `{settings: []}` or
+      // `{settings: {}}` would otherwise skip the containerName
+      // presence check below but then fall through to the DB path
+      // anyway (getTargetDict checks `settings.length`), re-enabling
+      // the arbitrary-host probe via the path param.
+      const hasOverride =
+        req.user.isAdmin &&
+        Array.isArray(req.body.settings) &&
+        req.body.settings.length > 0;
+      const settings = hasOverride ? req.body.settings : undefined;
 
       // When no settings override is supplied, getServerStatus uses
       // the DB-backed target dict for `containerName`. Without a
@@ -84,14 +102,26 @@ router.post(
       // hostname-shaped string in the path param and trigger a
       // server-side ping/setup_help against it, turning the endpoint
       // into a network scanner. Verify the containerName is in the
-      // caller's accessible config set first. Skipped when settings
-      // is provided (admin testing a NEW container that isn't yet
-      // in the DB — the legitimate FormContainerAdd flow).
-      if (!settings) {
+      // caller's accessible config set first. Skipped when an
+      // override is actually in play (admin testing a NEW container
+      // that isn't yet in the DB — the legitimate FormContainerAdd
+      // flow).
+      if (!hasOverride) {
         const configs = await getConfigs(
           plugin,
           req.user.isAdmin ? [] : req.user.roles
         );
+        // Surface DB / query errors instead of masking them as 403:
+        // a non-success result here is operational (DB locked, plugin
+        // misconfigured) — not the user's fault, and returning 403
+        // would make every status poll fail with "Permission denied"
+        // during a database hiccup.
+        if (!configs.success) {
+          return res.status(500).json({
+            success: false,
+            error: `getConfigs failed: ${configs.error || 'unknown error'}`,
+          });
+        }
         const validContainers = (configs.message || []).map((c) => c.value);
         if (!validContainers.includes(containerName)) {
           return res

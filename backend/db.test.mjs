@@ -212,6 +212,8 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     'dms-gui_mailserver_1',
     'a.b.c.d.example.com',
     'MAIL.EXAMPLE.COM', // case-insensitive
+    '1mailserver', // matches validateContainerName (leading digit allowed)
+    '2mail.example.com', // ditto
   ]) {
     it(`accepts hostname '${ok}'`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithHost(ok));
