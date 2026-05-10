@@ -48,7 +48,7 @@ vi.mock('./settings.mjs', () => ({
   getSettings: vi.fn(() => ({ success: false })),
 }));
 
-const { encrypt, decrypt } = await import('./db.mjs');
+const { encrypt, decrypt, getTargetDict } = await import('./db.mjs');
 
 describe('encrypt / decrypt roundtrip', () => {
   it('roundtrips a simple string', () => {
@@ -132,4 +132,183 @@ describe('encrypt / decrypt roundtrip', () => {
     expect(decrypt(null)).toBe(null);
     expect(decrypt(undefined)).toBe(undefined);
   });
+});
+
+describe('getTargetDict — protocol allowlist (SSRF defense)', () => {
+  // Regression coverage for code-scanning alert #68. The user-supplied
+  // settings path feeds straight into the URL fetch() hits; without an
+  // allowlist, an admin could supply protocol='file' / 'gopher' /
+  // anything else to reach non-HTTP resources via the underlying
+  // fetch() call. Reject upfront with the failure shape the existing
+  // classifyMissingAuthTargetDict consumer already handles.
+  const validSettings = (override = {}) => [
+    { name: 'protocol', value: override.protocol ?? 'http' },
+    { name: 'containerName', value: 'mailserver' },
+    { name: 'DMS_API_PORT', value: '8888' },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  it('accepts http', () => {
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      validSettings({ protocol: 'http' })
+    );
+    expect(r.protocol).toBe('http');
+    expect(r.host).toBe('mailserver');
+  });
+
+  it('accepts https', () => {
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      validSettings({ protocol: 'https' })
+    );
+    expect(r.protocol).toBe('https');
+  });
+
+  for (const bad of [
+    'file',
+    'gopher',
+    'ftp',
+    'javascript',
+    'data',
+    '',
+    'HTTP',
+  ]) {
+    it(`rejects protocol '${bad}'`, () => {
+      const r = getTargetDict(
+        'mailserver',
+        'dms',
+        validSettings({ protocol: bad })
+      );
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/protocol must be one of/);
+    });
+  }
+});
+
+describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
+  // Hostnames flow into fetch() as `${protocol}://${host}:${port}`.
+  // The regex sanitizer in getTargetDict is the structural barrier
+  // CodeQL recognises; a host failing it never reaches the URL.
+  const settingsWithHost = (host) => [
+    { name: 'protocol', value: 'http' },
+    { name: 'containerName', value: host },
+    { name: 'DMS_API_PORT', value: '8888' },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  for (const ok of [
+    'mailserver',
+    'mail.example.com',
+    'dms-gui',
+    'dms_gui',
+    'dms-gui_mailserver_1',
+    'a.b.c.d.example.com',
+    '1mailserver', // leading digit is fine if the hostname has letters
+    '2mail.example.com', // ditto
+  ]) {
+    it(`accepts hostname '${ok}'`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithHost(ok));
+      expect(r.host).toBe(ok);
+      expect(r.success).toBeUndefined(); // no failure shape
+    });
+  }
+
+  it('lowercases the canonical hostname comparison so MIXED-case input still passes', () => {
+    // The URL parser canonicalises hostnames to lowercase. Our
+    // sanitizer compares against `s.toLowerCase()` so an input like
+    // `MAIL.EXAMPLE.COM` survives the canonicalisation check.
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      settingsWithHost('MAIL.EXAMPLE.COM')
+    );
+    expect(r.host).toBe('MAIL.EXAMPLE.COM');
+  });
+
+  for (const bad of [
+    '127.0.0.1', // loopback (canonical 4-octet)
+    '169.254.169.254', // AWS metadata (canonical 4-octet)
+    '10.0.0.5', // private LAN
+    '192.168.1.1', // private LAN
+    '0.0.0.0',
+    '999.999.999.999', // IPv4-shaped but out of routable range
+    '[::1]', // IPv6 loopback
+    'mailserver:8888/path', // URL metacharacters
+    'mailserver/foo',
+    'foo bar', // whitespace
+    'foo@bar', // @ metachar
+    '?internal=true',
+    '', // empty
+    // WHATWG IPv4 shorthand: the URL parser canonicalises these to
+    // routable IPs before fetch() sees them. Without the canonical-
+    // hostname check, they'd slip through as "alphanumeric hosts"
+    // and immediately route to loopback / LAN / metadata.
+    '127.1', // 2-part shorthand for 127.0.0.1
+    '127.0.1', // 3-part shorthand for 127.0.0.1
+    '2130706433', // single-integer form of 127.0.0.1
+    '1234', // single-integer form of 0.0.4.210 (Node canonicalises)
+    '12.34', // 2-part shorthand
+    '1.2.3', // 3-part shorthand
+    '1.2.3.4.5', // 5-part: URL parser may treat unevenly
+  ]) {
+    it(`rejects host ${JSON.stringify(bad)}`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithHost(bad));
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/host must contain only/);
+    });
+  }
+});
+
+describe('getTargetDict — port validation', () => {
+  const settingsWithPort = (port) => [
+    { name: 'protocol', value: 'http' },
+    { name: 'containerName', value: 'mailserver' },
+    { name: 'DMS_API_PORT', value: port },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  it('accepts a typical port string', () => {
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('8888'));
+    expect(r.port).toBe('8888');
+  });
+
+  it('accepts the high end of the range', () => {
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('65535'));
+    expect(r.port).toBe('65535');
+  });
+
+  it('accepts leading zeros (Node URL parser canonicalises them anyway)', () => {
+    // Backwards-compat with older stored settings that might carry
+    // leading zeros (`080`). The range check still rejects out-of-
+    // range values regardless of zero-padding.
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('080'));
+    expect(r.port).toBe('080');
+  });
+
+  for (const bad of [
+    '0', // value out of range (range check, not regex)
+    '65536', // value out of range
+    '99999', // value out of range
+    '-1', // negative — rejected by digits-only regex
+    '8888.0', // dot — rejected by digits-only regex
+    'abc', // non-numeric — rejected by digits-only regex
+    '', // empty — rejected by digits-only regex
+    ' 8888', // leading whitespace — rejected by digits-only regex
+    '99999999', // > 7 digits — rejected by length cap
+  ]) {
+    it(`rejects port ${JSON.stringify(bad)}`, () => {
+      const r = getTargetDict('mailserver', 'dms', settingsWithPort(bad));
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/port must be an integer/);
+    });
+  }
 });
