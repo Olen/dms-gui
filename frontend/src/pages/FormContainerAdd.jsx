@@ -246,8 +246,8 @@ function FormContainerAdd() {
         setMailservers([]);
       }
     } catch (error) {
-      errorLog(t('api.errors.fetchConfigs'), error);
-      setErrorMessage('api.errors.fetchConfigs');
+      errorLog(t('api.errors.fetchconfigs'), error);
+      setErrorMessage('api.errors.fetchconfigs');
     }
 
     return false;
@@ -357,9 +357,12 @@ function FormContainerAdd() {
       } catch (error) {
         // `result` is declared inside the try block above and is not
         // reachable here. The exception itself carries the failure
-        // detail, so surface error.message instead.
+        // detail, so surface error.message instead. The translation
+        // key lives under settings.* (no api.errors.DMS_API_*
+        // alternative exists), matching the success/help variants
+        // used a few lines above.
         setErrorMessage(
-          t('api.errors.DMS_API_injectFailed') + ': ' + error.message
+          t('settings.DMS_API_injectFailed') + ': ' + error.message
         );
         return { success: false, error: error.message };
       }
