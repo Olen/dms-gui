@@ -24,6 +24,10 @@
     "lint-staged": "^17.0.3",
     "prettier": "^3.7.4"
   },
+  "comment-overrides": "brace-expansion <1.1.13 has a ReDoS-style hang via zero-step sequences. Pulled in transitively by eslint-plugin-react → minimatch@3 → brace-expansion@1. eslint-plugin-react has not yet released a minimatch@9-compatible version, so pin brace-expansion at the npm level until the upstream upgrade lands.",
+  "overrides": {
+    "brace-expansion": "^1.1.13"
+  },
   "lint-staged": {
     "backend/**/*.{js,mjs}": [
       "prettier --write",
