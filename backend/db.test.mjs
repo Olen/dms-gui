@@ -49,7 +49,7 @@ vi.mock('./settings.mjs', () => ({
   getSettings: vi.fn(() => ({ success: false })),
 }));
 
-const { encrypt, decrypt } = await import('./db.mjs');
+const { encrypt, decrypt, getTargetDict } = await import('./db.mjs');
 
 describe('encrypt / decrypt roundtrip', () => {
   it('roundtrips a simple string', () => {
@@ -107,8 +107,8 @@ describe('encrypt / decrypt roundtrip', () => {
     // Format is g1:iv_hex:tag_hex:cipher_hex
     const parts = ct.slice(3).split(':');
     expect(parts).toHaveLength(3);
-    expect(parts[0]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte IV as hex
-    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte auth tag as hex
+    expect(parts[0]).toMatch(/^[0-9a-f]{32}$/); // 16-byte IV as hex
+    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/); // 16-byte auth tag as hex
   });
 
   it('reads legacy CBC ciphertext written by the pre-2.2.0 format', () => {
@@ -133,4 +133,60 @@ describe('encrypt / decrypt roundtrip', () => {
     expect(decrypt(null)).toBe(null);
     expect(decrypt(undefined)).toBe(undefined);
   });
+});
+
+describe('getTargetDict — protocol allowlist (SSRF defense)', () => {
+  // Regression coverage for code-scanning alert #68. The user-supplied
+  // settings path feeds straight into the URL fetch() hits; without an
+  // allowlist, an admin could supply protocol='file' / 'gopher' /
+  // anything else to reach non-HTTP resources via the underlying
+  // fetch() call. Reject upfront with the failure shape the existing
+  // classifyMissingAuthTargetDict consumer already handles.
+  const validSettings = (override = {}) => [
+    { name: 'protocol', value: override.protocol ?? 'http' },
+    { name: 'containerName', value: 'mailserver' },
+    { name: 'DMS_API_PORT', value: '8888' },
+    { name: 'DMS_API_KEY', value: 'k' },
+    { name: 'setupPath', value: '/usr/local/bin/setup' },
+    { name: 'timeout', value: '4' },
+  ];
+
+  it('accepts http', () => {
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      validSettings({ protocol: 'http' })
+    );
+    expect(r.protocol).toBe('http');
+    expect(r.host).toBe('mailserver');
+  });
+
+  it('accepts https', () => {
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      validSettings({ protocol: 'https' })
+    );
+    expect(r.protocol).toBe('https');
+  });
+
+  for (const bad of [
+    'file',
+    'gopher',
+    'ftp',
+    'javascript',
+    'data',
+    '',
+    'HTTP',
+  ]) {
+    it(`rejects protocol '${bad}'`, () => {
+      const r = getTargetDict(
+        'mailserver',
+        'dms',
+        validSettings({ protocol: bad })
+      );
+      expect(r.success).toBe(false);
+      expect(r.error).toMatch(/protocol must be one of/);
+    });
+  }
 });

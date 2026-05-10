@@ -1657,6 +1657,13 @@ export const refreshTokens = async (credentials) => {
 };
 
 // for testing, while settings table is empty, we shall be able to pass on all the settings as well
+// Allowed schemes for the targetDict.protocol used to construct the
+// outbound URL `${protocol}://${host}:${port}` in execAction. Reject
+// anything outside this list — `file://`, `gopher://`, etc. would let
+// an attacker who can supply settings (admin only after the SSRF gate)
+// reach non-HTTP resources via fetch().
+const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
+
 export const getTargetDict = (
   plugin = null,
   containerName = null,
@@ -1665,9 +1672,16 @@ export const getTargetDict = (
   let result, schema;
   try {
     if (settings.length) {
+      const protocol = getValueFromArrayOfObj(settings, 'protocol');
+      if (!ALLOWED_TARGET_PROTOCOLS.has(protocol)) {
+        return {
+          success: false,
+          error: `protocol must be one of: ${[...ALLOWED_TARGET_PROTOCOLS].join(', ')}`,
+        };
+      }
       let targetDict = {
         containerName: getValueFromArrayOfObj(settings, 'containerName'),
-        protocol: getValueFromArrayOfObj(settings, 'protocol'),
+        protocol,
         host: getValueFromArrayOfObj(settings, 'containerName'),
         port: getValueFromArrayOfObj(settings, 'DMS_API_PORT'),
         Authorization: getValueFromArrayOfObj(settings, 'DMS_API_KEY'),

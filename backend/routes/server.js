@@ -66,7 +66,16 @@ router.post(
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
       const test = 'test' in req.query ? req.query.test : null;
-      const { settings } = req.body;
+      // The `settings` body is the user-supplied target dict (host,
+      // port, protocol, API key) used by FormContainerAdd to ping a
+      // container that isn't yet stored in the DB. The backend uses
+      // those values directly to construct the URL passed to fetch(),
+      // so accepting them from non-admin authenticated callers is
+      // SSRF-equivalent: any user could trigger an outbound request
+      // to a host they choose. Restrict the override path to admins;
+      // non-admins fall back to the DB-stored target dict for the
+      // requested container.
+      const settings = req.user.isAdmin ? req.body.settings : undefined;
 
       const status = await getServerStatus(
         plugin,
