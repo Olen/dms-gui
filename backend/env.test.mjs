@@ -133,13 +133,13 @@ describe('rest-api.py interpreter wiring', () => {
     expect(py).not.toContain('shell=True');
   });
 
-  // ---- do_POST dispatch order ----
-  it('action branch precedes the legacy command branch', () => {
-    const actionBranch = py.indexOf("json_data.get('action')");
-    const commandBranch = py.indexOf("json_data.get('command')");
-    expect(actionBranch).toBeGreaterThan(0);
-    expect(commandBranch).toBeGreaterThan(0);
-    expect(actionBranch).toBeLessThan(commandBranch);
+  // ---- do_POST is action-only (legacy {command:} branch removed) ----
+  it('only accepts the action protocol (no legacy command branch)', () => {
+    expect(py).toContain("json_data.get('action')");
+    expect(py).not.toContain("json_data.get('command')");
+    // The 400 path triggers when 'action' is missing, replacing the
+    // pre-removal "no action or command was passed" branch.
+    expect(py).toContain("missing 'action' field");
   });
 
   // ---- Unknown action → 403, not 200 ----

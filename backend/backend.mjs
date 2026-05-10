@@ -116,39 +116,6 @@ export const debugLog = (message, ...data) => {
   if (env.debug) logger('debug', message, ...data);
 };
 
-/** Redact passwords from command strings before logging */
-const redactCommand = (cmd) =>
-  cmd
-    .replace(/(email\s+(?:add|update)\s+\S+)\s+\S+/gi, '$1 ********')
-    .replace(/(auth\s+test\s+\S+)\s+\S+/gi, '$1 ********');
-
-/**
- * Executes a setup.sh command in the docker-mailserver container
- * @param {string} setupCommand Command to pass to setup.sh
- * @return {Promise<string>} stdout from the command
- */
-export const execSetup = async (
-  setupCommand = null,
-  targetDict = {},
-  ...rest
-) => {
-  // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
-
-  // const command = `${env.DMS_SETUP_SCRIPT} ${setupCommand}`;
-  const command = `${targetDict.setupPath} ${setupCommand}`;
-  debugLog(`Executing setup command: ${redactCommand(setupCommand)}`);
-  return execCommand(command, targetDict, ...rest);
-};
-
-export const execCommand = async (command = null, targetDict = {}, ...rest) => {
-  // The setup.sh script is usually located at /usr/local/bin/setup.sh or /usr/local/bin/setup in docker-mailserver
-
-  debugLog(`Executing system command: ${redactCommand(command)}`);
-  const result = await execInContainerAPI(command, targetDict, ...rest);
-  // debugLog('ddebug result', result)
-  return result;
-};
-
 /**
  * Executes a command in the docker-mailserver container through docker.sock
  * @param {string} command Command to execute
@@ -286,97 +253,14 @@ export const ping = async (host = null) => {
  * @param {object} targetDict with protocol, host, port, Authorization and maybe timeout
  * @return {Promise<object>} with returncode, stdout and stderr
  */
-export const execInContainerAPI = async (
-  command = null,
-  targetDict = {},
-  ...rest
-) => {
-  if (env.isDEMO) return { returncode: 0, stdout: 'mock response' };
-  let result;
-  try {
-    // debugLog('ddebug targetDict', targetDict);
-    // debugLog("ddebug reduxPropertiesOfObj(targetDict, ['protocol', 'host', 'port', 'Authorization']))", reduxPropertiesOfObj(targetDict, ['protocol', 'host', 'port', 'Authorization']));
-    if (
-      !targetDict ||
-      (targetDict &&
-        Object.keys(
-          reduxPropertiesOfObj(targetDict, [
-            'protocol',
-            'host',
-            'port',
-            'Authorization',
-          ])
-        ).length < 4)
-    ) {
-      return {
-        returncode: 99,
-        stderr: 'targetDict needs 4 keys: protocol, host, port, Authorization',
-      };
-    }
-
-    result = await checkPort(targetDict);
-    // debugLog('ddebug checkPort result',result)   // { success: false, error: 'running' } // whyyyyyyyyyyyyy
-    if (result.success) {
-      const jsonData = Object.assign(
-        {},
-        {
-          command: command,
-          timeout: Number(targetDict?.timeout ?? env.timeout),
-        },
-        ...rest
-      );
-
-      debugLog(
-        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`
-      );
-      // debugLog(`targetDict`, targetDict);
-      // debugLog(`jsonData`, jsonData);
-      const response = await postJsonToApi(
-        `${targetDict.protocol}://${targetDict.host}:${targetDict.port}`,
-        jsonData,
-        targetDict.Authorization
-      );
-      // debugLog('ddebug response',response)
-
-      if ('error' in response) {
-        errorLog('response:', response);
-        return {
-          returncode: 99,
-          stderr: response.error.toString('utf8'), // example: Invalid api_key: api_error: xxx-491c1cfd-86ec-49ba-b962-ce0bce5ff189
-        };
-      } else {
-        successLog('command:', redactCommand(command));
-        return {
-          returncode: response.returncode,
-          stdout: response.stdout.toString('utf8'),
-          stderr: response.stderr.toString('utf8'),
-        };
-      }
-    } else {
-      debugLog('error:', result);
-      return {
-        returncode: 99,
-        stderr: result.message,
-      };
-    }
-  } catch (error) {
-    errorLog('error:', error.message);
-    return {
-      returncode: 99,
-      stderr: error.message,
-    };
-  }
-};
-
 /**
  * Dispatch a manifest-declared action to the rest-api.py interpreter.
- * Same transport as execCommand/execSetup; the request body sends
- * {action, args, timeout} instead of {command, timeout}.
+ * Sends {action, args, timeout} as the request body — the only shape
+ * the interpreter accepts after the legacy {command:} path was removed.
  *
  * Response shape: always {returncode, stdout, stderr} — including the
- * demo-mode short-circuit. The legacy execInContainerAPI omits stderr
- * in demo mode; execAction does not inherit that inconsistency, so
- * callers can rely on all three keys being present.
+ * demo-mode short-circuit. Callers can rely on all three keys being
+ * present.
  *
  * IMPORTANT: action ids must be reachable as string literals from a
  * static-grep at build time. Two patterns are supported by the
@@ -770,8 +654,6 @@ export const getContainer = containerName => {
 //   successLog,
 //   docker,
 //   formatDMSError,
-//   execSetup,
-//   execCommand,
 //   readJson,
 //   writeJson,
 //   writeFile,

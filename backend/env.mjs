@@ -205,7 +205,6 @@ import http.server
 import socket
 import socketserver
 import subprocess
-import shlex
 import json
 import os
 import datetime
@@ -668,13 +667,12 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response_message).encode('utf-8'))
         return
 
-      # 'action' field is optional (the legacy {command:} path is still
-      # supported during migration). But when 'action' IS present, it
-      # must be a non-empty string. Treat null / non-string / empty as
-      # 400 instead of silently falling through to the legacy path.
-      action_present = 'action' in json_data
+      # The action protocol is the only request shape this server
+      # accepts: {action: <id>, args: {...}, timeout: <seconds>}. The
+      # free-form {command:} path was removed after every backend
+      # caller migrated; rejecting unknown shapes early keeps the
+      # interpreter's argv generation the only execution surface.
       action_id = json_data.get('action')
-      command = json_data.get('command')
       args = json_data.get('args', {})
       timeout = json_data.get('timeout', timeout_default)
 
@@ -683,17 +681,31 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
       # is still possible.
       debugg(f"Received API Key: {redact(api_key)}")
       debugg(f"Received action: {safe_id(action_id)}")
-      debugg(f"Received command: {command}")
       debugg(f"Received timeout: {timeout}")
 
       # Reject malformed shapes early with a 400 instead of letting them
       # raise inside execute_action / dict lookup, which would surface
-      # as a 500. action_id is optional (legacy command path still
-      # supported), but when 'action' IS present, it must be a
-      # non-empty string. args may be absent (defaults to {}) but if
-      # present must be an object.
-      if action_present and not isinstance(action_id, str):
+      # as a 500. action is required and must be a non-empty string.
+      # args may be absent (defaults to {}) but if present must be an
+      # object.
+      if action_id is None:
+        response_message = {"status": "error", "error": "missing 'action' field"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+      if not isinstance(action_id, str):
         response_message = {"status": "error", "error": "'action' must be a string"}
+        logger(response_message['error'])
+        self.send_response(400)
+        self.send_header('Content-type', 'application/json')
+        self.end_headers()
+        self.wfile.write(json.dumps(response_message).encode('utf-8'))
+        return
+      if not action_id.strip():
+        response_message = {"status": "error", "error": "'action' must be a non-empty string"}
         logger(response_message['error'])
         self.send_response(400)
         self.send_header('Content-type', 'application/json')
@@ -726,177 +738,34 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         self.wfile.write(json.dumps(response_message).encode('utf-8'))
         return
 
-      # Empty / whitespace-only action ids are explicit programming
-      # errors, not "missing action" — reject them rather than silently
-      # falling through to the legacy command path.
-      if action_present and not action_id.strip():
-        response_message = {"status": "error", "error": "'action' must be a non-empty string"}
-        logger(response_message['error'])
-        self.send_response(400)
-        self.send_header('Content-type', 'application/json')
-        self.end_headers()
-        self.wfile.write(json.dumps(response_message).encode('utf-8'))
-        return
-
       if api_key == DMS_API_KEY:
-        if action_present:
-          # New action protocol path.
-          if action_id not in ACTIONS:
-            logger(f"Rejected: unknown action '{safe_id(action_id)}'")
-            response_message = {"status": "error", "error": f"unknown action: {action_id}"}
-            self.send_response(403)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response_message).encode('utf-8'))
-            return
+        if action_id not in ACTIONS:
+          logger(f"Rejected: unknown action '{safe_id(action_id)}'")
+          response_message = {"status": "error", "error": f"unknown action: {action_id}"}
+          self.send_response(403)
+          self.send_header('Content-type', 'application/json')
+          self.end_headers()
+          self.wfile.write(json.dumps(response_message).encode('utf-8'))
+          return
 
-          logger(f"Executing action: {safe_id(action_id)}")
-          try:
-            returncode, stdout, stderr = execute_action(ACTIONS[action_id], args, timeout)
-            response_message = {
-              "status": "success",
-              'returncode': returncode,
-              'stdout': stdout,
-              'stderr': stderr
-            }
-          except subprocess.TimeoutExpired:
-            response_message = {
-              "status": "success",
-              'returncode': 124,
-              'stdout': '',
-              'stderr': f"timeout after {timeout}s"
-            }
-          except (KeyError, ValueError) as e:
-            response_message = {"status": "error", "error": str(e)}
-            self.send_response(400)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(response_message).encode('utf-8'))
-            return
-
-        elif command:
-          # Free-form {command:} fallback path, kept while a few callers
-          # still send the legacy shape. Slated for removal once every
-          # backend caller has migrated to {action, args}.
-          try:
-            logger(f"Executing command: {command}")
-
-            def run_pipeline(cmd):
-              """Run a single command or pipeline (supports | and > / >>).
-
-              Tokenises with shlex.shlex(posix=True, punctuation_chars='|<>')
-              so '|', '>' and '>>' are treated as operators while respecting
-              quoting. Previously this used cmd.split('|') and similar
-              character-level splits, which corrupted the pipeline whenever
-              a quoted argument contained a literal '|' (e.g. a password
-              like 'pa|ss') — the quote-aware split now keeps such pipes
-              inside the argument they belong to.
-              """
-              lex = shlex.shlex(cmd, posix=True, punctuation_chars='|<>')
-              lex.whitespace_split = True
-              # shlex.shlex defaults commenters='#' (unlike shlex.split). DMS
-              # commands legitimately contain '#' (header filters, doveadm
-              # queries), so disable comment parsing to avoid silent
-              # truncation of arguments at an unquoted '#'.
-              lex.commenters = ''
-              tokens = list(lex)
-
-              # Split tokens into stages on '|' operators; pull out a
-              # trailing redirect (> or >>) if present.
-              stages = [[]]
-              redir_file = None
-              redir_mode = None
-              i = 0
-              while i < len(tokens):
-                tok = tokens[i]
-                if tok == '|':
-                  stages.append([])
-                elif tok in ('>', '>>'):
-                  if i + 1 >= len(tokens):
-                    return 1, '', f"redirect operator '{tok}' requires a filename"
-                  if i + 2 < len(tokens):
-                    # We only support a trailing redirect on the final
-                    # pipeline stage. Mid-pipeline redirects (e.g.
-                    # 'a > out | b') would have shell semantics we don't
-                    # replicate (the redirect would attach to the LEFT
-                    # process's stdout and break the pipe), so reject
-                    # them rather than silently doing the wrong thing.
-                    return 1, '', f"redirect operator '{tok}' must be the last operator in the command"
-                  redir_mode = 'a' if tok == '>>' else 'w'
-                  redir_file = tokens[i + 1]
-                  i += 1  # consume filename token
-                else:
-                  stages[-1].append(tok)
-                i += 1
-
-              stages = [s for s in stages if s]
-              if not stages:
-                return 1, '', 'empty command'
-
-              prev_proc = None
-              procs = []
-              num_stages = len(stages)
-              for i, stage in enumerate(stages):
-                stdin_src = prev_proc.stdout if prev_proc else None
-                is_last = (i == num_stages - 1)
-                proc = subprocess.Popen(stage,
-                                        stdin=stdin_src,
-                                        stdout=subprocess.PIPE,
-                                        # Only the last stage's stderr is read;
-                                        # intermediate stages would deadlock
-                                        # the pipeline once the OS pipe buffer
-                                        # fills (~64KB on Linux).
-                                        stderr=subprocess.PIPE if is_last else subprocess.DEVNULL,
-                                        text=True,
-                                        shell=False)
-                if prev_proc:
-                  prev_proc.stdout.close()
-                procs.append(proc)
-                prev_proc = proc
-
-              out, err = prev_proc.communicate(timeout=timeout)
-              for p in procs[:-1]:
-                p.wait()
-
-              # Handle file redirection
-              if redir_file and prev_proc.returncode == 0:
-                with open(redir_file, redir_mode) as f:
-                  f.write(out)
-                out = ''
-
-              return prev_proc.returncode, out, err
-
-            # Split on && for command chaining
-            chain = [c.strip() for c in command.split('&&')]
-            stdout = ''
-            stderr = ''
-            returncode = 0
-
-            for sub_cmd in chain:
-              returncode, out, err = run_pipeline(sub_cmd)
-              stdout += out
-              stderr += err
-              if returncode != 0:
-                break
-
-            debugg(f"result returncode: {returncode}")
-
-            response_message = {
-              "status": "success",
-              'returncode': returncode,
-              'stdout': stdout,
-              'stderr': stderr
-            }
-            debugg(f"response_message: {response_message}")
-
-          except Exception as e:
-            response_message = {"status": "error", "error": str(e)}
-            logger(response_message['error'])
-
-        else:
-          # Neither action nor command provided. Client error → 400.
-          response_message = {"status": "error", "error": "no action or command was passed"}
-          logger(response_message['error'])
+        logger(f"Executing action: {safe_id(action_id)}")
+        try:
+          returncode, stdout, stderr = execute_action(ACTIONS[action_id], args, timeout)
+          response_message = {
+            "status": "success",
+            'returncode': returncode,
+            'stdout': stdout,
+            'stderr': stderr
+          }
+        except subprocess.TimeoutExpired:
+          response_message = {
+            "status": "success",
+            'returncode': 124,
+            'stdout': '',
+            'stderr': f"timeout after {timeout}s"
+          }
+        except (KeyError, ValueError) as e:
+          response_message = {"status": "error", "error": str(e)}
           self.send_response(400)
           self.send_header('Content-type', 'application/json')
           self.end_headers()
@@ -1074,6 +943,18 @@ export const plugins = {
   },
 };
 
+// Per-plugin reboot configuration.
+//
+// `kill` (free-form shell): runs locally on the dms-gui host via
+//   childProcess.exec. Used to restart dms-gui itself, where the
+//   target process lives in the same container/process namespace as
+//   the caller.
+// `actionId` (manifest action id): runs inside the target container
+//   via the rest-api action protocol. Used to restart another
+//   container (e.g. mailserver). The literal string must match a
+//   manifest entry — the build-time test in restApiManifest.test.mjs
+//   greps `actionId: '<id>'` and asserts the id exists in
+//   REST_API_MANIFEST, which catches typos and accidental drift.
 export const command = {
   'dms-gui': {
     'dms-gui': {
@@ -1083,7 +964,7 @@ export const command = {
 
   mailserver: {
     dms: {
-      kill: `sleep 1 && kill -9 $(pgrep "supervisord")`,
+      actionId: 'pkill_supervisord',
     },
   },
 };

@@ -192,6 +192,18 @@ export const REST_API_MANIFEST = [
     },
   },
   {
+    // Replace an existing mailbox's password. Used by db.mjs's updateRow
+    // when an admin changes a user's password. Same argv shape as
+    // setup_email_add (mailbox + password), with `update` as the verb.
+    id: 'setup_email_update',
+    argv: ['{setup_path}', 'email', 'update', '{mailbox}', '{password}'],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      mailbox: MAILBOX_VALIDATOR,
+      password: PASSWORD_VALIDATOR,
+    },
+  },
+  {
     id: 'setup_email_del',
     argv: ['{setup_path}', 'email', 'del', '-y', '{mailbox}'],
     validate: {
@@ -472,6 +484,20 @@ export const REST_API_MANIFEST = [
       mailbox: MAILBOX_VALIDATOR,
       password: PASSWORD_VALIDATOR,
     },
+  },
+
+  // ---- container reboot ----
+
+  // Force-kill the supervisord that runs all DMS daemons, triggering a
+  // container restart via Docker's restart policy. Replaces the legacy
+  // shell form `kill -9 $(pgrep "supervisord")` — pkill folds the pgrep+
+  // kill pair into one argv with no shell substitution.
+  //
+  // Caller (settings.mjs killContainer) schedules this via setTimeout so
+  // the HTTP response is sent before the kill races supervisor death.
+  {
+    id: 'pkill_supervisord',
+    argv: ['pkill', '-9', 'supervisord'],
   },
 
   // ---- settings.mjs: logs ----

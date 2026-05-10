@@ -39,9 +39,8 @@ vi.mock('./backend.mjs', () => ({
   successLog: vi.fn(),
   infoLog: vi.fn(),
   warnLog: vi.fn(),
-  execSetup: vi.fn(),
-  execCommand: vi.fn(),
-  formatDMSError: vi.fn(),
+  execAction: vi.fn(),
+  formatDMSError: vi.fn((label, msg) => `${label}: ${msg}`),
 }));
 
 // Mock settings.mjs
@@ -107,8 +106,8 @@ describe('encrypt / decrypt roundtrip', () => {
     // Format is g1:iv_hex:tag_hex:cipher_hex
     const parts = ct.slice(3).split(':');
     expect(parts).toHaveLength(3);
-    expect(parts[0]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte IV as hex
-    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/);  // 16-byte auth tag as hex
+    expect(parts[0]).toMatch(/^[0-9a-f]{32}$/); // 16-byte IV as hex
+    expect(parts[1]).toMatch(/^[0-9a-f]{32}$/); // 16-byte auth tag as hex
   });
 
   it('reads legacy CBC ciphertext written by the pre-2.2.0 format', () => {
