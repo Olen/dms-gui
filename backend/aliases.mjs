@@ -305,6 +305,13 @@ export const addAlias = async (
         .split(',')
         .map((d) => d.trim())
         .filter(Boolean);
+      // The `if (!destination)` guard above accepts strings like ',' or
+      // '   ,' (whitespace + commas); after split/trim/filter those
+      // become empty arrays. Reject explicitly so we don't fall through
+      // to the "all destinations failed" branch with a misleading error.
+      if (destinations.length === 0) {
+        return { success: false, error: 'destination is empty' };
+      }
       const failed = [];
       for (const dest of destinations) {
         results = await execAction(
@@ -349,8 +356,10 @@ export const addAlias = async (
       const line = `${source} ${destination}`;
       debugLog(`Adding new regex: ${source} -> ${destination}`);
 
-      // The legacy &&-chain (echo >> file && postfix reload) is replaced by
-      // two sequential execAction calls; the second only runs if the first succeeds.
+      // Two sequential execAction calls: append the regex line to
+      // postfix-regexp.cf via printf+redirect (postfix_regexp_append),
+      // then reload postfix so the new line takes effect. The reload
+      // only runs if the append succeeded.
       results = await execAction('postfix_regexp_append', { line }, targetDict);
       if (!results.returncode) {
         results = await execAction('postfix_reload', {}, targetDict);
@@ -418,6 +427,13 @@ export const deleteAlias = async (
         .split(',')
         .map((d) => d.trim())
         .filter(Boolean);
+      // The `if (!destination)` guard above accepts strings like ',' or
+      // '   ,'; after split/trim/filter those become empty arrays. Reject
+      // explicitly so we don't fall through to "all deleted" and remove
+      // the DB row without ever calling DMS.
+      if (destinations.length === 0) {
+        return { success: false, error: 'destination is empty' };
+      }
       const failed = [];
       for (const dest of destinations) {
         results = await execAction(
@@ -467,23 +483,30 @@ export const deleteAlias = async (
       //                      (e.g. /^abuse@.*$/)
       //   stringifiedSource — what addAlias stored in the DB via JSON.stringify
       //                      (e.g. "/^abuse@.*$/")
-      // The grep line must use rawSource to match the file content.
-      // The DB deleteEntry must use stringifiedSource to match the stored key.
+      // The line passed to postfix_regexp_filter_to_tmp must use rawSource
+      // to match the file content. The DB deleteEntry must use
+      // stringifiedSource to match the stored key.
       const rawSource = source;
       const stringifiedSource = JSON.stringify(source);
       debugLog(`Deleting alias regex: ${rawSource}`);
 
-      // The legacy &&-chain (grep -Fv > tmp && mv tmp final && postfix reload)
-      // is replaced by four sequential execAction calls; each step only runs
-      // if the previous one succeeded.
+      // Three sequential execAction calls + one DB delete:
+      //   1. postfix_regexp_filter_to_tmp — awk over postfix-regexp.cf,
+      //      writing all lines except the one to delete to a per-request
+      //      tmp file. Each step only runs if the previous one succeeded.
+      //   2. tmp_postfix_regexp_to_final — mv the tmp file over the real one.
+      //   3. postfix_reload — make the new file take effect immediately.
+      //   4. deleteEntry — drop the DB row last.
       //
-      // A per-request tmp_id namespaces the intermediate file so two concurrent
-      // regex-alias deletes don't clobber each other's tmp between filter and mv.
+      // A per-request tmp_id namespaces the intermediate file so two
+      // concurrent regex-alias deletes don't clobber each other's tmp
+      // between the filter and mv steps.
       //
-      // Ordering rationale: postfix_reload runs BEFORE deleteEntry so that if
-      // the DB write fails the runtime is already in sync with the file — the
-      // alias is gone from postfix. The inverse order (DB then reload) left
-      // postfix serving stale config until manually restarted on DB failure.
+      // Ordering rationale: postfix_reload runs BEFORE deleteEntry so that
+      // if the DB write fails the runtime is already in sync with the file
+      // — the alias is gone from postfix. The inverse order (DB then
+      // reload) would leave postfix serving stale config until manually
+      // restarted on DB failure.
       const tmpId = crypto.randomBytes(12).toString('hex'); // 24 hex chars
       const line = `${rawSource} ${destination}`;
       results = await execAction(
