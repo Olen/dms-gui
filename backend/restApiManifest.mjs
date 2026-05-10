@@ -103,7 +103,14 @@ const SIEVE_SCRIPT_B64_VALIDATOR = {
   maxlen: 65536,
 };
 // Generic password validator. Used by setup_email_add and doveadm_auth_test.
-const PASSWORD_VALIDATOR = { string: { minlen: 1, maxlen: 256 } };
+// Forbids C0 controls (except tab), DEL, and C1 controls. NUL in
+// particular would otherwise pass length validation but then crash
+// Python's subprocess argv construction with "embedded null byte".
+// `+` (one-or-more) replaces the previous string validator's minlen=1.
+const PASSWORD_VALIDATOR = {
+  regex: '^[^\\x00-\\x08\\x0a-\\x1f\\x7f-\\x9f]+$',
+  maxlen: 256,
+};
 
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
