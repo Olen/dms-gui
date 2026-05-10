@@ -1584,20 +1584,33 @@ export const killContainer = async (
         // {returncode, stdout, stderr} (including transport errors,
         // which surface as returncode=99). So .catch() would be dead
         // code — inspect the resolved value's returncode instead.
-        setTimeout(async () => {
-          const r = await execAction(killActionId, {}, targetDict);
-          if (r.returncode) {
-            errorLog(
-              `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
-            );
+        // Belt-and-braces: a try/catch wraps the async body so any
+        // unforeseen throw (e.g. a future internal change to
+        // execAction) doesn't surface as an unhandled promise
+        // rejection, and `.unref()` keeps the 1s delay from holding
+        // the event loop open during shutdown.
+        const t = setTimeout(async () => {
+          try {
+            const r = await execAction(killActionId, {}, targetDict);
+            if (r.returncode) {
+              errorLog(
+                `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
+              );
+            }
+          } catch (err) {
+            errorLog(`${killActionId} scheduled action threw: ${err.message}`);
           }
         }, 1000);
+        t.unref();
         return {
           success: true,
           message: `reboot initiated for ${containerName}`,
         };
       }
-      return { success: false, error: `getConfigs failed for ${plugin}` };
+      return {
+        success: false,
+        error: `getConfigs failed for ${plugin}: ${result.error || 'unknown error'}`,
+      };
     }
   }
   return { success: true, message: 'reboot initiated' }; // fails silently in all other cases
