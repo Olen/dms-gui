@@ -33,6 +33,8 @@ describe('isValidCorsOrigin', () => {
     'http:// example.com', // whitespace in host
     'https://user@example.com', // userinfo not allowed
     'https://user:pass@example.com', // userinfo not allowed
+    'https://example.com?x=1', // query string not allowed
+    'https://example.com#frag', // fragment not allowed
     '',
     '   ',
     null,

@@ -9,18 +9,24 @@
 // shape check here drops anything that isn't a fully-qualified
 // http(s):// origin (no path, no wildcards, no bare hostnames).
 
-// Regex shape: scheme + `://` + at least one non-slash, non-whitespace,
-// non-`@` character, end of string. The `[^/\s@]` class is a tight
-// host-and-port portion: it permits `:port` and IPv6-literal brackets
-// (digits, `:`, `[`, `]` are not excluded), but rejects:
+// Regex shape: scheme + `://` + at least one non-{slash, whitespace,
+// `@`, `?`, `#`} character, end of string. The `[^/\s@?#]` class is
+// a tight host-and-port portion: it permits `:port` and IPv6-literal
+// brackets (digits, `:`, `[`, `]` are not excluded), but rejects
+// everything that wouldn't be a valid CORS origin:
 //   - trailing paths (`https://example.com/foo`) via no `/`
 //   - whitespace-injected origins via no `\s`
 //   - userinfo (`https://user:pass@host`) via no `@`
-// None of those are valid CORS origins, and the cors middleware would
-// either reject or mishandle them. The `/i` flag makes the scheme
-// case-insensitive (RFC 3986: schemes are case-insensitive); the
-// parser normalises the whole entry to lowercase before storing.
-const ORIGIN_RE = /^https?:\/\/[^/\s@]+$/i;
+//   - query strings (`https://example.com?x=1`) via no `?`
+//   - fragments (`https://example.com#frag`) via no `#`
+// Browsers never put any of those in the Origin header, so an entry
+// containing them is a misconfiguration that would never match —
+// rejecting them at the validator gives the operator immediate
+// feedback (via the debugLog "Dropping invalid…" line) rather than
+// the silent never-matches behaviour. The `/i` flag makes the
+// scheme case-insensitive (RFC 3986); the parser normalises the
+// whole entry to lowercase before storing.
+const ORIGIN_RE = /^https?:\/\/[^/\s@?#]+$/i;
 
 export const isValidCorsOrigin = (s) =>
   typeof s === 'string' && ORIGIN_RE.test(s);
