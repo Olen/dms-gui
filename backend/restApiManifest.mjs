@@ -72,22 +72,26 @@ const BOX_VALIDATOR = {
 // shell-form was `echo "<src> <dst>" >> file && reload`; the action
 // protocol passes the whole "src dst" line as a single argv token.
 //
-// Validation policy: forbid only characters that would corrupt the
-// file (NUL, newline, CR — would split into multiple lines or truncate
-// reads) and forbid leading '-' / space (defense in depth against argv
-// option-injection in `printf`/`grep` — Fix 2/3 add `--` separators
-// to the argv as belt-and-suspenders). Allow regex metacharacters
-// (^, $, ., *, +, ?, (, ), [, ], {, }, |, \, /) since postfix-regexp
-// SOURCES contain them by design.
+// Validation policy: forbid characters that would corrupt the file
+// (C0 controls including newline/CR/NUL, DEL, C1 controls, and the
+// Unicode line/paragraph separators U+2028/U+2029 — all of these can
+// split a single line into multiple lines when the file is read back).
+// Also forbid leading '-' / space as option-injection defense for the
+// `printf` and `awk` invocations that consume this value as an argv
+// token. Regex metacharacters (^, $, ., *, +, ?, (, ), [, ], {, }, |,
+// \, /) are allowed because postfix-regexp SOURCES contain them by
+// design.
 const POSTFIX_REGEXP_LINE_VALIDATOR = {
-  regex: '^[^-\\s][^\\x00-\\x1f\\x7f]*$',
+  regex: '^[^-\\s][^\\x00-\\x1f\\x7f-\\x9f\\u2028\\u2029]*$',
   maxlen: 512,
 };
 // Per-request id used to namespace the regex-alias-delete tmp file so
 // concurrent deletes don't clobber each other's intermediate state.
-// Caller generates a random hex string (e.g. crypto.randomBytes(12).toString('hex')).
+// Caller generates a random hex string (e.g. crypto.randomBytes(12).toString('hex'))
+// — the regex restricts to hex digits to match the contract and keep
+// the filename namespace tight.
 const TMP_ID_VALIDATOR = {
-  regex: '^[a-z0-9]{16,32}$',
+  regex: '^[a-f0-9]{16,32}$',
   maxlen: 32,
 };
 // Generic 'short string' for things like alias source/destination
