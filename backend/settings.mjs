@@ -1568,12 +1568,18 @@ export const killContainer = async (
           // mirrors the legacy `sleep 1 && kill ...` shell form: this
           // function's success response has a moment to reach the
           // client before the daemon goes down.
-          setTimeout(() => {
-            execAction(killActionId, {}, targetDict).catch((err) => {
+          //
+          // execAction never rejects: it always resolves with
+          // {returncode, stdout, stderr} (including transport errors,
+          // which surface as returncode=99). So .catch() would be dead
+          // code — inspect the resolved value's returncode instead.
+          setTimeout(async () => {
+            const r = await execAction(killActionId, {}, targetDict);
+            if (r.returncode) {
               errorLog(
-                `${killActionId} scheduled action failed: ${err.message}`
+                `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
               );
-            });
+            }
           }, 1000);
           return {
             success: true,
