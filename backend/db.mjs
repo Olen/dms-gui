@@ -2,15 +2,11 @@ import { exec as execCb } from 'node:child_process';
 import { promisify } from 'node:util';
 const exec = promisify(execCb);
 
-import {
-  escapeShellArg,
-  getValueFromArrayOfObj,
-  reduxPropertiesOfObj,
-} from '../common.mjs';
+import { getValueFromArrayOfObj, reduxPropertiesOfObj } from '../common.mjs';
 import {
   debugLog,
   errorLog,
-  execSetup,
+  execAction,
   formatDMSError,
   infoLog,
   successLog,
@@ -1329,8 +1325,13 @@ export const changePassword = async (
       debugLog(
         `Updating password for ${id} in ${table} for ${containerName}...`
       );
-      results = await execSetup(
-        `email update ${escapeShellArg(id)} ${escapeShellArg(password)}`,
+      results = await execAction(
+        'setup_email_update',
+        {
+          setup_path: targetDict.setupPath,
+          mailbox: id,
+          password,
+        },
         targetDict
       );
       if (!results.returncode) {
@@ -1348,7 +1349,10 @@ export const changePassword = async (
           message: `Password updated for ${id} in ${table}`,
         };
       } else {
-        let ErrorMsg = await formatDMSError('execSetup', results.stderr);
+        let ErrorMsg = await formatDMSError(
+          'setup_email_update',
+          results.stderr
+        );
         errorLog(ErrorMsg);
         return { success: false, error: ErrorMsg };
       }

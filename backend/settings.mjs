@@ -15,7 +15,6 @@ import {
   debugLog,
   errorLog,
   execAction,
-  execCommand, // retained for killContainer's config-stored kill command (out of scope for action-protocol migration)
   infoLog,
   ping,
   successLog,
@@ -565,11 +564,9 @@ export const getServerStatus = async (
           return { success: true, message: status }; // api errors are not errors unless we add an error
         }
 
-        // 'setup_help' is the canonical sentinel — it matches the action
-        // id this branch dispatches. 'execSetup' is the legacy name kept
-        // as an alias so an in-flight frontend (e.g. cached SPA bundle
-        // mid-deploy) keeps working until the next reload.
-        if (test == 'setup_help' || test == 'execSetup') {
+        // Sentinel matches the action id dispatched a few lines above
+        // so the query string and the underlying call shape line up.
+        if (test == 'setup_help') {
           return { success: !results.returncode, message: status };
         }
 
@@ -1561,28 +1558,59 @@ export const killContainer = async (
       result = await getConfigs(plugin);
       if (result.success) {
         let containerNames = pluck(result.message, 'value');
-        if (
-          containerNames.includes(containerName) &&
-          command[plugin][schema]?.kill
-        ) {
-          const targetDict = getTargetDict(plugin, containerName);
-          let results = await execCommand(
-            command[plugin][schema].kill,
-            targetDict
-          );
-          if (results.returncode)
-            return { success: false, error: results.stderr };
-          return {
-            success: true,
-            message: `reboot initiated for ${containerName}`,
-          };
-        } else
+        if (!containerNames.includes(containerName)) {
           return {
             success: false,
-            error: `kill command missing for ${plugin} schema=${schema}`,
+            error: `container ${containerName} not found`,
           };
+        }
+        const killActionId = command[plugin][schema]?.actionId;
+        if (!killActionId) {
+          return {
+            success: false,
+            error: `kill action missing for ${plugin} schema=${schema}`,
+          };
+        }
+        const targetDict = getTargetDict(plugin, containerName);
+        // Fire-and-forget after a 1s delay. Once the kill action runs
+        // and supervisord (or whatever daemon manages the container's
+        // services) dies, the HTTP response is lost — awaiting it
+        // would surface as a confusing timeout. The setTimeout
+        // mirrors the legacy `sleep 1 && kill ...` shell form: this
+        // function's success response has a moment to reach the
+        // client before the daemon goes down.
+        //
+        // execAction never rejects: it always resolves with
+        // {returncode, stdout, stderr} (including transport errors,
+        // which surface as returncode=99). So .catch() would be dead
+        // code — inspect the resolved value's returncode instead.
+        // Belt-and-braces: a try/catch wraps the async body so any
+        // unforeseen throw (e.g. a future internal change to
+        // execAction) doesn't surface as an unhandled promise
+        // rejection, and `.unref()` keeps the 1s delay from holding
+        // the event loop open during shutdown.
+        const t = setTimeout(async () => {
+          try {
+            const r = await execAction(killActionId, {}, targetDict);
+            if (r.returncode) {
+              errorLog(
+                `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
+              );
+            }
+          } catch (err) {
+            errorLog(`${killActionId} scheduled action threw: ${err.message}`);
+          }
+        }, 1000);
+        t.unref();
+        return {
+          success: true,
+          message: `reboot initiated for ${containerName}`,
+        };
       }
-      return { success: false, error: `container ${containerName} not found` };
+      return {
+        success: false,
+        error: `getConfigs failed for ${plugin}: ${result.error || 'unknown error'}`,
+      };
     }
   }
   return { success: true, message: 'reboot initiated' }; // fails silently in all other cases

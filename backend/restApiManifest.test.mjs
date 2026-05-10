@@ -14,6 +14,7 @@ describe('REST_API_MANIFEST required-IDs', () => {
     const required = [
       'setup_email_list',
       'setup_email_add',
+      'setup_email_update',
       'setup_email_del',
       'setup_quota_del',
       'setup_quota_set',
@@ -26,6 +27,11 @@ describe('REST_API_MANIFEST required-IDs', () => {
       'doveadm_quota_get',
     ];
     for (const id of required) expect(ids).toContain(id);
+  });
+
+  it('contains the container reboot action', () => {
+    const ids = REST_API_MANIFEST.map((a) => a.id);
+    expect(ids).toContain('pkill_supervisord');
   });
 
   it('contains the actions aliases.mjs / sieve.mjs / logins.mjs need', () => {

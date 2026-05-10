@@ -207,10 +207,9 @@ describeIfPython('rest-api.py smoke', () => {
     expect(r.body.stdout.trim()).toBe('b\nc');
   });
 
-  it('legacy {command:} path still works during the migration', async () => {
-    const r = await post({ command: 'echo legacy-still-here' });
-    expect(r.status).toBe(200);
-    expect(r.body.returncode).toBe(0);
-    expect(r.body.stdout.trim()).toBe('legacy-still-here');
+  it('rejects legacy {command:} bodies with 400 (action protocol is mandatory)', async () => {
+    const r = await post({ command: 'echo legacy-gone' });
+    expect(r.status).toBe(400);
+    expect(r.body.error).toMatch(/missing 'action'/);
   });
 });
