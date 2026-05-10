@@ -9,13 +9,16 @@
 // shape check here drops anything that isn't a fully-qualified
 // http(s):// origin (no path, no wildcards, no bare hostnames).
 
-// Regex shape: scheme + `://` + at least one non-slash, non-whitespace
-// character, end of string. Permits ports (`:8080`), userinfo is
-// rejected (it would contain `@` which isn't excluded, but the cors
-// package wouldn't accept origins with userinfo anyway). The end
-// anchor blocks trailing paths like `https://example.com/foo`, which
-// the cors middleware also doesn't accept.
-const ORIGIN_RE = /^https?:\/\/[^/\s]+$/;
+// Regex shape: scheme + `://` + at least one non-slash, non-whitespace,
+// non-`@` character, end of string. The `[^/\s@]` class is a tight
+// host-and-port portion: it permits `:port` and IPv6-literal brackets
+// (digits, `:`, `[`, `]` are not excluded), but rejects:
+//   - trailing paths (`https://example.com/foo`) via no `/`
+//   - whitespace-injected origins via no `\s`
+//   - userinfo (`https://user:pass@host`) via no `@`
+// None of those are valid CORS origins, and the cors middleware would
+// either reject or mishandle them.
+const ORIGIN_RE = /^https?:\/\/[^/\s@]+$/;
 
 export const isValidCorsOrigin = (s) =>
   typeof s === 'string' && ORIGIN_RE.test(s);

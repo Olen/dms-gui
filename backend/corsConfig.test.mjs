@@ -29,6 +29,8 @@ describe('isValidCorsOrigin', () => {
     'http://example.com/', // trailing slash counts as path
     'https://', // empty host
     'http:// example.com', // whitespace in host
+    'https://user@example.com', // userinfo not allowed
+    'https://user:pass@example.com', // userinfo not allowed
     '',
     '   ',
     null,
@@ -59,7 +61,7 @@ describe('parseCorsOrigins', () => {
     ).toEqual(['https://a.example.com', 'http://localhost:3000']);
   });
 
-  it('drops wildcard `*` entries silently', () => {
+  it('drops wildcard `*` entries and logs them via the warn callback', () => {
     const warn = vi.fn();
     const result = parseCorsOrigins('*,https://app.example.com', warn);
     expect(result).toEqual(['https://app.example.com']);

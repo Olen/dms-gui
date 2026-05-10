@@ -60,9 +60,10 @@ if (trustProxy !== undefined) {
 
 // CORS_ORIGINS env: comma-separated allowed origins, or unset for
 // same-origin only. Each entry must be a fully-qualified
-// http:// or https:// origin (no trailing path) — wildcards (`*`)
-// and bare hostnames are silently dropped. See corsConfig.mjs for
-// the validation regex and the rationale.
+// http:// or https:// origin (no trailing path). Wildcards (`*`),
+// bare hostnames, and userinfo-laden origins are dropped and the
+// dropped entry is logged via debugLog (visible when DEBUG=true).
+// See corsConfig.mjs for the validation regex and the rationale.
 debugLog('env.API_URL', env.API_URL);
 debugLog('env.FRONTEND_URL', env.FRONTEND_URL);
 const corsOriginsList = parseCorsOrigins(process.env.CORS_ORIGINS, debugLog);
