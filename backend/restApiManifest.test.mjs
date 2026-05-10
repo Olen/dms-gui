@@ -169,6 +169,64 @@ describe('SETUP_PATH_VALIDATOR', () => {
   });
 });
 
+describe('DKIM_DIR_VALIDATOR (via ls_dir action)', () => {
+  // Mirrors SETUP_PATH_VALIDATOR's deferred-lookup pattern so a
+  // missing manifest entry surfaces as a clear assertion failure
+  // rather than a TypeError that aborts the file's evaluation.
+  let re;
+  let DKIM_BASE; // resolved at runtime — depends on DMS_CONFIG_PATH
+  beforeAll(() => {
+    const action = REST_API_MANIFEST.find((a) => a.id === 'ls_dir');
+    expect(action, 'manifest must contain ls_dir').toBeDefined();
+    expect(
+      action.validate?.dir?.regex,
+      'ls_dir must validate dir'
+    ).toBeDefined();
+    re = new RegExp(action.validate.dir.regex);
+    DKIM_BASE = `${process.env.DMS_CONFIG_PATH || '/tmp/docker-mailserver'}/rspamd/dkim`;
+  });
+
+  it('accepts the DKIM base directory itself', () => {
+    expect(re.test(DKIM_BASE)).toBe(true);
+  });
+
+  it('accepts a domain subdirectory', () => {
+    expect(re.test(`${DKIM_BASE}/example.com`)).toBe(true);
+  });
+
+  it('accepts a key file inside a domain dir', () => {
+    expect(re.test(`${DKIM_BASE}/example.com/default.private`)).toBe(true);
+  });
+
+  it('accepts a multi-extension filename', () => {
+    expect(re.test(`${DKIM_BASE}/example.com/rsa-2048.private.txt`)).toBe(true);
+  });
+
+  it('rejects path traversal via ..', () => {
+    expect(re.test(`${DKIM_BASE}/../etc/passwd`)).toBe(false);
+  });
+
+  it('rejects double-dot in a single segment', () => {
+    expect(re.test(`${DKIM_BASE}/foo..bar/default`)).toBe(false);
+  });
+
+  it('rejects paths outside the DKIM base', () => {
+    expect(re.test('/etc/passwd')).toBe(false);
+    expect(re.test('/tmp/docker-mailserver/postfix-regexp.cf')).toBe(false);
+  });
+
+  it('rejects relative paths', () => {
+    expect(re.test('rspamd/dkim/example.com')).toBe(false);
+  });
+
+  it('rejects a base path that has the DKIM base as a prefix but is not under it', () => {
+    // Defense against `/tmp/docker-mailserver/rspamd/dkim-evil/...`
+    // matching a base built with simple concatenation. The regex
+    // anchors with a `/` separator, so this must be rejected.
+    expect(re.test(`${DKIM_BASE}-evil/example.com`)).toBe(false);
+  });
+});
+
 describe('REST_API_MANIFEST structural invariants', () => {
   it('all action ids are unique', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);
