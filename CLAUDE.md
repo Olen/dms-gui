@@ -152,12 +152,17 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 - Lives in the DMS container's config dir (typically mounted from the host's `<dms-config>/dms-gui/rest-api.py`)
 - Runs inside DMS container via supervisor on port 8888
 - Authenticated via `DMS_API_KEY` env var (must match in both mailserver.env and dms-gui .env)
-- Uses `shlex.split()` for command execution (not `shell=True`) to prevent injection
-- Supports shell pipes by splitting on `|` and chaining via `subprocess.Popen`
-- Supports `>` / `>>` redirect on the last pipe stage only
-- Supports `&&` command chaining (splits on `&&`, runs sequentially, stops on non-zero exit)
 - Supervisor config: `<dms-config>/dms-gui/rest-api.conf` on the host
 - Deployed by `user-patches.sh` in the DMS container
+
+### Action protocol (the only request shape rest-api.py accepts)
+After the Sprint A–E migration (last commit on main 2026-05-10), the interpreter accepts only `{action: <id>, args: {...}, timeout: <seconds>}` requests. The legacy `{command:}` shell-passthrough path has been removed.
+
+- **Manifest**: `backend/restApiManifest.mjs` is the source of truth for the action allowlist. Each entry declares `id`, an `argv` template (or `pipeline` for multi-stage), per-arg `validate` rules, and optional `redirect`. The manifest is written to `<dms-config>/dms-gui/rest-api-manifest.json` at deploy time and read by the interpreter at startup.
+- **Execution**: token-level substitution (`{placeholder}` → validated arg) + `subprocess.Popen(shell=False)`. No shell ever runs. No `&&`, no `|` outside the manifest's own `pipeline` declarations, no `>`/`>>` outside the manifest's own `redirect` declarations.
+- **Validators**: each placeholder must be declared with one of `enum`, `regex` (with `maxlen`), `int` (with `min`/`max`), or `string` (with `minlen`/`maxlen`). Build-time tests (`backend/restApiManifest.test.mjs`) enforce: unique snake_case ids, every placeholder declared, no orphan validators, argv tokens contain no shell-operator characters, redirect targets are absolute and `..`-free, every `execAction(literal, ...)` and `actionId: 'literal'` references a real manifest entry.
+- **JS-side caller**: `backend/backend.mjs` exports `execAction(actionId, args, target, opts)`. Action ids must be reachable as static string literals (or a `{ actionId: 'foo' }` config-table key) so the build-time coverage test can grep them.
+- **Empty-manifest detection**: if the interpreter fails to load the manifest at startup, ACTIONS is empty and every request returns 503 (not 403) so callers can distinguish server misconfiguration from "unknown action".
 
 ## Production deployment topology
 - Runs behind Traefik (hostname configured per environment)
@@ -166,25 +171,30 @@ The `.dockerignore` with `**/node_modules` is essential. Without it, local glibc
 - Container exposes port 80 (nginx serves SPA + proxies /api/ to backend on 3001)
 - Shares the Traefik docker network with the mailserver container
 
-## Backend architecture (refactored Feb 28)
-Backend was split from a 2,980-line monolith into modular route files:
+## Backend architecture
+Backend is split into modular route files + business-logic modules:
 
-- `backend/index.js` — App setup, global middleware, route mounting, startup (~185 lines)
+- `backend/index.js` — App setup, global middleware, route mounting, startup
 - `backend/middleware.js` — Shared auth/validation/error middleware (authenticateToken, requireAdmin, requireActive, validateContainerName, authLimiter, serverError, generateAccessToken/RefreshToken, DOMAIN_RE, isValidDomain)
+- `backend/envBootstrap.mjs` — Side-effect dotenv loader; imported first by env.mjs and restApiManifest.mjs to make DMS_CONFIG_PATH visible before either module's body runs
+- `backend/corsConfig.mjs` — CORS origin parser/validator (env → allowlist) with regex shape check; index.js wires it through a function-based origin handler so CodeQL recognises the sanitizer
+- `backend/restApiManifest.mjs` — Source of truth for the action protocol. Declarative `argv` / `pipeline` / `validate` / `redirect` entries; build-time tests enforce structural invariants. See "REST API" section above.
 - `backend/routes/auth.js` — Login, logout, refresh, forgot/reset password
 - `backend/routes/logins.js` — Login CRUD, roles (admin user management)
 - `backend/routes/accounts.js` — Email account CRUD, doveadm, quota
-- `backend/routes/aliases.js` — Alias CRUD
-- `backend/routes/settings.js` — Settings CRUD, configs, branding, logo upload
+- `backend/routes/aliases.js` — Alias CRUD (uses `^[^@]+@([_\-.\w]+)` for domain extraction; no greedy `.*@` to avoid polynomial-time backtracking)
+- `backend/routes/settings.js` — Settings CRUD, configs, branding, logo upload (multer 2.x)
 - `backend/routes/domains.js` — Domains, DNS lookup, DKIM, DNSBL, DNS control
-- `backend/routes/server.js` — Status, infos, envs, logs, count, initAPI, killContainer
+- `backend/routes/server.js` — Status, infos, envs, logs, count, initAPI, killContainer. The `/status/:plugin/:containerName` route applies the SSRF gates: admin-only `settings` body, containerName must be in caller's accessible config set.
 - `backend/routes/mail.js` — Autoconfig, mobileconfig, password gen, rspamd, dovecot
-- `backend/env.mjs` — Environment config, embedded rest-api.py template
-- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup
+- `backend/env.mjs` — Environment config + embedded rest-api.py template (action-only after Sprint E)
+- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup. `getConfigs(plugin, roles)`: empty `roles` is the admin path, callers must guard non-admin code accordingly (see security notes).
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (uses `escapeShellArg`)
-- `backend/aliases.mjs` — Alias management
-- `backend/db.mjs` — SQLite database layer (better-sqlite3), encrypt/decrypt, AES key migration
+- `backend/aliases.mjs` — Alias management (action protocol)
+- `backend/sieve.mjs` — Sieve script management (action protocol)
+- `backend/logins.mjs` — dms-gui login user management (action protocol)
+- `backend/db.mjs` — SQLite database layer (better-sqlite3), encrypt/decrypt, AES key migration. `getTargetDict(plugin, containerName, settings)` is the SSRF host validator: protocol allowlist (http/https), host regex (alphanumeric + `._-`, no IP literals, URL-canonical check), port range (1..65535).
 
 ## Key frontend files
 - `frontend/src/pages/Domains.jsx` — Domain list, DNS Details modal, click-to-edit SPF/DMARC, DKIM generation + push
@@ -193,25 +203,35 @@ Backend was split from a 2,980-line monolith into modular route files:
 - `frontend/src/components/DataTable.jsx` — Reusable table component
 
 ## Security notes
-- All user input passed to shell commands must use `escapeShellArg()` from `common.mjs`
-- CORS is restricted via `CORS_ORIGINS` env var (not open to all origins)
-- Auth endpoints are rate-limited (express-rate-limit)
-- Non-admin users cannot set isAdmin/isActive/roles on themselves
-- `jsonFixTrailingCommas` uses `JSON.parse()` (not `eval()`)
-- AES-256 encryption: key derived as raw 32 bytes from SHA-512 digest of AES_SECRET
-- Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks
+- **Action protocol**: rest-api.py runs no shell. Token-level substitution into `argv` from manifest, `subprocess.Popen(shell=False)`. See "REST API" above.
+- **SSRF defenses on `/status/:plugin/:containerName`** (PR #74):
+  1. `settings` body is admin-only (`req.user.isAdmin && Array.isArray(...) && length > 0`); non-admins drop the override and fall through to the DB target dict.
+  2. ContainerName presence check against `getConfigs(plugin, scope)`. Non-admin scope is `req.user.roles` (mailserver) or `[req.user.id]` (other plugins). Empty-roles non-admin on mailserver is rejected upfront — `getConfigs(plugin, [])` is the admin path and would otherwise grant full access.
+  3. Protocol allowlist (`http`/`https` only) in `getTargetDict`. Applied to both user-supplied and DB-loaded values.
+  4. Host regex (`^[a-z0-9][a-z0-9._-]*$/i`) + IPv4-literal reject (`^[0-9]{1,3}(\.[0-9]{1,3}){3}$`) + URL-canonical check (rejects WHATWG IPv4 shorthand: `127.1`, `2130706433`, `0x7f.1`). Validators are written as boolean-AND chains so CodeQL recognises them as sanitisers.
+- **CORS** is restricted via `CORS_ORIGINS` env var (PR #75). Wildcards (`*`), userinfo, paths, queries, fragments, and disallowed schemes are filtered out by `corsConfig.mjs`'s parser. Function-based origin handler in `index.js` so CodeQL closes the `js/cors-permissive-configuration` flow.
+- **ReDoS** in alias domain extraction was fixed by switching from `/.*@([_\-.\w]+)/` to `/^[^@]+@([_\-.\w]+)/` — the negated char class avoids polynomial-time backtracking.
+- All user input passed to shell commands (the few legacy paths that remain) must use `escapeShellArg()` from `common.mjs`.
+- Auth endpoints are rate-limited (express-rate-limit). CSRF protection (#40) via double-submit cookie on every authenticated route.
+- Non-admin users cannot set isAdmin/isActive/roles on themselves.
+- `jsonFixTrailingCommas` uses safe parsing only — no dynamic-code evaluation.
+- AES-256-GCM encryption (g1: format prefix); key derived as raw 32 bytes from SHA-512 digest of AES_SECRET. Legacy CBC ciphertext (pre-2.2.0) still readable on decrypt.
+- Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks. New password hashing uses `setup_email_update` action (Sprint E).
 
 ## Testing
 Tests use vitest + supertest. Run from the project root:
 ```bash
-cd backend && npx vitest run
-cd frontend && npx vitest run
+cd backend && DMSGUI_VERSION=test npx vitest run    # ~465 tests
+cd frontend && npx vitest run                        # ~42 tests
 ```
-- `backend/middleware.test.mjs` — 31 tests for shared middleware
-- `backend/routes/auth.test.js` — 14 tests for auth routes
-- `backend/routes/accounts.test.js` — 15 tests for account routes
-- `backend/test/routeHelper.mjs` — Shared test utilities (createTestApp, JWT tokens)
-- Existing tests in `backend/` — 115 tests
+
+Notable test files:
+- `backend/restApiManifest.test.mjs` — Build-time invariants (unique snake_case ids, every placeholder declared, no orphan validators, every `execAction(literal, ...)` references a real action). Auto-enumerates source files for the coverage check, so new modules are picked up automatically.
+- `backend/test/restApiSmoke.test.mjs` — Spawns rest-api.py against a synthetic manifest and exercises real HTTP requests (skipped when python3 isn't available).
+- `backend/db.test.mjs` — encrypt/decrypt + getTargetDict host/port/protocol allowlists.
+- `backend/routes/server.test.js` — `/status` SSRF gates (admin-only settings, containerName presence, empty-roles guard).
+- `backend/corsConfig.test.mjs` — CORS origin parser/validator (PR #75).
+- `backend/test/routeHelper.mjs` — Shared route-test utilities (createTestApp, JWT admin/user/inactive tokens; inline a custom token for unusual user shapes like empty roles).
 
 CI runs both suites before any release; releases fail closed if any test fails.
 
