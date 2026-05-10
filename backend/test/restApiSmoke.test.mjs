@@ -19,7 +19,7 @@ const HAS_PYTHON3 =
 
 const describeIfPython = HAS_PYTHON3 ? describe : describe.skip;
 
-describeIfPython('rest-api.py smoke (Sprint A)', () => {
+describeIfPython('rest-api.py smoke', () => {
   let tmpDir;
   let serverProc;
   let port; // assigned in beforeAll once a free port is reserved

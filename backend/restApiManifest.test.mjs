@@ -4,12 +4,12 @@ import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
 
-describe('REST_API_MANIFEST (action protocol)', () => {
+describe('REST_API_MANIFEST required-IDs', () => {
   it('exports an array', () => {
     expect(Array.isArray(REST_API_MANIFEST)).toBe(true);
   });
 
-  it('contains the actions for accounts.mjs (Sprint B)', () => {
+  it('contains the actions accounts.mjs needs', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);
     const required = [
       'setup_email_list',
@@ -28,7 +28,7 @@ describe('REST_API_MANIFEST (action protocol)', () => {
     for (const id of required) expect(ids).toContain(id);
   });
 
-  it('contains the actions for aliases.mjs / sieve.mjs / logins.mjs (Sprint C)', () => {
+  it('contains the actions aliases.mjs / sieve.mjs / logins.mjs need', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);
     const required = [
       // aliases.mjs
@@ -82,7 +82,7 @@ function actionPlaceholders(action) {
   return all;
 }
 
-describe('SETUP_PATH_VALIDATOR (Sprint B round-9)', () => {
+describe('SETUP_PATH_VALIDATOR', () => {
   // Look up the action and regex inside a beforeAll, not at describe-
   // definition time. If the manifest entry or validator is missing/
   // renamed, this surfaces as a normal test failure with a clear
@@ -136,7 +136,7 @@ describe('SETUP_PATH_VALIDATOR (Sprint B round-9)', () => {
   });
 });
 
-describe('REST_API_MANIFEST structural invariants (Sprint B)', () => {
+describe('REST_API_MANIFEST structural invariants', () => {
   it('all action ids are unique', () => {
     const ids = REST_API_MANIFEST.map((a) => a.id);
     expect(new Set(ids).size).toBe(ids.length);

@@ -15,9 +15,6 @@
 //     redirect:  { mode: 'write'|'append', file: <path-template> } — optional file redirect
 //   }
 //
-// Sprint A shipped an empty manifest. Sprint B populated it with the
-// 12 actions accounts.mjs needs. Sprint C adds 15 more for aliases.mjs,
-// sieve.mjs, and logins.mjs; Sprints D–E continue.
 // setup_path is supplied per-call from targetDict.setupPath (populated by
 // getTargetDict() from the per-container settings DB, defaulting to
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
@@ -68,9 +65,8 @@ const BOX_VALIDATOR = {
   regex: '^[A-Za-z0-9._/*%?][A-Za-z0-9 ._/*%?\\-]*$',
   maxlen: 256,
 };
-// Postfix-regex source/destination line for printf+append. The legacy
-// shell-form was `echo "<src> <dst>" >> file && reload`; the action
-// protocol passes the whole "src dst" line as a single argv token.
+// Postfix-regex source/destination line for printf+append. The whole
+// "<src> <dst>" line is passed as a single argv token.
 //
 // Validation policy: forbid characters that would corrupt the file
 // (C0 controls including newline/CR/NUL, DEL, C1 controls, and the
@@ -106,8 +102,7 @@ const SIEVE_SCRIPT_B64_VALIDATOR = {
   regex: '^[A-Za-z0-9+/=]+$',
   maxlen: 65536,
 };
-// Generic password validator (Sprint B extracted this preset; Sprint C
-// reuses it for doveadm_auth_test).
+// Generic password validator. Used by setup_email_add and doveadm_auth_test.
 const PASSWORD_VALIDATOR = { string: { minlen: 1, maxlen: 256 } };
 
 export const REST_API_MANIFEST = [
@@ -117,8 +112,7 @@ export const REST_API_MANIFEST = [
     argv: ['{setup_path}', 'email', 'list'],
     validate: {
       // setup_path is supplied by execAction callers from targetDict.setupPath,
-      // which is the same source the legacy execSetup helper used. This keeps
-      // per-container overrides via the settings UI working.
+      // so per-container overrides via the settings UI keep working.
       setup_path: SETUP_PATH_VALIDATOR,
     },
   },
@@ -161,8 +155,7 @@ export const REST_API_MANIFEST = [
   // ---- doveadm-based actions ----
   {
     id: 'doveadm_index',
-    // Original shell form had '\\*' to escape the glob. With shell=False
-    // the argv token is just the literal '*'.
+    // The token is the literal '*' (no shell expansion under shell=False).
     argv: ['doveadm', 'index', '-u', '{mailbox}', '-q', '*'],
     validate: {
       mailbox: MAILBOX_VALIDATOR,
@@ -256,7 +249,7 @@ export const REST_API_MANIFEST = [
     },
   },
 
-  // ---- Sprint C: aliases.mjs actions ----
+  // ---- aliases.mjs actions ----
   {
     id: 'setup_alias_list',
     argv: ['{setup_path}', 'alias', 'list'],
@@ -349,7 +342,7 @@ export const REST_API_MANIFEST = [
     argv: ['postfix', 'reload'],
   },
 
-  // ---- Sprint C: sieve.mjs actions ----
+  // ---- sieve.mjs actions ----
   {
     id: 'doveadm_sieve_list',
     argv: ['doveadm', 'sieve', 'list', '-u', '{mailbox}'],
@@ -404,7 +397,7 @@ export const REST_API_MANIFEST = [
     },
   },
 
-  // ---- Sprint C: logins.mjs actions ----
+  // ---- logins.mjs actions ----
   {
     // Used to verify a user's DMS dovecot password during dms-gui login.
     id: 'doveadm_auth_test',

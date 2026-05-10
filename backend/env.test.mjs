@@ -11,7 +11,7 @@ vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 import { resolveSmtpTlsVerify, mailserverRESTAPI, env } from './env.mjs';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
 
-describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
+describe('resolveSmtpTlsVerify', () => {
   it('explicit "false" overrides everything else', () => {
     expect(
       resolveSmtpTlsVerify({
@@ -69,7 +69,7 @@ describe('resolveSmtpTlsVerify (Sprint 11 — #34)', () => {
   });
 });
 
-describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
+describe('mailserverRESTAPI.dms.manifest', () => {
   it('exposes a manifest config entry alongside api and cron', () => {
     expect(mailserverRESTAPI.dms).toHaveProperty('manifest');
     expect(mailserverRESTAPI.dms.manifest).toMatchObject({
@@ -95,7 +95,7 @@ describe('mailserverRESTAPI.dms.manifest (Sprint A)', () => {
   });
 });
 
-describe('rest-api.py interpreter wiring (Sprint A)', () => {
+describe('rest-api.py interpreter wiring', () => {
   const py = mailserverRESTAPI.dms.api.content;
 
   // ---- Manifest loading at startup ----

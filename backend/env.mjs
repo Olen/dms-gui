@@ -775,8 +775,9 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
             return
 
         elif command:
-          # Legacy free-form command path. Removed in Sprint E once all
-          # callers use the action protocol.
+          # Free-form {command:} fallback path, kept while a few callers
+          # still send the legacy shape. Slated for removal once every
+          # backend caller has migrated to {action, args}.
           try:
             logger(f"Executing command: {command}")
 

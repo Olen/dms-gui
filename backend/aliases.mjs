@@ -80,8 +80,15 @@ export const getAliases = async (
           aliases = [...aliases, ...regexes];
 
           // now save aliases in db ----------------------
-          // Clear stale aliases before inserting fresh set from DMS
-          deleteEntry('aliases', containerName, 'byConfig', containerName);
+          // Clear stale aliases before inserting fresh set from DMS.
+          // deleteEntry is async — await it so the insert below sees a
+          // truly empty table rather than racing the delete.
+          await deleteEntry(
+            'aliases',
+            containerName,
+            'byConfig',
+            containerName
+          );
           result = dbRun(sql.aliases.insert.alias, aliases, containerName);
           if (!result.success) {
             errorLog(result?.error);
@@ -153,7 +160,7 @@ export const pullAliasesFromDMS = async (containerName = null) => {
       aliases = await parseAliasesFromDMS(results.stdout);
       infoLog(`Found ${aliases.length} aliases`);
     } else {
-      let ErrorMsg = await formatDMSError('execAction', results.stderr);
+      let ErrorMsg = await formatDMSError('setup_alias_list', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -234,7 +241,7 @@ export const pullPostfixRegexFromDMS = async (containerName = null) => {
       regexes = await parsePostfixRegexFromDMS(results.stdout);
       infoLog(`Found ${regexes.length} regexes`);
     } else {
-      let ErrorMsg = await formatDMSError('execAction', results.stderr);
+      let ErrorMsg = await formatDMSError('cat_postfix_regexp', results.stderr);
       errorLog(ErrorMsg);
       return { success: false, error: ErrorMsg };
     }
@@ -320,7 +327,10 @@ export const addAlias = async (
           targetDict
         );
         if (results.returncode) {
-          let ErrorMsg = await formatDMSError('execAction', results.stderr);
+          let ErrorMsg = await formatDMSError(
+            'setup_alias_add',
+            results.stderr
+          );
           errorLog(`addAlias failed for ${source} -> ${dest}: ${ErrorMsg}`);
           failed.push(dest);
         }
@@ -446,7 +456,10 @@ export const deleteAlias = async (
           results
         );
         if (results.returncode) {
-          let ErrorMsg = await formatDMSError('execAction', results.stderr);
+          let ErrorMsg = await formatDMSError(
+            'setup_alias_del',
+            results.stderr
+          );
           errorLog(`Failed to delete ${source} -> ${dest}: ${ErrorMsg}`);
           failed.push(dest);
         }
@@ -455,7 +468,12 @@ export const deleteAlias = async (
       // Sync DB with actual DMS state
       if (failed.length === 0) {
         // All deleted — remove DB entry
-        result = deleteEntry('aliases', source, 'bySource', containerName);
+        result = await deleteEntry(
+          'aliases',
+          source,
+          'bySource',
+          containerName
+        );
         if (result.success) {
           successLog(`Alias deleted: ${source}`);
           return { success: true, message: `Alias deleted: ${source}` };
@@ -463,7 +481,7 @@ export const deleteAlias = async (
         return result;
       } else if (failed.length < destinations.length) {
         // Partial failure — update DB to reflect remaining destinations
-        deleteEntry('aliases', source, 'bySource', containerName);
+        await deleteEntry('aliases', source, 'bySource', containerName);
         dbRun(
           sql.aliases.insert.alias,
           { source, destination: failed.join(','), regex: 0 },
@@ -533,7 +551,7 @@ export const deleteAlias = async (
           if (!results.returncode) {
             successLog(`postfix reloaded`);
 
-            const result = deleteEntry(
+            const result = await deleteEntry(
               'aliases',
               stringifiedSource,
               'bySource',
@@ -628,7 +646,7 @@ export const updateAlias = async (
         targetDict
       );
       if (r.returncode) {
-        const msg = await formatDMSError('execAction', r.stderr);
+        const msg = await formatDMSError('setup_alias_del', r.stderr);
         errorLog(`Failed to remove ${source} -> ${dest}: ${msg}`);
         failedRemove.push(dest);
       }
@@ -641,7 +659,7 @@ export const updateAlias = async (
         targetDict
       );
       if (r.returncode) {
-        const msg = await formatDMSError('execAction', r.stderr);
+        const msg = await formatDMSError('setup_alias_add', r.stderr);
         errorLog(`Failed to add ${source} -> ${dest}: ${msg}`);
         failedAdd.push(dest);
       }
