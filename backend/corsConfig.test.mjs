@@ -15,6 +15,8 @@ describe('isValidCorsOrigin', () => {
     'https://app.example.com:8443',
     'http://10.0.0.5',
     'http://[::1]:8080',
+    'HTTPS://Example.COM', // schemes are case-insensitive per RFC 3986
+    'Http://Example.com',
   ]) {
     it(`accepts ${ok}`, () => {
       expect(isValidCorsOrigin(ok)).toBe(true);
@@ -78,5 +80,17 @@ describe('parseCorsOrigins', () => {
 
   it('returns null when every entry is invalid (caller falls back to same-origin)', () => {
     expect(parseCorsOrigins('*,foo,bar')).toBe(null);
+  });
+
+  it('normalises kept entries to lowercase to match browser Origin headers', () => {
+    // Browsers send Origin headers in lowercase (RFC 6454). Operators
+    // who type `HTTPS://Example.COM` should still get matched against
+    // those lowercase headers, so the parser stores the canonical
+    // form. Without this normalisation the allowlist comparison would
+    // silently miss casing variants the operator probably intended.
+    expect(parseCorsOrigins('HTTPS://Example.COM,Http://Foo.Bar')).toEqual([
+      'https://example.com',
+      'http://foo.bar',
+    ]);
   });
 });

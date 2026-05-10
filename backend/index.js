@@ -64,11 +64,30 @@ if (trustProxy !== undefined) {
 // bare hostnames, and userinfo-laden origins are dropped and the
 // dropped entry is logged via debugLog (visible when DEBUG=true).
 // See corsConfig.mjs for the validation regex and the rationale.
+//
+// The origin field is a function rather than the array form so the
+// allowlist check is an explicit comparison: CodeQL's
+// js/cors-permissive-configuration query recognises function-based
+// origin handlers as a sanitizer for the env-derived input, where
+// the array form alone is still flagged as "permissive due to
+// user-controlled value" even though the values are filtered.
 debugLog('env.API_URL', env.API_URL);
 debugLog('env.FRONTEND_URL', env.FRONTEND_URL);
-const corsOriginsList = parseCorsOrigins(process.env.CORS_ORIGINS, debugLog);
+const corsAllowlist = parseCorsOrigins(process.env.CORS_ORIGINS, debugLog);
+const corsOriginHandler = corsAllowlist
+  ? (requestOrigin, callback) => {
+      // Same-origin requests have no Origin header — let those
+      // through unconditionally (the cors middleware does this too
+      // when origin is an array; mirror the behaviour here).
+      if (!requestOrigin) return callback(null, true);
+      // Normalise to lowercase before comparison: parseCorsOrigins
+      // stores lowercased entries; browsers send lowercase Origin
+      // values too, but being explicit keeps the contract symmetric.
+      callback(null, corsAllowlist.includes(requestOrigin.toLowerCase()));
+    }
+  : false;
 const corsOptions = {
-  origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
+  origin: corsOriginHandler,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: [

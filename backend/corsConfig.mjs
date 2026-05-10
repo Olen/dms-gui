@@ -17,8 +17,10 @@
 //   - whitespace-injected origins via no `\s`
 //   - userinfo (`https://user:pass@host`) via no `@`
 // None of those are valid CORS origins, and the cors middleware would
-// either reject or mishandle them.
-const ORIGIN_RE = /^https?:\/\/[^/\s@]+$/;
+// either reject or mishandle them. The `/i` flag makes the scheme
+// case-insensitive (RFC 3986: schemes are case-insensitive); the
+// parser normalises the whole entry to lowercase before storing.
+const ORIGIN_RE = /^https?:\/\/[^/\s@]+$/i;
 
 export const isValidCorsOrigin = (s) =>
   typeof s === 'string' && ORIGIN_RE.test(s);
@@ -26,12 +28,16 @@ export const isValidCorsOrigin = (s) =>
 // Parse `CORS_ORIGINS` env value into an array. Returns null when
 // the env var is unset/empty (signal: "no allowlist, fall back to
 // same-origin only" in the consumer). Drops invalid entries and
-// (optionally) reports them via the supplied warn callback.
+// (optionally) reports them via the supplied warn callback. Each
+// kept entry is lowercased so the comparison matches what browsers
+// actually send in the Origin header — operators writing
+// `CORS_ORIGINS=HTTPS://Example.COM` end up with the canonical
+// `https://example.com` in the allowlist.
 export const parseCorsOrigins = (raw, warn = () => {}) => {
   if (!raw) return null;
   const list = raw
     .split(',')
-    .map((s) => s.trim())
+    .map((s) => s.trim().toLowerCase())
     .filter(Boolean)
     .filter((s) => {
       if (isValidCorsOrigin(s)) return true;
