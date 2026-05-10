@@ -81,14 +81,19 @@ export const getAliases = async (
 
           // now save aliases in db ----------------------
           // Clear stale aliases before inserting fresh set from DMS.
-          // deleteEntry is async — await it so the insert below sees a
-          // truly empty table rather than racing the delete.
-          await deleteEntry(
+          // If the clear fails, return early — running the insert against
+          // a non-empty table would leave stale rows mixed with the new
+          // ones rather than mirroring DMS state.
+          const clearResult = await deleteEntry(
             'aliases',
             containerName,
             'byConfig',
             containerName
           );
+          if (!clearResult.success) {
+            errorLog(`Failed to clear stale aliases: ${clearResult.error}`);
+            return { success: false, error: clearResult.error };
+          }
           result = dbRun(sql.aliases.insert.alias, aliases, containerName);
           if (!result.success) {
             errorLog(result?.error);
@@ -480,8 +485,24 @@ export const deleteAlias = async (
         }
         return result;
       } else if (failed.length < destinations.length) {
-        // Partial failure — update DB to reflect remaining destinations
-        await deleteEntry('aliases', source, 'bySource', containerName);
+        // Partial failure — update DB to reflect remaining destinations.
+        // Same rationale as the refresh path: if the delete fails we'd
+        // duplicate rows for `source`, so abort before the insert.
+        const trimResult = await deleteEntry(
+          'aliases',
+          source,
+          'bySource',
+          containerName
+        );
+        if (!trimResult.success) {
+          errorLog(
+            `Partial delete: failed to update DB row for ${source}: ${trimResult.error}`
+          );
+          return {
+            success: false,
+            error: `Partially deleted. Failed to remove: ${failed.join(', ')}; DB update failed: ${trimResult.error}`,
+          };
+        }
         dbRun(
           sql.aliases.insert.alias,
           { source, destination: failed.join(','), regex: 0 },
