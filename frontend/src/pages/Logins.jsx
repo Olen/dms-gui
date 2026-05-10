@@ -94,8 +94,13 @@ const Logins = () => {
   });
   const [passwordFormErrors, setPasswordFormErrors] = useState({});
 
-  // https://www.w3schools.com/react/react_useeffect.asp
+  // fetchAll is declared as `const` further down. The effect callback
+  // runs after the component body finishes, so the const is initialised
+  // by the time it fires; ESLint's react-hooks/exhaustive-deps still
+  // flags textual TDZ. Suppressed per the same pattern used in
+  // FormContainerAdd.jsx and Login.jsx.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability, react-hooks/exhaustive-deps -- forward-declared fetchAll, intentional
     fetchAll();
   }, [containerName]);
 
