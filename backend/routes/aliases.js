@@ -170,8 +170,8 @@ router.post(
           });
         }
 
-        let domainSource = source.match(/.*@([_\-.\w]+)/);
-        let domainDest = destination.match(/.*@([_\-.\w]+)/);
+        let domainSource = source.match(/^[^@]+@([_\-.\w]+)/);
+        let domainDest = destination.match(/^[^@]+@([_\-.\w]+)/);
         if (!domainSource || !domainDest) {
           return res.status(400).json({
             success: false,
@@ -351,7 +351,7 @@ router.put(
             error: 'At least one destination is required',
           });
         }
-        const sourceMatch = source.match(/.*@([_\-.\w]+)/);
+        const sourceMatch = source.match(/^[^@]+@([_\-.\w]+)/);
         if (!sourceMatch) {
           return res.status(400).json({
             success: false,
@@ -361,7 +361,7 @@ router.put(
         const sourceDomain = sourceMatch[1].toLowerCase();
 
         for (const d of dests) {
-          const m = d.match(/.*@([_\-.\w]+)/);
+          const m = d.match(/^[^@]+@([_\-.\w]+)/);
           if (!m) {
             return res.status(400).json({
               success: false,

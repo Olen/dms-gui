@@ -2,6 +2,7 @@ import { debugLog, errorLog, infoLog } from './backend.mjs';
 import { env } from './env.mjs';
 
 import { dbInit, refreshTokens } from './db.mjs';
+import { parseCorsOrigins } from './corsConfig.mjs';
 
 import { killContainer } from './settings.mjs';
 
@@ -57,16 +58,41 @@ if (trustProxy !== undefined) {
   debugLog('trust proxy =', value);
 }
 
-// CORS_ORIGINS env: comma-separated allowed origins, or unset for same-origin only
+// CORS_ORIGINS env: comma-separated allowed origins, or unset for
+// same-origin only. Each entry must be a fully-qualified
+// http:// or https:// origin (no trailing path). Wildcards (`*`),
+// bare hostnames, and userinfo-laden origins are dropped and the
+// dropped entry is logged via debugLog (visible when DEBUG=true).
+// See corsConfig.mjs for the validation regex and the rationale.
+//
+// The origin field is a function rather than the array form so the
+// allowlist check is an explicit comparison: CodeQL's
+// js/cors-permissive-configuration query recognises function-based
+// origin handlers as a sanitizer for the env-derived input, where
+// the array form alone is still flagged as "permissive due to
+// user-controlled value" even though the values are filtered.
 debugLog('env.API_URL', env.API_URL);
 debugLog('env.FRONTEND_URL', env.FRONTEND_URL);
-const corsOriginsList = process.env.CORS_ORIGINS
-  ? process.env.CORS_ORIGINS.split(',')
-      .map((s) => s.trim())
-      .filter(Boolean)
-  : null;
+const corsAllowlist = parseCorsOrigins(process.env.CORS_ORIGINS, debugLog);
+const corsOriginHandler = corsAllowlist
+  ? (requestOrigin, callback) => {
+      // No Origin header → allow. This case mostly covers
+      // non-browser clients (curl, server-to-server, IDE REST
+      // consoles) plus a few same-origin navigations. It is NOT
+      // a reliable "same-origin" signal — browsers do send Origin
+      // on same-origin POST/fetch too — but the cors middleware's
+      // array form behaves the same way for `undefined` origins,
+      // so we mirror that to keep behaviour consistent and avoid
+      // breaking non-browser API consumers.
+      if (!requestOrigin) return callback(null, true);
+      // Normalise to lowercase before comparison: parseCorsOrigins
+      // stores lowercased entries; browsers send lowercase Origin
+      // values too, but being explicit keeps the contract symmetric.
+      callback(null, corsAllowlist.includes(requestOrigin.toLowerCase()));
+    }
+  : false;
 const corsOptions = {
-  origin: corsOriginsList && corsOriginsList.length ? corsOriginsList : false,
+  origin: corsOriginHandler,
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH'],
   allowedHeaders: [
