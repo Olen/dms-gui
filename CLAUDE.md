@@ -1,10 +1,10 @@
 # dms-gui — Claude Code Context
 
 ## Project overview
-Web GUI for docker-mailserver (DMS). React frontend (Vite, Bootstrap) + Node.js/Express backend + nginx reverse proxy, all in one Docker image. Communicates with DMS via a REST API (`rest-api.py`) running inside the DMS container.
+Web GUI for docker-mailserver (DMS). React frontend (webpack, Bootstrap) + Node.js/Express backend + nginx reverse proxy, all in one Docker image. Communicates with DMS via a REST API (`rest-api.py`) running inside the DMS container.
 
 ## Repository structure
-- `frontend/` — React SPA (Vite, Bootstrap)
+- `frontend/` — React SPA (webpack 5 + babel-loader, Bootstrap CSS via react-bootstrap)
 - `backend/` — Express API server (port 3001), SQLite database
 - `common.mjs` — Shared utilities (regex, array helpers) used by both frontend and backend
 - `config/` — Example config files
@@ -187,10 +187,10 @@ Backend is split into modular route files + business-logic modules:
 - `backend/routes/domains.js` — Domains, DNS lookup, DKIM, DNSBL, DNS control
 - `backend/routes/server.js` — Status, infos, envs, logs, count, initAPI, killContainer. The `/status/:plugin/:containerName` route applies the SSRF gates: admin-only `settings` body, containerName must be in caller's accessible config set.
 - `backend/routes/mail.js` — Autoconfig, mobileconfig, password gen, rspamd, dovecot
-- `backend/env.mjs` — Environment config + embedded rest-api.py template (action-only after Sprint E)
+- `backend/env.mjs` — Environment config + embedded rest-api.py template (~640 lines of Python in a JS template literal — see issue #81 for the planned extraction)
 - `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup. `getConfigs(plugin, roles)`: empty `roles` is the admin path, callers must guard non-admin code accordingly (see security notes).
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
-- `backend/accounts.mjs` — Account management (uses `escapeShellArg`)
+- `backend/accounts.mjs` — Account management (action protocol)
 - `backend/aliases.mjs` — Alias management (action protocol)
 - `backend/sieve.mjs` — Sieve script management (action protocol)
 - `backend/logins.mjs` — dms-gui login user management (action protocol)
@@ -204,19 +204,19 @@ Backend is split into modular route files + business-logic modules:
 
 ## Security notes
 - **Action protocol**: rest-api.py runs no shell. Token-level substitution into `argv` from manifest, `subprocess.Popen(shell=False)`. See "REST API" above.
-- **SSRF defenses on `/status/:plugin/:containerName`** (PR #74):
+- **SSRF defenses on `/status/:plugin/:containerName`**:
   1. `settings` body is admin-only (`req.user.isAdmin && Array.isArray(...) && length > 0`); non-admins drop the override and fall through to the DB target dict.
   2. ContainerName presence check against `getConfigs(plugin, scope)`. Non-admin scope is `req.user.roles` (mailserver) or `[req.user.id]` (other plugins). Empty-roles non-admin on mailserver is rejected upfront — `getConfigs(plugin, [])` is the admin path and would otherwise grant full access.
   3. Protocol allowlist (`http`/`https` only) in `getTargetDict`. Applied to both user-supplied and DB-loaded values.
   4. Host regex (`^[a-z0-9][a-z0-9._-]*$/i`) + IPv4-literal reject (`^[0-9]{1,3}(\.[0-9]{1,3}){3}$`) + URL-canonical check (rejects WHATWG IPv4 shorthand: `127.1`, `2130706433`, `0x7f.1`). Validators are written as boolean-AND chains so CodeQL recognises them as sanitisers.
-- **CORS** is restricted via `CORS_ORIGINS` env var (PR #75). Wildcards (`*`), userinfo, paths, queries, fragments, and disallowed schemes are filtered out by `corsConfig.mjs`'s parser. Function-based origin handler in `index.js` so CodeQL closes the `js/cors-permissive-configuration` flow.
+- **CORS** is restricted via `CORS_ORIGINS` env var. Wildcards (`*`), userinfo, paths, queries, fragments, and disallowed schemes are filtered out by `corsConfig.mjs`'s parser. Function-based origin handler in `index.js` so CodeQL closes the `js/cors-permissive-configuration` flow.
 - **ReDoS** in alias domain extraction was fixed by switching from `/.*@([_\-.\w]+)/` to `/^[^@]+@([_\-.\w]+)/` — the negated char class avoids polynomial-time backtracking.
-- All user input passed to shell commands (the few legacy paths that remain) must use `escapeShellArg()` from `common.mjs`.
-- Auth endpoints are rate-limited (express-rate-limit). CSRF protection (#40) via double-submit cookie on every authenticated route.
+- After the action-protocol migration, no production caller goes through a shell. `escapeShellArg` in `common.mjs` is currently dead (no live callers — see issue #88).
+- Auth endpoints are rate-limited (express-rate-limit). CSRF protection via double-submit cookie on every authenticated route.
 - Non-admin users cannot set isAdmin/isActive/roles on themselves.
 - `jsonFixTrailingCommas` uses safe parsing only — no dynamic-code evaluation.
 - AES-256-GCM encryption (g1: format prefix); key derived as raw 32 bytes from SHA-512 digest of AES_SECRET. Legacy CBC ciphertext (pre-2.2.0) still readable on decrypt.
-- Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks. New password hashing uses `setup_email_update` action (Sprint E).
+- Password comparison uses `crypto.timingSafeEqual()` to prevent timing attacks. New password hashing uses the `setup_email_update` action.
 
 ## Testing
 Tests use vitest + supertest. Run from the project root:
@@ -230,7 +230,7 @@ Notable test files:
 - `backend/test/restApiSmoke.test.mjs` — Spawns rest-api.py against a synthetic manifest and exercises real HTTP requests (skipped when python3 isn't available).
 - `backend/db.test.mjs` — encrypt/decrypt + getTargetDict host/port/protocol allowlists.
 - `backend/routes/server.test.js` — `/status` SSRF gates (admin-only settings, containerName presence, empty-roles guard).
-- `backend/corsConfig.test.mjs` — CORS origin parser/validator (PR #75).
+- `backend/corsConfig.test.mjs` — CORS origin parser/validator.
 - `backend/test/routeHelper.mjs` — Shared route-test utilities (createTestApp, JWT admin/user/inactive tokens; inline a custom token for unusual user shapes like empty roles).
 
 CI runs both suites before any release; releases fail closed if any test fails.
@@ -239,3 +239,22 @@ For manual verification after a deploy:
 1. Check backend logs: `docker logs dms-gui --tail 20`
 2. Test login at the configured production hostname
 3. Verify affected functionality in the web UI
+
+## Code-review backlog (open issues #77–#90)
+
+Code-quality / reusability / dependency-reduction backlog from the 2026-05-10 full-codebase review:
+
+- **#77** Remove dead npm deps (`async-mutex`, `dockerode`, `jwt-decode`)
+- **#78** `qs` is imported in `backend/index.js` but not declared
+- **#79** Replace `dotenv` with Node 20 `--env-file`
+- **#80** Migrate frontend webpack → Vite (CLAUDE.md's previously-claimed bundler)
+- **#81** Extract embedded `rest-api.py` from `env.mjs` (~640-line Python string literal)
+- **#82** Split god-modules: `settings.mjs` (2766 lines) and `db.mjs` (2015 lines)
+- **#83** Consolidate `services/api.mjs` (52 try/catch wrappers → `request()` + per-domain split)
+- **#84** Move SQL out of `routes/*.js` into business modules
+- **#85** Standardize error response shapes across routes
+- **#86** Extract `usePasswordChange` and `useFlashMessages` hooks
+- **#87** Split big page-components: `Domains.jsx`, `Logins.jsx`, `FormContainerAdd.jsx` (1000+ lines each)
+- **#88** Cleanup: dead code from action-protocol migration (escapeShellArg, parseProcessLine, getJsonFromApi, large commented blocks)
+- **#89** Bug: `regexPrintOnly` regex matches the wrong set; `arrayOfStringToDict` returns inconsistent type
+- **#90** Comment hygiene: strip `(#NN)` PR-number references throughout
