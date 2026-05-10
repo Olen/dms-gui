@@ -1691,24 +1691,37 @@ const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 // `1024` cap is well above any realistic FQDN.
 const HOSTNAME_SHAPE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
 const IPV4_LITERAL_RE = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/;
-const isValidTargetHost = (s) => {
-  if (typeof s !== 'string' || s.length === 0 || s.length > 1024) return false;
-  if (!HOSTNAME_SHAPE_RE.test(s)) return false;
-  if (IPV4_LITERAL_RE.test(s)) return false;
-  // URL-parse check: build a throwaway URL and inspect the
-  // canonical hostname. If WHATWG normalised the input to an IP
-  // (any shorthand or single-integer form), or normalised away
-  // from the original string, reject.
+// WHATWG URL parser canonicalises shorthand IPv4 forms (`127.1`,
+// `2130706433`, `0x7f.1`) to their full 4-octet equivalents. The
+// regex sanitisers below don't catch shorthand because the input
+// looks like a hostname (alphanumeric + dots). Defense step: parse
+// `http://${s}` and check whether the parser normalised the host.
+// Any normalisation away from `s.toLowerCase()` means fetch() would
+// send the request somewhere other than what the caller wrote, and
+// any canonical form that is itself an IPv4 literal means the parser
+// reinterpreted the input as an IP — reject either way.
+const isCanonicalizedByUrlParser = (s) => {
   let canonical;
   try {
     canonical = new URL(`http://${s}`).hostname;
   } catch {
-    return false;
+    return true; // unparseable → treat as canonicalised (reject)
   }
-  if (canonical !== s.toLowerCase()) return false;
-  if (IPV4_LITERAL_RE.test(canonical)) return false;
-  return true;
+  return canonical !== s.toLowerCase() || IPV4_LITERAL_RE.test(canonical);
 };
+
+// Single boolean expression so static analysers can recognise the
+// regex.test() steps as sanitizers for the user-controlled value
+// flowing into fetch(). Imperative early returns confuse some
+// dataflow checkers; this form's short-circuit AND chain keeps the
+// barriers visible.
+const isValidTargetHost = (s) =>
+  typeof s === 'string' &&
+  s.length > 0 &&
+  s.length <= 1024 &&
+  HOSTNAME_SHAPE_RE.test(s) &&
+  !IPV4_LITERAL_RE.test(s) &&
+  !isCanonicalizedByUrlParser(s);
 
 // Port must be a numeric string in the valid TCP/UDP range (1..65535).
 // We allow leading zeros (`080` is accepted) because Node's URL
