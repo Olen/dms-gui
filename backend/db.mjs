@@ -1664,44 +1664,51 @@ export const refreshTokens = async (credentials) => {
 // reach non-HTTP resources via fetch().
 const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 
-// Hostname allowlist for the targetDict.host. Two layered checks:
+// Hostname allowlist for the targetDict.host. Three layered checks:
 //
 //   1. HOSTNAME_SHAPE_RE matches the same lenient shape as
 //      middleware.js's validateContainerName: first char must be
 //      alphanumeric, then any mix of alphanumeric / `.` / `_` / `-`.
 //      Deliberately lenient — it accepts adjacent dots (`a..b`),
-//      trailing dots (`a.`), and underscores. That matches what the
-//      route already permits, and the SSRF threat is "reach an
-//      unintended host", not "produce a syntactically perfect FQDN":
-//      Node's URL parser handles `a..b` as a single weird-but-valid
-//      host label and the resulting request goes nowhere useful.
-//      The character class is the load-bearing security check
-//      because it excludes URL metacharacters (`:` `/` `?` `#` `@`)
-//      and whitespace.
-//   2. NOT_IPV4_RE separately rejects the all-digits-and-dots shape
-//      used by IPv4 literals (`169.254.169.254`, `127.0.0.1`,
-//      `10.x.x.x` LAN, `0.0.0.0`). Combined with #1's exclusion of
-//      `:` `[` `]`, this also rules out IPv6 bracketed literals
-//      and bare colon-separated forms.
+//      trailing dots (`a.`), and underscores. The character class is
+//      the load-bearing exclusion: it blocks URL metacharacters
+//      (`:` `/` `?` `#` `@`) and whitespace.
+//   2. IPV4_LITERAL_RE rejects the canonical 4-octet dotted form
+//      (`169.254.169.254`, `127.0.0.1`, `10.x.x.x`, `0.0.0.0`).
+//      Combined with #1's exclusion of `:` `[` `]`, this also rules
+//      out IPv6 bracketed literals and bare colon-separated forms.
+//   3. URL-canonicalisation check: feed the host through `new URL()`
+//      and reject if the WHATWG parser interprets it as an IP. The
+//      parser canonicalises shorthand IPv4 (`127.1` → `127.0.0.1`,
+//      `2130706433` → `127.0.0.1`, `0x7f.1` → `127.0.0.1`) and any
+//      other ambiguous form before fetch() ever sees it. Without
+//      this step the regex-only checks would let `127.1` through
+//      as a "hostname" that immediately routes to loopback.
 //
-// CodeQL recognises the regex-based check on the user-controlled
-// value as a sanitizer for the js/request-forgery taint flow.
+// CodeQL recognises the regex-based checks as sanitizers for the
+// js/request-forgery taint flow; the URL-parse step closes the
+// remaining canonicalisation gaps.
 // `1024` cap is well above any realistic FQDN.
 const HOSTNAME_SHAPE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
-// Reject IPv4 dotted-decimal literals specifically: four numeric
-// octets separated by dots. Each octet is 1–3 digits. We don't
-// validate the 0–255 range here because that's a stricter check
-// than needed — `999.999.999.999` is also an IPv4-shaped string
-// that we want to reject, regardless of whether it parses to a
-// routable address. The looser shape was rejecting legitimate
-// numeric-only docker container names like `1234`.
 const IPV4_LITERAL_RE = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/;
-const isValidTargetHost = (s) =>
-  typeof s === 'string' &&
-  s.length > 0 &&
-  s.length <= 1024 &&
-  HOSTNAME_SHAPE_RE.test(s) &&
-  !IPV4_LITERAL_RE.test(s);
+const isValidTargetHost = (s) => {
+  if (typeof s !== 'string' || s.length === 0 || s.length > 1024) return false;
+  if (!HOSTNAME_SHAPE_RE.test(s)) return false;
+  if (IPV4_LITERAL_RE.test(s)) return false;
+  // URL-parse check: build a throwaway URL and inspect the
+  // canonical hostname. If WHATWG normalised the input to an IP
+  // (any shorthand or single-integer form), or normalised away
+  // from the original string, reject.
+  let canonical;
+  try {
+    canonical = new URL(`http://${s}`).hostname;
+  } catch {
+    return false;
+  }
+  if (canonical !== s.toLowerCase()) return false;
+  if (IPV4_LITERAL_RE.test(canonical)) return false;
+  return true;
+};
 
 // Port must be a numeric string in the valid TCP/UDP range (1..65535).
 // We allow leading zeros (`080` is accepted) because Node's URL

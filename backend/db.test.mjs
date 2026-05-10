@@ -211,13 +211,8 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     'dms_gui',
     'dms-gui_mailserver_1',
     'a.b.c.d.example.com',
-    'MAIL.EXAMPLE.COM', // case-insensitive
-    '1mailserver', // matches validateContainerName (leading digit allowed)
+    '1mailserver', // leading digit is fine if the hostname has letters
     '2mail.example.com', // ditto
-    '1234', // numeric-only docker container name (not IPv4-shaped: only 1 octet)
-    '12.34', // 2 octets, not 4 — not an IP literal
-    '1.2.3', // 3 octets, not 4 — not an IP literal
-    '1.2.3.4.5', // 5 octets, not 4 — not an IP literal
   ]) {
     it(`accepts hostname '${ok}'`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithHost(ok));
@@ -226,13 +221,25 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     });
   }
 
+  it('lowercases the canonical hostname comparison so MIXED-case input still passes', () => {
+    // The URL parser canonicalises hostnames to lowercase. Our
+    // sanitizer compares against `s.toLowerCase()` so an input like
+    // `MAIL.EXAMPLE.COM` survives the canonicalisation check.
+    const r = getTargetDict(
+      'mailserver',
+      'dms',
+      settingsWithHost('MAIL.EXAMPLE.COM')
+    );
+    expect(r.host).toBe('MAIL.EXAMPLE.COM');
+  });
+
   for (const bad of [
-    '127.0.0.1', // loopback
-    '169.254.169.254', // AWS metadata
+    '127.0.0.1', // loopback (canonical 4-octet)
+    '169.254.169.254', // AWS metadata (canonical 4-octet)
     '10.0.0.5', // private LAN
     '192.168.1.1', // private LAN
     '0.0.0.0',
-    '999.999.999.999', // IPv4-shaped but out of range — still rejected
+    '999.999.999.999', // IPv4-shaped but out of routable range
     '[::1]', // IPv6 loopback
     'mailserver:8888/path', // URL metacharacters
     'mailserver/foo',
@@ -240,6 +247,17 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     'foo@bar', // @ metachar
     '?internal=true',
     '', // empty
+    // WHATWG IPv4 shorthand: the URL parser canonicalises these to
+    // routable IPs before fetch() sees them. Without the canonical-
+    // hostname check, they'd slip through as "alphanumeric hosts"
+    // and immediately route to loopback / LAN / metadata.
+    '127.1', // 2-part shorthand for 127.0.0.1
+    '127.0.1', // 3-part shorthand for 127.0.0.1
+    '2130706433', // single-integer form of 127.0.0.1
+    '1234', // single-integer form of 0.0.4.210 (Node canonicalises)
+    '12.34', // 2-part shorthand
+    '1.2.3', // 3-part shorthand
+    '1.2.3.4.5', // 5-part: URL parser may treat unevenly
   ]) {
     it(`rejects host ${JSON.stringify(bad)}`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithHost(bad));
