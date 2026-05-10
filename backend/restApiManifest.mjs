@@ -112,6 +112,65 @@ const PASSWORD_VALIDATOR = {
   maxlen: 256,
 };
 
+// DKIM keytype validators are split per-action so the action allowlist
+// matches the command shape: an RSA-only action with `keysize` baked
+// into argv must reject `keytype=ed25519` outright, and an ed25519-only
+// action without `keysize` must reject `keytype=rsa`.
+const KEYTYPE_RSA_VALIDATOR = { enum: ['rsa'] };
+const KEYTYPE_NORSA_VALIDATOR = { enum: ['ed25519'] };
+// DKIM keysize: accepts 1024, 2048, or 4096 (generateDkim validates all three).
+const KEYSIZE_VALIDATOR = { enum: ['1024', '2048', '4096'] };
+// DKIM selector: lowercase alphanumeric + hyphen + underscore, per RFC 6376.
+const SELECTOR_VALIDATOR = { regex: '^[a-z0-9_-]+$', maxlen: 64 };
+// DNS domain name: RFC 1035-style hostname labels (alphanumeric + internal
+// hyphens) separated by single dots. Consecutive dots and leading/trailing
+// dots/hyphens are not matched, so `..`, `.example.com`, `example..com`,
+// `-bad.com`, and `bad-.com` are all rejected.
+const DOMAIN_VALIDATOR = {
+  regex:
+    '^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?)*$',
+  maxlen: 253,
+};
+// Email Message-ID: covers RFC 5322 atom-text characters (including `/`, `!`,
+// `~`, `|`, backtick) plus the structural `@` and `.` and optional `<>`.
+// Aligns with real-world IDs from Exchange and other MTAs that use `/`.
+// Brackets must be balanced — either fully wrapped in '<...>' or no
+// brackets at all. A simple `^<?...>?$` form would accept `<abc` or
+// `abc>`, which are not valid Message-IDs.
+const MESSAGE_ID_VALIDATOR = {
+  regex:
+    "^(?:<[A-Za-z0-9!#$%&'*+/=?^_`{|}~.\\-@]+>|[A-Za-z0-9!#$%&'*+/=?^_`{|}~.\\-@]+)$",
+  maxlen: 1024,
+};
+// Helper: escape regex metacharacters in a literal string so it can be
+// embedded in a regex pattern. DMS_CONFIG_PATH is operator-set; if it
+// contains regex metachars (e.g. '.'), the unescaped form would over-match.
+const escapeRegex = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+// DKIM keys subtree base. Operators with custom DMS_CONFIG_PATH get the
+// resolved path; default /tmp/docker-mailserver works unchanged.
+const DKIM_BASE = `${DMS_CONFIG_PATH}/rspamd/dkim`;
+const DKIM_BASE_RE = escapeRegex(DKIM_BASE);
+
+// DKIM keys tree: absolute paths under the rspamd dkim base directory.
+// Positive-match grammar: segments are [A-Za-z0-9_-] with optional `.ext`
+// suffixes. Consecutive dots are structurally impossible → `..` traversal
+// blocked. Mirrors SETUP_PATH_VALIDATOR.
+// The trailing `*` (rather than `+`) allows the base dir itself to
+// match, so ls_dir on the DKIM base directory works.
+//
+// maxlen sized for `${DMS_CONFIG_PATH}/rspamd/dkim/keys/<253-char-domain>/<file>`:
+// a 253-char DNS label (RFC 1035 maximum) plus a long base path and filename
+// must still fit. 1024 leaves margin without inviting pathological backtracking.
+const DKIM_DIR_VALIDATOR = {
+  regex: `^${DKIM_BASE_RE}(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)*$`,
+  maxlen: 1024,
+};
+// Same positive-match grammar as DKIM_DIR_VALIDATOR; both are paths under
+// the dkim subtree with the same shape (a file path is also a valid dir path
+// candidate). Aliased for semantic clarity at call sites.
+const DKIM_KEY_PATH_VALIDATOR = DKIM_DIR_VALIDATOR;
+
 export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
   {
@@ -412,6 +471,413 @@ export const REST_API_MANIFEST = [
     validate: {
       mailbox: MAILBOX_VALIDATOR,
       password: PASSWORD_VALIDATOR,
+    },
+  },
+
+  // ---- settings.mjs: logs ----
+
+  // Tail a DMS log file. `logfile` is constrained to the two paths that
+  // getMailLogs supplies; `lines` uses the interpreter's int validator
+  // with the same bounds getMailLogs caps the JS side at (min 10, max 500),
+  // so the manifest is the single source of truth for the limit rather
+  // than mirroring it in two places that could drift.
+  {
+    id: 'tail_log',
+    argv: ['tail', '-n', '{lines}', '{logfile}'],
+    validate: {
+      lines: { int: { min: 10, max: 500 } },
+      logfile: {
+        enum: ['/var/log/mail/mail.log', '/var/log/mail/rspamd.log'],
+      },
+    },
+  },
+  // Two-stage pipeline: grep bounce/defer lines then cap at 500 (no params).
+  {
+    id: 'grep_postfix_bounces',
+    pipeline: [
+      {
+        argv: [
+          'grep',
+          '-e',
+          'postfix/smtp.*status=bounced',
+          '-e',
+          'postfix/smtp.*status=deferred',
+          '/var/log/mail/mail.log',
+        ],
+      },
+      { argv: ['tail', '-500'] },
+    ],
+  },
+
+  // ---- settings.mjs: system dashboard ----
+
+  // df disk usage for /var/mail, piped through awk (two-stage, fixed).
+  {
+    id: 'df_var_mail',
+    pipeline: [
+      { argv: ['df', '-BM', '/var/mail'] },
+      { argv: ['awk', 'NR==2{print $3+0, $2+0, $5+0}'] },
+    ],
+  },
+  // top CPU/memory snapshot (three-stage, fixed). `-d1` = 1-second delay,
+  // `-bn2` = two iterations (second iteration has stable averages).
+  {
+    id: 'top_summary',
+    pipeline: [
+      { argv: ['top', '-bn2', '-d1'] },
+      { argv: ['grep', '-A4', '^top'] },
+      { argv: ['tail', '-5'] },
+    ],
+  },
+  // Container uptime in seconds: elapsed time of PID 1 (dumb-init / init).
+  {
+    id: 'ps_init_uptime',
+    argv: ['ps', '-o', 'etimes=', '-p', '1'],
+  },
+
+  // ---- settings.mjs: setup additions ----
+
+  // `setup help` — used by getServerStatus to probe the DMS setup script.
+  {
+    id: 'setup_help',
+    argv: ['{setup_path}', 'help'],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+    },
+  },
+  // Generate RSA DKIM key (keysize required for rsa).
+  {
+    id: 'setup_dkim_generate_rsa',
+    argv: [
+      '{setup_path}',
+      'config',
+      'dkim',
+      'keytype',
+      '{keytype}',
+      'keysize',
+      '{keysize}',
+      'selector',
+      '{selector}',
+      'domain',
+      '{domain}',
+    ],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      keytype: KEYTYPE_RSA_VALIDATOR,
+      keysize: KEYSIZE_VALIDATOR,
+      selector: SELECTOR_VALIDATOR,
+      domain: DOMAIN_VALIDATOR,
+    },
+  },
+  // Same as setup_dkim_generate_rsa but with trailing --force flag.
+  {
+    id: 'setup_dkim_generate_rsa_force',
+    argv: [
+      '{setup_path}',
+      'config',
+      'dkim',
+      'keytype',
+      '{keytype}',
+      'keysize',
+      '{keysize}',
+      'selector',
+      '{selector}',
+      'domain',
+      '{domain}',
+      '--force',
+    ],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      keytype: KEYTYPE_RSA_VALIDATOR,
+      keysize: KEYSIZE_VALIDATOR,
+      selector: SELECTOR_VALIDATOR,
+      domain: DOMAIN_VALIDATOR,
+    },
+  },
+  // Generate non-RSA DKIM key (no keysize arg; keytype must not be 'rsa').
+  {
+    id: 'setup_dkim_generate',
+    argv: [
+      '{setup_path}',
+      'config',
+      'dkim',
+      'keytype',
+      '{keytype}',
+      'selector',
+      '{selector}',
+      'domain',
+      '{domain}',
+    ],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      keytype: KEYTYPE_NORSA_VALIDATOR,
+      selector: SELECTOR_VALIDATOR,
+      domain: DOMAIN_VALIDATOR,
+    },
+  },
+  // Same as setup_dkim_generate but with trailing --force flag.
+  {
+    id: 'setup_dkim_generate_force',
+    argv: [
+      '{setup_path}',
+      'config',
+      'dkim',
+      'keytype',
+      '{keytype}',
+      'selector',
+      '{selector}',
+      'domain',
+      '{domain}',
+      '--force',
+    ],
+    validate: {
+      setup_path: SETUP_PATH_VALIDATOR,
+      keytype: KEYTYPE_NORSA_VALIDATOR,
+      selector: SELECTOR_VALIDATOR,
+      domain: DOMAIN_VALIDATOR,
+    },
+  },
+
+  // ---- settings.mjs: dovecot/rspamd config readers ----
+
+  // Dump all dovecot config; no args.
+  {
+    id: 'doveconf_dump',
+    argv: ['doveconf'],
+  },
+  // Dovecot version string; no args.
+  {
+    id: 'dovecot_version',
+    argv: ['dovecot', '--version'],
+  },
+
+  // ---- settings.mjs: cat rspamd config files ----
+
+  // Read one rspamd config file. Path is constrained to a fixed enum of
+  // known safe paths. The DMS_CONFIG_PATH default is /tmp/docker-mailserver.
+  {
+    id: 'cat_rspamd_config',
+    argv: ['cat', '{path}'],
+    validate: {
+      path: {
+        enum: [
+          '/etc/rspamd/override.d/dkim_signing.conf',
+          '/etc/rspamd/local.d/dkim_signing.conf',
+          '/etc/rspamd/override.d/actions.conf',
+          '/etc/rspamd/local.d/actions.conf',
+          '/etc/rspamd/local.d/classifier-bayes.conf',
+          '/etc/rspamd/override.d/classifier-bayes.conf',
+          `${DMS_CONFIG_PATH}/rspamd/override.d/dkim_signing.conf`,
+        ],
+      },
+    },
+  },
+
+  // ---- settings.mjs: env ----
+
+  // Print container env; no args. Used by pullServerEnvs.
+  {
+    id: 'print_env',
+    argv: ['env'],
+  },
+
+  // ---- settings.mjs: rspamd HTTP ----
+
+  // Rspamd stat endpoint (fixed, no args).
+  {
+    id: 'curl_rspamd_stat',
+    argv: ['curl', '-sf', 'http://localhost:11334/stat'],
+  },
+  // Rspamd full history (fixed, no args).
+  // Query params are passed via -G --data to avoid embedding '&' (a shell
+  // operator character) directly in the URL argv token. curl -G appends
+  // --data values as URL query params, producing the same request as
+  // passing '?from=0&to=999' inline.
+  {
+    id: 'curl_rspamd_history',
+    argv: [
+      'curl',
+      '-sf',
+      '-G',
+      '--data',
+      'from=0',
+      '--data',
+      'to=999',
+      'http://localhost:11334/history',
+    ],
+  },
+
+  // ---- settings.mjs: Redis Bayes EVAL ----
+
+  // Single Redis EVAL that lists per-user Bayes learn counts. The Lua script
+  // is baked in verbatim (after the .replace(/\n\s*/g,' ').trim() applied in
+  // settings.mjs). No per-call substitution needed.
+  {
+    id: 'redis_eval_bayes_users',
+    argv: [
+      'redis-cli',
+      '--no-auth-warning',
+      '--raw', // preserve newlines in output; without this redis-cli escapes them as backslash-n, breaking JS .split('\n')
+      'EVAL',
+      "local result = {} local keys = redis.call('KEYS', 'RS*') for _, k in ipairs(keys) do local user = k:sub(3) if user:find('@') and not user:find('_[%dA-Fa-f]') then local ham = redis.call('HGET', k, 'learns_ham') or '0' local spam = redis.call('HGET', k, 'learns_spam') or '0' table.insert(result, user .. ' ' .. ham .. ' ' .. spam) end end table.sort(result) return table.concat(result, '\\n')",
+      '0',
+    ],
+  },
+
+  // ---- settings.mjs: rspamd-learn pipeline ----
+
+  // Three-stage pipeline: doveadm fetch | tail (strip first line) | curl learn.
+  // Used by rspamdLearnMessage to feed a raw message into rspamd's learn endpoint.
+  // No `-w '%{http_code}'` flag: that format string contains `{http_code}`
+  // which the interpreter would parse as a placeholder. HTTP failure is
+  // detected from curl's exit code (`-sf` makes curl exit non-zero on
+  // 4xx/5xx) instead of by parsing the status off stdout.
+  {
+    id: 'rspamd_learn',
+    pipeline: [
+      {
+        argv: [
+          'doveadm',
+          'fetch',
+          '-u',
+          '{user}',
+          'text',
+          'mailbox-guid',
+          '{guid}',
+          'uid',
+          '{uid}',
+        ],
+      },
+      { argv: ['tail', '-n', '+2'] },
+      {
+        argv: [
+          'curl',
+          '-sf',
+          '-o',
+          '/dev/null',
+          '-H',
+          'Deliver-To: {user}',
+          '--data-binary',
+          '@-',
+          'http://localhost:11334/learn{action}',
+        ],
+      },
+    ],
+    validate: {
+      user: MAILBOX_VALIDATOR,
+      guid: { regex: '^[0-9a-fA-F]+$', maxlen: 64 },
+      uid: { int: { min: 1, max: 9999999 } },
+      action: { enum: ['ham', 'spam'] },
+    },
+  },
+  // Same as rspamd_learn but posts to the unlearn URL variant.
+  {
+    id: 'rspamd_unlearn',
+    pipeline: [
+      {
+        argv: [
+          'doveadm',
+          'fetch',
+          '-u',
+          '{user}',
+          'text',
+          'mailbox-guid',
+          '{guid}',
+          'uid',
+          '{uid}',
+        ],
+      },
+      { argv: ['tail', '-n', '+2'] },
+      {
+        argv: [
+          'curl',
+          '-sf',
+          '-o',
+          '/dev/null',
+          '-H',
+          'Deliver-To: {user}',
+          '--data-binary',
+          '@-',
+          'http://localhost:11334/learn{action}?unlearn=1',
+        ],
+      },
+    ],
+    validate: {
+      user: MAILBOX_VALIDATOR,
+      guid: { regex: '^[0-9a-fA-F]+$', maxlen: 64 },
+      uid: { int: { min: 1, max: 9999999 } },
+      action: { enum: ['ham', 'spam'] },
+    },
+  },
+
+  // ---- settings.mjs: doveadm queries ----
+
+  // Search all mailboxes for a message by Message-ID header.
+  {
+    id: 'doveadm_search_message_id',
+    argv: ['doveadm', 'search', '-A', 'header', 'message-id', '{message_id}'],
+    validate: {
+      message_id: MESSAGE_ID_VALIDATOR,
+    },
+  },
+  // List active Dovecot IMAP/POP3 sessions; no args.
+  {
+    id: 'doveadm_who',
+    argv: ['doveadm', 'who'],
+  },
+
+  // ---- settings.mjs: DKIM key discovery ----
+
+  // List directory contents (used to discover domains from DKIM keys dir).
+  // `dir` is constrained to the rspamd dkim subtree.
+  {
+    id: 'ls_dir',
+    argv: ['ls', '-1', '{dir}'],
+    validate: {
+      dir: DKIM_DIR_VALIDATOR,
+    },
+  },
+  // Two-stage: inspect a DKIM private key then extract only the first line.
+  // `keypath` is constrained to the rspamd dkim subtree.
+  {
+    id: 'openssl_pkey_inspect',
+    pipeline: [
+      {
+        argv: ['openssl', 'pkey', '-in', '{keypath}', '-text', '-noout'],
+      },
+      { argv: ['head', '-1'] },
+    ],
+    validate: {
+      keypath: DKIM_KEY_PATH_VALIDATOR,
+    },
+  },
+
+  // ---- settings.mjs: file ops (DKIM key install) ----
+
+  // Create directory tree for DKIM key install.
+  {
+    id: 'mkdir_p',
+    argv: ['mkdir', '-p', '{dir}'],
+    validate: {
+      dir: DKIM_DIR_VALIDATOR,
+    },
+  },
+  // Copy a DKIM private key file into the keys/ subdirectory.
+  {
+    id: 'cp_file',
+    argv: ['cp', '{src}', '{dst}'],
+    validate: {
+      src: DKIM_KEY_PATH_VALIDATOR,
+      dst: DKIM_KEY_PATH_VALIDATOR,
+    },
+  },
+  // Fix ownership of the rspamd dkim keys directory after key install.
+  // The user/group _rspamd:_rspamd is hardcoded; only `dir` is variable.
+  {
+    id: 'chown_rspamd_recursive',
+    argv: ['chown', '-R', '_rspamd:_rspamd', '{dir}'],
+    validate: {
+      dir: DKIM_DIR_VALIDATOR,
     },
   },
 ];

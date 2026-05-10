@@ -1,7 +1,7 @@
 // Unit tests for the targetDict classification helper extracted from
 // getServerStatus's no-Authorization branch (#49). The full
 // getServerStatus integration is much larger and depends on the DB,
-// execSetup, etc.; this test surface deliberately covers only the
+// execAction, etc.; this test surface deliberately covers only the
 // classification logic that issue #49 corrects.
 import { describe, it, expect, vi } from 'vitest';
 
@@ -11,8 +11,8 @@ vi.mock('./backend.mjs', () => ({
   successLog: vi.fn(),
   warnLog: vi.fn(),
   infoLog: vi.fn(),
-  execCommand: vi.fn(),
-  execSetup: vi.fn(),
+  execAction: vi.fn(),
+  execCommand: vi.fn(), // documents the contract; prevents silent breakage if future tests exercise killContainer path
   ping: vi.fn(),
   writeFile: vi.fn(),
 }));

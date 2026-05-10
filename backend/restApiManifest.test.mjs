@@ -53,6 +53,39 @@ describe('REST_API_MANIFEST required-IDs', () => {
     for (const id of required) expect(ids).toContain(id);
   });
 
+  it('contains the actions settings.mjs needs', () => {
+    const ids = REST_API_MANIFEST.map((a) => a.id);
+    const required = [
+      'tail_log',
+      'grep_postfix_bounces',
+      'df_var_mail',
+      'top_summary',
+      'ps_init_uptime',
+      'setup_help',
+      'setup_dkim_generate_rsa',
+      'setup_dkim_generate_rsa_force',
+      'setup_dkim_generate',
+      'setup_dkim_generate_force',
+      'doveconf_dump',
+      'dovecot_version',
+      'cat_rspamd_config',
+      'print_env',
+      'curl_rspamd_stat',
+      'curl_rspamd_history',
+      'redis_eval_bayes_users',
+      'rspamd_learn',
+      'rspamd_unlearn',
+      'doveadm_search_message_id',
+      'doveadm_who',
+      'ls_dir',
+      'openssl_pkey_inspect',
+      'mkdir_p',
+      'cp_file',
+      'chown_rspamd_recursive',
+    ];
+    for (const id of required) expect(ids).toContain(id);
+  });
+
   it('serialises to valid JSON', () => {
     expect(() => JSON.parse(JSON.stringify(REST_API_MANIFEST))).not.toThrow();
   });

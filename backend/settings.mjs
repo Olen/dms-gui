@@ -1,6 +1,5 @@
 import {
   arrayOfStringToDict,
-  escapeShellArg,
   getValueFromArrayOfObj,
   jsonFixTrailingCommas,
   obj2ArrayOfObj,
@@ -15,8 +14,8 @@ import { command, env, mailserverRESTAPI } from './env.mjs';
 import {
   debugLog,
   errorLog,
-  execCommand,
-  execSetup,
+  execAction,
+  execCommand, // retained for killContainer's config-stored kill command (out of scope for action-protocol migration)
   infoLog,
   ping,
   successLog,
@@ -369,9 +368,12 @@ export const getMailLogs = async (
 
   try {
     const targetDict = getTargetDict('mailserver', containerName);
-    targetDict.timeout = 10;
-    const cmd = `tail -n ${numLines} ${logFile}`;
-    const results = await execCommand(cmd, targetDict);
+    const results = await execAction(
+      'tail_log',
+      { lines: String(numLines), logfile: logFile },
+      targetDict,
+      { timeout: 10 }
+    );
 
     if (!results.returncode && results.stdout) {
       return {
@@ -400,9 +402,9 @@ export const getMailBounces = async (containerName = null, hours = 48) => {
 
   try {
     const targetDict = getTargetDict('mailserver', containerName);
-    targetDict.timeout = 10;
-    const cmd = `grep -e 'postfix/smtp.*status=bounced' -e 'postfix/smtp.*status=deferred' /var/log/mail/mail.log | tail -500`;
-    const results = await execCommand(cmd, targetDict);
+    const results = await execAction('grep_postfix_bounces', {}, targetDict, {
+      timeout: 10,
+    });
 
     if (results.returncode && !results.stdout) {
       // grep returns 1 when no matches — that's normal
@@ -464,7 +466,7 @@ export const getMailBounces = async (containerName = null, hours = 48) => {
   }
 };
 
-// Function to get server status from DMS, you can add some extra test like ping or execSetup
+// Function to get server status from DMS, you can add some extra test like ping or execAction('setup_help', ...)
 export const getServerStatus = async (
   plugin = 'mailserver',
   containerName = null,
@@ -507,8 +509,6 @@ export const getServerStatus = async (
   // const memory_Used  = "free -m | awk '/Mem/ {print $3}'"
   // const memory_Usage = "free -m | awk '/Mem/ {print 100*$3/$2}'"
 
-  const disk_cmd = "df -BM /var/mail | awk 'NR==2{print $3+0, $2+0, $5+0}'";
-  const top_cmd = "top -bn2 -d1 | grep -A4 '^top' | tail -5";
   // top_parser will parse all of the below
   // top - 02:02:32 up 35 days, 22:39,  0 user,  load average: 0.00, 0.01, 0.00
   // Tasks:  35 total,   1 running,  34 sleeping,   0 stopped,   0 zombie
@@ -530,9 +530,13 @@ export const getServerStatus = async (
       if (test == 'ping') return { success: true, message: status };
 
       const targetDict = getTargetDict(plugin, containerName, settings);
-      // debugLog('ddebug targetDict', targetDict);
+      // debugLog('ddebug targetDict', redactKey(targetDict));
       if (targetDict?.Authorization) {
-        results = await execSetup('help', targetDict);
+        results = await execAction(
+          'setup_help',
+          { setup_path: targetDict.setupPath },
+          targetDict
+        );
         if (!results.returncode) {
           status.status.status = 'running';
         } else {
@@ -561,18 +565,21 @@ export const getServerStatus = async (
           return { success: true, message: status }; // api errors are not errors unless we add an error
         }
 
-        if (test == 'execSetup') {
+        // 'setup_help' is the canonical sentinel — it matches the action
+        // id this branch dispatches. 'execSetup' is the legacy name kept
+        // as an alias so an in-flight frontend (e.g. cached SPA bundle
+        // mid-deploy) keeps working until the next reload.
+        if (test == 'setup_help' || test == 'execSetup') {
           return { success: !results.returncode, message: status };
         }
 
-        const uptime_cmd = 'ps -o etimes= -p 1';
         const runTop = test !== 'disk';
         const runDisk = test !== 'status';
 
         const [result_top, result_disk, result_uptime] = await Promise.all([
-          runTop ? execCommand(top_cmd, targetDict) : null,
-          runDisk ? execCommand(disk_cmd, targetDict) : null,
-          runTop ? execCommand(uptime_cmd, targetDict) : null,
+          runTop ? execAction('top_summary', {}, targetDict) : null,
+          runDisk ? execAction('df_var_mail', {}, targetDict) : null,
+          runTop ? execAction('ps_init_uptime', {}, targetDict) : null,
         ]);
 
         if (result_top) {
@@ -875,9 +882,7 @@ export const pullDoveConf = async (targetDict = {}) => {
   let envs = {};
 
   try {
-    const command = `doveconf`;
-
-    const results = await execCommand(command, targetDict);
+    const results = await execAction('doveconf_dump', {}, targetDict);
     if (!results.returncode) {
       const doveconf = await readDovecotConfFile(results.stdout);
       // debugLog(`doveconf:`, doveconf);   // super large output, beware
@@ -896,7 +901,7 @@ export const pullDoveConf = async (targetDict = {}) => {
       }
     } else errorLog(results.stderr);
   } catch (error) {
-    errorLog(`execCommand failed with error:`, error.message);
+    errorLog(`execAction failed with error:`, error.message);
   }
   return envs;
 };
@@ -905,9 +910,7 @@ export const pullDOVECOT = async (targetDict = {}) => {
   let envs = {};
 
   try {
-    const command = `dovecot --version`;
-
-    const results = await execCommand(command, targetDict); // 2.3.19.1 (9b53102964)
+    const results = await execAction('dovecot_version', {}, targetDict); // 2.3.19.1 (9b53102964)
     if (!results.returncode) {
       const DOVECOT_VERSION = results.stdout.split(' ')[0];
       debugLog(`DOVECOT_VERSION:`, DOVECOT_VERSION);
@@ -915,7 +918,7 @@ export const pullDOVECOT = async (targetDict = {}) => {
       envs.DOVECOT_VERSION = DOVECOT_VERSION;
     } else errorLog(results.stderr);
   } catch (error) {
-    errorLog(`execCommand failed with error:`, error.message);
+    errorLog(`execAction failed with error:`, error.message);
   }
   return envs;
 };
@@ -927,10 +930,16 @@ export const pullDkimRspamd = async (targetDict = {}) => {
   // we pull only if ENABLE_RSPAMD=1 because we don't know what the openDKIM config looks like
   let envs = {};
   let results, dkimConfig;
-  const command = `cat ${env.DMS_CONFIG_PATH}/rspamd/override.d/dkim_signing.conf`;
+  // The path is validated against the cat_rspamd_config enum in the manifest.
+  // DMS_CONFIG_PATH defaults to /tmp/docker-mailserver.
+  const dkimSigningConfPath = `${env.DMS_CONFIG_PATH}/rspamd/override.d/dkim_signing.conf`;
 
   try {
-    results = await execCommand(command, targetDict);
+    results = await execAction(
+      'cat_rspamd_config',
+      { path: dkimSigningConfPath },
+      targetDict
+    );
     if (!results.returncode) {
       debugLog(`dkim file content:`, results.stdout);
       dkimConfig = await readDkimFile(results.stdout);
@@ -971,8 +980,16 @@ export const pullDkimRspamd = async (targetDict = {}) => {
             ''
           )
         );
-        const lsResult = await execCommand(
-          `ls -1 '${dkimKeysDir.replace(/'/g, "'\\''")}'`,
+        // Note: ls_dir and openssl_pkey_inspect validators require paths
+        // under `${env.DMS_CONFIG_PATH}/rspamd/dkim/` (DKIM_DIR_VALIDATOR
+        // is built from DMS_CONFIG_PATH at manifest load time). If
+        // DKIM_PATH resolves to a non-rspamd base (e.g. opendkim) the
+        // validator intentionally rejects it — adding more paths to the
+        // allowlist widens the action protocol's surface and should
+        // only be done after reviewing the security implications.
+        const lsResult = await execAction(
+          'ls_dir',
+          { dir: dkimKeysDir },
           targetDict,
           { timeout: 5 }
         );
@@ -992,8 +1009,9 @@ export const pullDkimRspamd = async (targetDict = {}) => {
             // Detect key type and size
             let keytype = '',
               keysize = '';
-            const keyInfo = await execCommand(
-              `openssl pkey -in '${keyPath.replace(/'/g, "'\\''")}' -text -noout | head -1`,
+            const keyInfo = await execAction(
+              'openssl_pkey_inspect',
+              { keypath: keyPath },
               targetDict,
               { timeout: 5 }
             );
@@ -1022,7 +1040,7 @@ export const pullDkimRspamd = async (targetDict = {}) => {
       }
     } else warnLog(results.stderr); // dkim is optional, not an error if absent
   } catch (error) {
-    errorLog(`execCommand failed with error:`, error.message);
+    errorLog(`execAction failed with error:`, error.message);
   }
   return envs;
 };
@@ -1031,10 +1049,8 @@ export const pullDkimRspamd = async (targetDict = {}) => {
 export const pullServerEnvs = async (targetDict = {}) => {
   var envs = { DKIM_SELECTOR_DEFAULT: env.DKIM_SELECTOR_DEFAULT };
   try {
-    const command = `env`;
-
     // Get container instance
-    const result_env = await execCommand(command, targetDict);
+    const result_env = await execAction('print_env', {}, targetDict);
     if (!result_env.returncode) {
       // get and conver DMS environment to dict ------------------------------------------ envs
       const dictEnvDMS = arrayOfStringToDict(result_env.stdout, '=');
@@ -1589,11 +1605,9 @@ export const getRspamdStats = async (
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand(
-      'curl -sf http://localhost:11334/stat',
-      targetDict,
-      { timeout: 5 }
-    );
+    const result = await execAction('curl_rspamd_stat', {}, targetDict, {
+      timeout: 5,
+    });
 
     if (!result.returncode && result.stdout) {
       const stat = JSON.parse(result.stdout);
@@ -1628,12 +1642,13 @@ export const getRspamdConfig = async (
     const targetDict = getTargetDict(plugin, containerName);
 
     // Read config files — try override.d first, fall back to local.d
-    // rest-api.py uses shlex.split (no shell operators like || or 2>)
+    // cat_rspamd_config validates path against a fixed enum in the manifest.
     let actionsText = '';
     let bayesText = '';
     try {
-      const r = await execCommand(
-        'cat /etc/rspamd/override.d/actions.conf',
+      const r = await execAction(
+        'cat_rspamd_config',
+        { path: '/etc/rspamd/override.d/actions.conf' },
         targetDict,
         { timeout: 5 }
       );
@@ -1643,8 +1658,9 @@ export const getRspamdConfig = async (
     }
     if (!actionsText) {
       try {
-        const r = await execCommand(
-          'cat /etc/rspamd/local.d/actions.conf',
+        const r = await execAction(
+          'cat_rspamd_config',
+          { path: '/etc/rspamd/local.d/actions.conf' },
           targetDict,
           { timeout: 5 }
         );
@@ -1654,8 +1670,9 @@ export const getRspamdConfig = async (
       }
     }
     try {
-      const r = await execCommand(
-        'cat /etc/rspamd/local.d/classifier-bayes.conf',
+      const r = await execAction(
+        'cat_rspamd_config',
+        { path: '/etc/rspamd/local.d/classifier-bayes.conf' },
         targetDict,
         { timeout: 5 }
       );
@@ -1665,8 +1682,9 @@ export const getRspamdConfig = async (
     }
     if (!bayesText) {
       try {
-        const r = await execCommand(
-          'cat /etc/rspamd/override.d/classifier-bayes.conf',
+        const r = await execAction(
+          'cat_rspamd_config',
+          { path: '/etc/rspamd/override.d/classifier-bayes.conf' },
           targetDict,
           { timeout: 5 }
         );
@@ -1730,26 +1748,10 @@ export const getRspamdBayesUsers = async (
   try {
     const targetDict = getTargetDict(plugin, containerName);
 
-    // Single Redis EVAL: find all RS<user@domain> metadata keys, return user/ham/spam
-    const luaScript = `
-      local result = {}
-      local keys = redis.call('KEYS', 'RS*')
-      for _, k in ipairs(keys) do
-        local user = k:sub(3)
-        if user:find('@') and not user:find('_[%dA-Fa-f]') then
-          local ham = redis.call('HGET', k, 'learns_ham') or '0'
-          local spam = redis.call('HGET', k, 'learns_spam') or '0'
-          table.insert(result, user .. ' ' .. ham .. ' ' .. spam)
-        end
-      end
-      table.sort(result)
-      return table.concat(result, '\\n')
-    `
-      .replace(/\n\s*/g, ' ')
-      .trim();
-
-    const cmd = `redis-cli --no-auth-warning EVAL "${luaScript}" 0`;
-    const result = await execCommand(cmd, targetDict, { timeout: 10 });
+    // The Lua script is baked into the manifest's redis_eval_bayes_users argv.
+    const result = await execAction('redis_eval_bayes_users', {}, targetDict, {
+      timeout: 10,
+    });
 
     if (result.returncode) {
       return { success: false, error: result.stderr || 'Redis query failed' };
@@ -1792,11 +1794,9 @@ export const getRspamdCounters = async (
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand(
-      'curl -sf "http://localhost:11334/history?from=0&to=999"',
-      targetDict,
-      { timeout: 10 }
-    );
+    const result = await execAction('curl_rspamd_history', {}, targetDict, {
+      timeout: 10,
+    });
 
     if (!result.returncode && result.stdout) {
       const history = JSON.parse(result.stdout);
@@ -1898,11 +1898,9 @@ export const getRspamdUserHistory = async (
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand(
-      'curl -sf "http://localhost:11334/history?from=0&to=999"',
-      targetDict,
-      { timeout: 10 }
-    );
+    const result = await execAction('curl_rspamd_history', {}, targetDict, {
+      timeout: 10,
+    });
 
     if (!result.returncode && result.stdout) {
       const history = JSON.parse(result.stdout);
@@ -1996,11 +1994,9 @@ export const getRspamdHistory = async (
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand(
-      'curl -sf "http://localhost:11334/history?from=0&to=999"',
-      targetDict,
-      { timeout: 10 }
-    );
+    const result = await execAction('curl_rspamd_history', {}, targetDict, {
+      timeout: 10,
+    });
 
     if (!result.returncode && result.stdout) {
       const history = JSON.parse(result.stdout);
@@ -2051,7 +2047,7 @@ export const getRspamdHistory = async (
 };
 
 // Learn a message as ham or spam via doveadm + rspamd
-// Uses separate execCommand calls because the REST API supports pipes and redirects but NOT && chaining
+// Uses separate execAction calls via rspamd_learn / rspamd_unlearn pipeline actions.
 export const rspamdLearnMessage = async (
   plugin = 'mailserver',
   containerName = null,
@@ -2068,17 +2064,17 @@ export const rspamdLearnMessage = async (
   if (!action || !['ham', 'spam'].includes(action))
     return { success: false, error: 'action must be ham or spam' };
 
-  const demo = demoWriteResponse(`Learned as ${action}`);
+  const demo = demoWriteResponse(`Learn request submitted as ${action}`);
   if (demo) return demo;
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const escapedMsgId = escapeShellArg(messageId);
 
     // Step 1: Find message in dovecot via doveadm search
     // Timeout 30s: -A searches all users, which can be slow on first (cold) query
-    const searchResult = await execCommand(
-      `doveadm search -A header message-id ${escapedMsgId}`,
+    const searchResult = await execAction(
+      'doveadm_search_message_id',
+      { message_id: messageId },
       targetDict,
       { timeout: 30 }
     );
@@ -2108,10 +2104,6 @@ export const rspamdLearnMessage = async (
       return { success: false, error: 'Invalid guid/uid format from doveadm' };
     }
 
-    const escUser = escapeShellArg(user);
-    const fetchPrefix = `doveadm fetch -u ${escUser} text mailbox-guid ${guid} uid ${uid} | tail -n +2`;
-    const deliverTo = `-H ${escapeShellArg('Deliver-To: ' + user)}`;
-
     // Step 2: If previously learned as opposite class, unlearn first
     const dbCheck = dbGet(
       sql.bayesLearned.select.byMsgId,
@@ -2126,8 +2118,9 @@ export const rspamdLearnMessage = async (
       previousAction !== action &&
       ['ham', 'spam'].includes(previousAction)
     ) {
-      const unlearnResult = await execCommand(
-        `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' ${deliverTo} --data-binary @- 'http://localhost:11334/learn${previousAction}?unlearn=1'`,
+      const unlearnResult = await execAction(
+        'rspamd_unlearn',
+        { user, guid, uid: parseInt(uid, 10), action: previousAction },
         targetDict,
         { timeout: 10 }
       );
@@ -2137,8 +2130,12 @@ export const rspamdLearnMessage = async (
     }
 
     // Step 3: Learn as ham or spam (pipe doveadm output directly into curl via stdin)
-    const learnResult = await execCommand(
-      `${fetchPrefix} | curl -s -o /dev/null -w '%{http_code}' ${deliverTo} --data-binary @- 'http://localhost:11334/learn${action}'`,
+    // The manifest pipeline omits curl's -w '%{http_code}' (the {http_code} placeholder
+    // would be misinterpreted by the action interpreter). Failure is detected via
+    // curl's exit code (result.returncode) instead.
+    const learnResult = await execAction(
+      'rspamd_learn',
+      { user, guid, uid: parseInt(uid, 10), action },
       targetDict,
       { timeout: 10 }
     );
@@ -2148,12 +2145,6 @@ export const rspamdLearnMessage = async (
         success: false,
         error: `Learn failed: ${learnResult.stderr || 'unknown error'}`,
       };
-    }
-
-    // Check HTTP status from curl -w
-    const httpStatus = learnResult.stdout?.trim();
-    if (httpStatus && httpStatus !== '200' && httpStatus !== '204') {
-      return { success: false, error: `rspamd returned HTTP ${httpStatus}` };
     }
 
     // Step 4: Record in DB
@@ -2168,11 +2159,16 @@ export const rspamdLearnMessage = async (
       containerName
     );
 
-    const statusMsg =
-      httpStatus === '204'
-        ? `Already known as ${action}`
-        : `Learned as ${action}`;
-    return { success: true, message: statusMsg, action };
+    // Note: the 200/204 distinction (Learned vs Already known) was dropped
+    // because curl's -w '%{http_code}' format string contains {http_code},
+    // which the action interpreter treats as a placeholder. If this distinction
+    // is needed in future, use `curl -D -` (dump headers to stdout) and parse
+    // the first header line.
+    return {
+      success: true,
+      message: `Learn request submitted as ${action}`,
+      action,
+    };
   } catch (error) {
     errorLog(`rspamdLearnMessage error:`, error.message);
     return { success: false, error: error.message };
@@ -2303,14 +2299,17 @@ export const getDkimSelector = async (plugin = 'mailserver', containerName) => {
   if (env.isDEMO) return { success: true, selector: demoData.dkimSelector };
 
   const targetDict = getTargetDict(plugin, containerName);
-  for (const path of [
+  for (const configPath of [
     '/etc/rspamd/override.d/dkim_signing.conf',
     '/etc/rspamd/local.d/dkim_signing.conf',
   ]) {
     try {
-      const result = await execCommand(`cat ${path}`, targetDict, {
-        timeout: 10,
-      });
+      const result = await execAction(
+        'cat_rspamd_config',
+        { path: configPath },
+        targetDict,
+        { timeout: 10 }
+      );
       if (result.stdout) {
         const match = result.stdout.match(/^\s*selector\s*=\s*"([^"]+)"/m);
         if (match) return { success: true, selector: match[1] };
@@ -2344,17 +2343,67 @@ export const generateDkim = async (
   if (!/^[a-z0-9_-]+$/i.test(selector))
     return { success: false, error: 'Invalid selector' };
 
+  // Normalize to lowercase: DNS is case-insensitive and the manifest
+  // DOMAIN_VALIDATOR / SELECTOR_VALIDATOR are case-sensitive (lowercase-only).
+  // Inputs like 'Example.COM' pass the /i guard above but would fail manifest
+  // validation at runtime. Lowercasing here is canonical and safe.
+  domain = domain.toLowerCase();
+  selector = selector.toLowerCase();
+
   const demo = demoResponse('generateDkim');
   if (demo) return demo;
 
   const targetDict = getTargetDict(plugin, containerName);
 
-  let args = `config dkim keytype ${keytype}`;
-  if (keytype === 'rsa') args += ` keysize ${keysize}`;
-  args += ` selector ${selector} domain ${domain}`;
-  if (force) args += ` --force`;
-
-  const result = await execSetup(args, targetDict, { timeout: 30 });
+  // Dispatch to one of four action ids based on keytype and force flag.
+  // Action ids are inlined as literals so the build-time manifest invariant
+  // test (restApiManifest.test.mjs) can statically verify each id exists.
+  let result;
+  if (keytype === 'rsa') {
+    if (force) {
+      result = await execAction(
+        'setup_dkim_generate_rsa_force',
+        {
+          setup_path: targetDict.setupPath,
+          keytype,
+          keysize: String(keysize),
+          selector,
+          domain,
+        },
+        targetDict,
+        { timeout: 30 }
+      );
+    } else {
+      result = await execAction(
+        'setup_dkim_generate_rsa',
+        {
+          setup_path: targetDict.setupPath,
+          keytype,
+          keysize: String(keysize),
+          selector,
+          domain,
+        },
+        targetDict,
+        { timeout: 30 }
+      );
+    }
+  } else {
+    if (force) {
+      result = await execAction(
+        'setup_dkim_generate_force',
+        { setup_path: targetDict.setupPath, keytype, selector, domain },
+        targetDict,
+        { timeout: 30 }
+      );
+    } else {
+      result = await execAction(
+        'setup_dkim_generate',
+        { setup_path: targetDict.setupPath, keytype, selector, domain },
+        targetDict,
+        { timeout: 30 }
+      );
+    }
+  }
 
   if (result.returncode)
     return { success: false, error: result.stderr || 'DKIM generation failed' };
@@ -2362,14 +2411,19 @@ export const generateDkim = async (
   // DMS generates flat key files (e.g. rsa-2048-default-example.com.private.txt).
   // The signing config uses path = "...keys/$domain/$selector.private", so copy
   // the private key into that structure for rspamd to find it.
-  const dkimBase = '/tmp/docker-mailserver/rspamd/dkim';
+  // mkdir_p, cp_file and chown_rspamd_recursive validators require paths under
+  // DMS_CONFIG_PATH/rspamd/dkim/; DKIM_DIR_VALIDATOR in restApiManifest.mjs
+  // is derived from env.DMS_CONFIG_PATH so both sides stay in sync.
+  const dkimBase = `${env.DMS_CONFIG_PATH}/rspamd/dkim`;
   const flatKey = `${dkimBase}/${keytype}-${keysize}-${selector}-${domain}.private.txt`;
   const keysDir = `${dkimBase}/keys/${domain}`;
   const keysDest = `${keysDir}/${selector}.private`;
   try {
-    await execCommand(`mkdir -p ${keysDir}`, targetDict, { timeout: 10 });
-    await execCommand(`cp ${flatKey} ${keysDest}`, targetDict, { timeout: 10 });
-    await execCommand(`chown -R _rspamd:_rspamd ${keysDir}`, targetDict, {
+    await execAction('mkdir_p', { dir: keysDir }, targetDict, { timeout: 10 });
+    await execAction('cp_file', { src: flatKey, dst: keysDest }, targetDict, {
+      timeout: 10,
+    });
+    await execAction('chown_rspamd_recursive', { dir: keysDir }, targetDict, {
       timeout: 10,
     });
     debugLog(`generateDkim: copied key to ${keysDest}`);
@@ -2631,7 +2685,9 @@ export const getDovecotSessions = async (
 
   try {
     const targetDict = getTargetDict(plugin, containerName);
-    const result = await execCommand('doveadm who', targetDict, { timeout: 5 });
+    const result = await execAction('doveadm_who', {}, targetDict, {
+      timeout: 5,
+    });
 
     if (result.returncode) {
       return { success: false, error: result.stderr || 'doveadm who failed' };
