@@ -24,12 +24,6 @@
     "lint-staged": "^17.0.3",
     "prettier": "^3.7.4"
   },
-  "comment-overrides": "brace-expansion <1.1.13 has a ReDoS-style hang via zero-step sequences. The vulnerable copy is pulled in transitively only via the minimatch@3 path (eslint-plugin-react still uses minimatch@3.x). minimatch@10 (used by eslint itself) wants brace-expansion@^5 and has no advisory, so the override is scoped to minimatch@3 — forcing brace-expansion@1 into minimatch@10's path would break eslint at runtime, since v1 lacks the `expand` named export minimatch@10 imports.",
-  "overrides": {
-    "minimatch@3": {
-      "brace-expansion": "^1.1.13"
-    }
-  },
   "lint-staged": {
     "backend/**/*.{js,mjs}": [
       "prettier --write",

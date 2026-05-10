@@ -175,9 +175,11 @@ const Logins = () => {
     } catch (error) {
       errorLog(t('api.errors.fetchAccounts'), error);
       setErrorMessage('api.errors.fetchAccounts');
-    } finally {
-      setLoading(false);
     }
+    // No finally: fetchAll owns the isLoading lifecycle. Clearing it
+    // here would flip isLoading=false the moment fetchAccounts settles,
+    // even if fetchLogins is still in flight — the Select would then
+    // render with empty options before the data arrives.
   };
 
   const fetchLogins = async () => {
@@ -195,9 +197,9 @@ const Logins = () => {
     } catch (error) {
       errorLog(t('api.errors.fetchLogins'), error);
       setErrorMessage('api.errors.fetchLogins');
-    } finally {
-      setLoading(false);
     }
+    // See fetchAccounts: fetchAll's finally clears isLoading once
+    // BOTH fetches have settled.
   };
 
   const handleNewLoginInputChange = (e) => {
@@ -699,6 +701,7 @@ const Logins = () => {
         <Select
           isMulti
           inputId={`roles-${login.id}`}
+          aria-label={t('logins.roles')}
           options={rolesGroupedOptions}
           hideSelectedOptions
           isDisabled={login.isAccount}
@@ -846,6 +849,7 @@ const Logins = () => {
       <Select
         isMulti
         inputId="roles-new"
+        aria-label={t('logins.roles')}
         options={rolesGroupedOptions}
         hideSelectedOptions
         isDisabled={newLoginformData.isAccount}
