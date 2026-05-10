@@ -53,6 +53,39 @@ describe('REST_API_MANIFEST required-IDs', () => {
     for (const id of required) expect(ids).toContain(id);
   });
 
+  it('contains the actions settings.mjs needs', () => {
+    const ids = REST_API_MANIFEST.map((a) => a.id);
+    const required = [
+      'tail_log',
+      'grep_postfix_bounces',
+      'df_var_mail',
+      'top_summary',
+      'ps_init_uptime',
+      'setup_help',
+      'setup_dkim_generate_rsa',
+      'setup_dkim_generate_rsa_force',
+      'setup_dkim_generate',
+      'setup_dkim_generate_force',
+      'doveconf_dump',
+      'dovecot_version',
+      'cat_rspamd_config',
+      'print_env',
+      'curl_rspamd_stat',
+      'curl_rspamd_history',
+      'redis_eval_bayes_users',
+      'rspamd_learn',
+      'rspamd_unlearn',
+      'doveadm_search_message_id',
+      'doveadm_who',
+      'ls_dir',
+      'openssl_pkey_inspect',
+      'mkdir_p',
+      'cp_file',
+      'chown_rspamd_recursive',
+    ];
+    for (const id of required) expect(ids).toContain(id);
+  });
+
   it('serialises to valid JSON', () => {
     expect(() => JSON.parse(JSON.stringify(REST_API_MANIFEST))).not.toThrow();
   });
@@ -133,6 +166,64 @@ describe('SETUP_PATH_VALIDATOR', () => {
 
   it('rejects path consisting of only a slash', () => {
     expect(re.test('/')).toBe(false);
+  });
+});
+
+describe('DKIM_DIR_VALIDATOR (via ls_dir action)', () => {
+  // Mirrors SETUP_PATH_VALIDATOR's deferred-lookup pattern so a
+  // missing manifest entry surfaces as a clear assertion failure
+  // rather than a TypeError that aborts the file's evaluation.
+  let re;
+  let DKIM_BASE; // resolved at runtime — depends on DMS_CONFIG_PATH
+  beforeAll(() => {
+    const action = REST_API_MANIFEST.find((a) => a.id === 'ls_dir');
+    expect(action, 'manifest must contain ls_dir').toBeDefined();
+    expect(
+      action.validate?.dir?.regex,
+      'ls_dir must validate dir'
+    ).toBeDefined();
+    re = new RegExp(action.validate.dir.regex);
+    DKIM_BASE = `${process.env.DMS_CONFIG_PATH || '/tmp/docker-mailserver'}/rspamd/dkim`;
+  });
+
+  it('accepts the DKIM base directory itself', () => {
+    expect(re.test(DKIM_BASE)).toBe(true);
+  });
+
+  it('accepts a domain subdirectory', () => {
+    expect(re.test(`${DKIM_BASE}/example.com`)).toBe(true);
+  });
+
+  it('accepts a key file inside a domain dir', () => {
+    expect(re.test(`${DKIM_BASE}/example.com/default.private`)).toBe(true);
+  });
+
+  it('accepts a multi-extension filename', () => {
+    expect(re.test(`${DKIM_BASE}/example.com/rsa-2048.private.txt`)).toBe(true);
+  });
+
+  it('rejects path traversal via ..', () => {
+    expect(re.test(`${DKIM_BASE}/../etc/passwd`)).toBe(false);
+  });
+
+  it('rejects double-dot in a single segment', () => {
+    expect(re.test(`${DKIM_BASE}/foo..bar/default`)).toBe(false);
+  });
+
+  it('rejects paths outside the DKIM base', () => {
+    expect(re.test('/etc/passwd')).toBe(false);
+    expect(re.test('/tmp/docker-mailserver/postfix-regexp.cf')).toBe(false);
+  });
+
+  it('rejects relative paths', () => {
+    expect(re.test('rspamd/dkim/example.com')).toBe(false);
+  });
+
+  it('rejects a base path that has the DKIM base as a prefix but is not under it', () => {
+    // Defense against `/tmp/docker-mailserver/rspamd/dkim-evil/...`
+    // matching a base built with simple concatenation. The regex
+    // anchors with a `/` separator, so this must be rejected.
+    expect(re.test(`${DKIM_BASE}-evil/example.com`)).toBe(false);
   });
 });
 
