@@ -1558,40 +1558,46 @@ export const killContainer = async (
       result = await getConfigs(plugin);
       if (result.success) {
         let containerNames = pluck(result.message, 'value');
-        const killActionId = command[plugin][schema]?.actionId;
-        if (containerNames.includes(containerName) && killActionId) {
-          const targetDict = getTargetDict(plugin, containerName);
-          // Fire-and-forget after a 1s delay. Once the kill action runs
-          // and supervisord (or whatever daemon manages the container's
-          // services) dies, the HTTP response is lost — awaiting it
-          // would surface as a confusing timeout. The setTimeout
-          // mirrors the legacy `sleep 1 && kill ...` shell form: this
-          // function's success response has a moment to reach the
-          // client before the daemon goes down.
-          //
-          // execAction never rejects: it always resolves with
-          // {returncode, stdout, stderr} (including transport errors,
-          // which surface as returncode=99). So .catch() would be dead
-          // code — inspect the resolved value's returncode instead.
-          setTimeout(async () => {
-            const r = await execAction(killActionId, {}, targetDict);
-            if (r.returncode) {
-              errorLog(
-                `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
-              );
-            }
-          }, 1000);
+        if (!containerNames.includes(containerName)) {
           return {
-            success: true,
-            message: `reboot initiated for ${containerName}`,
+            success: false,
+            error: `container ${containerName} not found`,
           };
-        } else
+        }
+        const killActionId = command[plugin][schema]?.actionId;
+        if (!killActionId) {
           return {
             success: false,
             error: `kill action missing for ${plugin} schema=${schema}`,
           };
+        }
+        const targetDict = getTargetDict(plugin, containerName);
+        // Fire-and-forget after a 1s delay. Once the kill action runs
+        // and supervisord (or whatever daemon manages the container's
+        // services) dies, the HTTP response is lost — awaiting it
+        // would surface as a confusing timeout. The setTimeout
+        // mirrors the legacy `sleep 1 && kill ...` shell form: this
+        // function's success response has a moment to reach the
+        // client before the daemon goes down.
+        //
+        // execAction never rejects: it always resolves with
+        // {returncode, stdout, stderr} (including transport errors,
+        // which surface as returncode=99). So .catch() would be dead
+        // code — inspect the resolved value's returncode instead.
+        setTimeout(async () => {
+          const r = await execAction(killActionId, {}, targetDict);
+          if (r.returncode) {
+            errorLog(
+              `${killActionId} scheduled action failed: rc=${r.returncode} stderr=${r.stderr}`
+            );
+          }
+        }, 1000);
+        return {
+          success: true,
+          message: `reboot initiated for ${containerName}`,
+        };
       }
-      return { success: false, error: `container ${containerName} not found` };
+      return { success: false, error: `getConfigs failed for ${plugin}` };
     }
   }
   return { success: true, message: 'reboot initiated' }; // fails silently in all other cases

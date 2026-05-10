@@ -739,6 +739,18 @@ class APIHandler(http.server.BaseHTTPRequestHandler):
         return
 
       if api_key == DMS_API_KEY:
+        # If ACTIONS is empty the manifest failed to load at startup
+        # (load_manifest already logged the underlying parse/IO error).
+        # Surface that as 503 with a distinct message so callers can
+        # tell server misconfiguration apart from a forbidden action.
+        if not ACTIONS:
+          logger("Rejected: action manifest is empty (manifest failed to load at startup)")
+          response_message = {"status": "error", "error": "action manifest unavailable; rest-api.py failed to load it at startup"}
+          self.send_response(503)
+          self.send_header('Content-type', 'application/json')
+          self.end_headers()
+          self.wfile.write(json.dumps(response_message).encode('utf-8'))
+          return
         if action_id not in ACTIONS:
           logger(f"Rejected: unknown action '{safe_id(action_id)}'")
           response_message = {"status": "error", "error": f"unknown action: {action_id}"}
