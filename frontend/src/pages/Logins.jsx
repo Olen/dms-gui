@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Form from 'react-bootstrap/Form';
 import Row from 'react-bootstrap/Row';
@@ -8,7 +8,7 @@ import Modal from 'react-bootstrap/Modal'; // Import Modal
 import Select from 'react-select';
 
 import { debugLog, errorLog } from '../../frontend.mjs';
-import { moveKeyToLast, pluck, regexUsername } from '../../../common.mjs';
+import { pluck, regexUsername } from '../../../common.mjs';
 
 import {
   getLogins,
@@ -554,17 +554,25 @@ const Logins = () => {
 
   // highlight options by shades of yellow if they equal the login's mailbox
   // or share its domain. Returns a className suffix; the label component
-  // uses it to colour the dropdown row inside react-select.
+  // uses it to colour the dropdown row inside react-select. The domain
+  // comparison is a string-equality check on the parsed domains, NOT a
+  // regex match — `String.prototype.match(s)` would treat `s` as a
+  // regex and let metacharacters in `s` (e.g. the `.` in `example.com`)
+  // match more than expected.
   const highlightClassByDomain = (option, mailbox = undefined) => {
     if (!mailbox) return '';
     if (mailbox === option) return 'bg-warning bg-opacity-25';
-    if (mailbox.match(option.split('@')[1])) return 'bg-warning bg-opacity-10';
+    if (mailbox.split('@')[1] === option.split('@')[1])
+      return 'bg-warning bg-opacity-10';
     return '';
   };
 
   // Convert the flat string array `rolesAvailable` into the grouped
-  // option shape react-select expects: [{label: domain, options: [{value, label}]}]
-  const rolesGroupedOptions = (() => {
+  // option shape react-select expects: [{label: domain, options: [{value, label}]}].
+  // Memoised on rolesAvailable so unrelated state changes (typing in
+  // form fields, toggling the modal, etc.) don't rebuild the whole
+  // grouped structure on every render.
+  const rolesGroupedOptions = useMemo(() => {
     const byDomain = new Map();
     for (const r of rolesAvailable) {
       const dom = r.split('@')[1] || '';
@@ -572,7 +580,7 @@ const Logins = () => {
       byDomain.get(dom).push({ value: r, label: r });
     }
     return Array.from(byDomain, ([label, options]) => ({ label, options }));
-  })();
+  }, [rolesAvailable]);
 
   // String[] → {value,label}[] for react-select's `value` prop.
   const toRoleOptions = (strings) =>
