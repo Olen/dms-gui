@@ -35,6 +35,9 @@ describe('isValidCorsOrigin', () => {
     'https://user:pass@example.com', // userinfo not allowed
     'https://example.com?x=1', // query string not allowed
     'https://example.com#frag', // fragment not allowed
+    'http://*', // bare wildcard host
+    'https://*.example.com', // subdomain wildcard
+    'http://example.*', // TLD wildcard
     '',
     '   ',
     null,
