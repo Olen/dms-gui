@@ -264,15 +264,24 @@ describe('getTargetDict — port validation', () => {
     expect(r.port).toBe('65535');
   });
 
+  it('accepts leading zeros (Node URL parser canonicalises them anyway)', () => {
+    // Backwards-compat with older stored settings that might carry
+    // leading zeros (`080`). The range check still rejects out-of-
+    // range values regardless of zero-padding.
+    const r = getTargetDict('mailserver', 'dms', settingsWithPort('080'));
+    expect(r.port).toBe('080');
+  });
+
   for (const bad of [
-    '0',
-    '65536',
-    '99999',
-    '-1',
-    '8888.0',
-    'abc',
-    '',
-    ' 8888',
+    '0', // value out of range (range check, not regex)
+    '65536', // value out of range
+    '99999', // value out of range
+    '-1', // negative — rejected by digits-only regex
+    '8888.0', // dot — rejected by digits-only regex
+    'abc', // non-numeric — rejected by digits-only regex
+    '', // empty — rejected by digits-only regex
+    ' 8888', // leading whitespace — rejected by digits-only regex
+    '99999999', // > 7 digits — rejected by length cap
   ]) {
     it(`rejects port ${JSON.stringify(bad)}`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithPort(bad));

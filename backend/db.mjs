@@ -1666,24 +1666,26 @@ const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 
 // Hostname allowlist for the targetDict.host. Two layered checks:
 //
-//   1. HOSTNAME_SHAPE_RE: same shape as middleware.js's
-//      validateContainerName (alphanumeric labels with `._-`,
-//      leading digit allowed) so a docker container named
-//      `1mailserver` works. Rejects URL metacharacters
-//      (`:` `/` `?` `#` `@` `\s`) by exclusion.
-//   2. NOT_IPV4_RE: separately reject the all-digits-and-dots
-//      shape used by IPv4 literals. Combined with #1's
-//      exclusion of `:` `[` `]`, this also rules out IPv6
-//      bracketed literals and bare colon-separated forms.
+//   1. HOSTNAME_SHAPE_RE matches the same lenient shape as
+//      middleware.js's validateContainerName: first char must be
+//      alphanumeric, then any mix of alphanumeric / `.` / `_` / `-`.
+//      Deliberately lenient — it accepts adjacent dots (`a..b`),
+//      trailing dots (`a.`), and underscores. That matches what the
+//      route already permits, and the SSRF threat is "reach an
+//      unintended host", not "produce a syntactically perfect FQDN":
+//      Node's URL parser handles `a..b` as a single weird-but-valid
+//      host label and the resulting request goes nowhere useful.
+//      The character class is the load-bearing security check
+//      because it excludes URL metacharacters (`:` `/` `?` `#` `@`)
+//      and whitespace.
+//   2. NOT_IPV4_RE separately rejects the all-digits-and-dots shape
+//      used by IPv4 literals (`169.254.169.254`, `127.0.0.1`,
+//      `10.x.x.x` LAN, `0.0.0.0`). Combined with #1's exclusion of
+//      `:` `[` `]`, this also rules out IPv6 bracketed literals
+//      and bare colon-separated forms.
 //
-// This is the structural SSRF barrier — CodeQL recognises the
-// regex-based check on the user-controlled value as a sanitizer.
-// Rejected:
-//   - IPv4 literals via NOT_IPV4_RE (`169.254.169.254`, `127.0.0.1`,
-//     `10.x.x.x` LAN, `0.0.0.0`).
-//   - IPv6 literals via HOSTNAME_SHAPE_RE's char-class exclusion
-//     (`[::1]`, `2001:db8::1`).
-//   - URL metacharacter injection (`host/path`, `host?query`).
+// CodeQL recognises the regex-based check on the user-controlled
+// value as a sanitizer for the js/request-forgery taint flow.
 // `1024` cap is well above any realistic FQDN.
 const HOSTNAME_SHAPE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
 const NOT_IPV4_RE = /^[0-9.]+$/;
@@ -1694,10 +1696,13 @@ const isValidTargetHost = (s) =>
   HOSTNAME_SHAPE_RE.test(s) &&
   !NOT_IPV4_RE.test(s);
 
-// Port must be a numeric string in the valid TCP/UDP range. Anything
-// else (negative, scientific notation, leading zeros, etc.) bypasses
-// fetch's URL parser into undefined territory.
-const TARGET_PORT_RE = /^[1-9][0-9]{0,4}$/;
+// Port must be a numeric string in the valid TCP/UDP range (1..65535).
+// We allow leading zeros (`080` is accepted) because Node's URL
+// parser canonicalises them to the unzeroed form anyway, and stored
+// settings from older versions may have them — rejecting them
+// would be a needless backwards-compat break. Scientific notation
+// and negatives are rejected by the digits-only regex.
+const TARGET_PORT_RE = /^[0-9]{1,7}$/;
 const isValidPortNumber = (n) => Number.isInteger(n) && n >= 1 && n <= 65535;
 
 export const getTargetDict = (
