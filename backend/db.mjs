@@ -1752,7 +1752,7 @@ export const getTargetDict = (
         return {
           success: false,
           error:
-            'host must be a valid hostname (alphanumeric labels separated by dots; IP literals not allowed)',
+            'host must contain only alphanumeric characters, dots, hyphens, and underscores, must start with an alphanumeric character, and must not be an IP literal or any form the URL parser canonicalises to one',
         };
       }
       const portRaw = getValueFromArrayOfObj(settings, 'DMS_API_PORT');
@@ -1851,7 +1851,7 @@ export const getTargetDict = (
           return {
             success: false,
             error:
-              'stored host must be a valid hostname (alphanumeric labels separated by dots; IP literals not allowed)',
+              'stored host must contain only alphanumeric characters, dots, hyphens, and underscores, must start with an alphanumeric character, and must not be an IP literal or any form the URL parser canonicalises to one',
           };
         }
         const portRaw = getValueFromArrayOfObj(result.message, 'DMS_API_PORT');

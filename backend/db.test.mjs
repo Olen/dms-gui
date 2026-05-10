@@ -262,7 +262,7 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     it(`rejects host ${JSON.stringify(bad)}`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithHost(bad));
       expect(r.success).toBe(false);
-      expect(r.error).toMatch(/host must be a valid hostname/);
+      expect(r.error).toMatch(/host must contain only/);
     });
   }
 });

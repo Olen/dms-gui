@@ -44,7 +44,24 @@ vi.mock('../db.mjs', () => ({
 }));
 
 import { createTestApp, adminToken, userToken } from '../test/routeHelper.mjs';
+import jwt from 'jsonwebtoken';
 import serverRoutes from './server.js';
+
+// Token for a non-admin with no mailbox roles. Used to lock down the
+// "non-admin + empty roles + mailserver" SSRF gate (getConfigs treats
+// an empty roles array as the admin path and returns ALL configs).
+const rolelessUserToken = jwt.sign(
+  {
+    id: 99,
+    mailbox: 'roleless@test.com',
+    username: 'roleless',
+    isAdmin: 0,
+    isActive: 1,
+    roles: [],
+  },
+  'test-jwt-secret',
+  { expiresIn: '1h' }
+);
 
 const app = createTestApp(serverRoutes);
 
@@ -248,5 +265,42 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
 
     // userPayload.id is 2
     expect(mockGetConfigs).toHaveBeenCalledWith('dns-control', [2]);
+  });
+
+  it('returns 403 for a non-admin with empty roles on the mailserver plugin', async () => {
+    // Regression for the empty-roles bypass: getConfigs's contract
+    // treats an empty roles array as the admin path and returns ALL
+    // configs. Without an explicit guard, a non-admin with no
+    // mailbox roles would inherit admin-level visibility into
+    // every container's status. The route must reject upfront.
+    const res = await request(app)
+      .post('/api/status/mailserver/dms')
+      .set('Cookie', [`accessToken=${rolelessUserToken}`])
+      .send({});
+
+    expect(res.status).toBe(403);
+    // Crucially, getConfigs must NOT have been called — the empty-
+    // roles guard is the early-return, before any DB lookup.
+    expect(mockGetConfigs).not.toHaveBeenCalled();
+    expect(mockGetServerStatus).not.toHaveBeenCalled();
+  });
+
+  it('still allows non-admin with empty roles on a non-mailserver plugin (scope is [user.id])', async () => {
+    // The empty-roles guard is mailserver-specific because non-
+    // mailserver plugins always pass [req.user.id] (length 1) to
+    // getConfigs, so they don't hit the empty-array → admin-path
+    // bypass. Verify the empty-roles guard doesn't over-reach.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'some-host' }],
+    });
+
+    await request(app)
+      .post('/api/status/dns-control/some-host')
+      .set('Cookie', [`accessToken=${rolelessUserToken}`])
+      .send({});
+
+    expect(mockGetConfigs).toHaveBeenCalledWith('dns-control', [99]);
+    expect(mockGetServerStatus).toHaveBeenCalledOnce();
   });
 });

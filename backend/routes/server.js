@@ -113,6 +113,24 @@ router.post(
         // plugins see configs scoped to their login id. Passing
         // req.user.roles unconditionally would return zero configs
         // for non-mailserver plugins and yield false 403s.
+        //
+        // Important guard: getConfigs treats an empty `roles` array
+        // as the admin path (no scope filter → all configs). A
+        // non-admin with no mailbox roles on the mailserver plugin
+        // would therefore be granted access to every container's
+        // status. Reject upfront for that case rather than calling
+        // getConfigs with `[]`. (Non-mailserver plugins always pass
+        // a one-element `[req.user.id]` so this special case is
+        // mailserver-specific.)
+        if (
+          !req.user.isAdmin &&
+          plugin === 'mailserver' &&
+          (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
+        ) {
+          return res
+            .status(403)
+            .json({ success: false, error: 'Permission denied' });
+        }
         const configsScope = req.user.isAdmin
           ? []
           : plugin === 'mailserver'
