@@ -192,9 +192,10 @@ export const REST_API_MANIFEST = [
     },
   },
   {
-    // Replace an existing mailbox's password. Used by db.mjs's updateRow
-    // when an admin changes a user's password. Same argv shape as
-    // setup_email_add (mailbox + password), with `update` as the verb.
+    // Replace an existing mailbox's password. Used by db.mjs's
+    // changePassword when an admin changes a user's password. Same
+    // argv shape as setup_email_add (mailbox + password), with
+    // `update` as the verb.
     id: 'setup_email_update',
     argv: ['{setup_path}', 'email', 'update', '{mailbox}', '{password}'],
     validate: {

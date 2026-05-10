@@ -248,12 +248,6 @@ export const ping = async (host = null) => {
 };
 
 /**
- * Executes a command in the docker-mailserver container through an http API
- * @param {string} command Command to execute
- * @param {object} targetDict with protocol, host, port, Authorization and maybe timeout
- * @return {Promise<object>} with returncode, stdout and stderr
- */
-/**
  * Dispatch a manifest-declared action to the rest-api.py interpreter.
  * Sends {action, args, timeout} as the request body — the only shape
  * the interpreter accepts after the legacy {command:} path was removed.
@@ -449,7 +443,7 @@ export const postJsonToApi = async (
     return responseData;
   } catch (error) {
     errorLog(error.message);
-    throw new Error(error.message);
+    throw new Error(error.message, { cause: error });
   }
 };
 
@@ -478,7 +472,7 @@ export const getJsonFromApi = async (apiUrl = null, Authorization = null) => {
     return responseData;
   } catch (error) {
     errorLog(error.message);
-    throw new Error(error.message);
+    throw new Error(error.message, { cause: error });
   }
 };
 
