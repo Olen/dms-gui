@@ -219,7 +219,7 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
     expect(mockGetServerStatus).toHaveBeenCalledOnce();
   });
 
-  it('non-admin getConfigs is filtered by req.user.roles', async () => {
+  it('non-admin getConfigs for mailserver plugin is filtered by req.user.roles', async () => {
     await request(app)
       .post('/api/status/mailserver/dms')
       .set('Cookie', [`accessToken=${userToken}`])
@@ -229,5 +229,24 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
     expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', [
       'user@test.com',
     ]);
+  });
+
+  it('non-admin getConfigs for non-mailserver plugins is filtered by [req.user.id]', async () => {
+    // Settings.js's existing pattern: mailserver = roles (mailboxes);
+    // other plugins = login id. Mirrored here so non-mailserver
+    // status checks don't false-403 for users who don't have
+    // mailbox roles for those plugins' configs.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'some-host' }],
+    });
+
+    await request(app)
+      .post('/api/status/dns-control/some-host')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({});
+
+    // userPayload.id is 2
+    expect(mockGetConfigs).toHaveBeenCalledWith('dns-control', [2]);
   });
 });

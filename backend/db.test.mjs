@@ -214,6 +214,10 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     'MAIL.EXAMPLE.COM', // case-insensitive
     '1mailserver', // matches validateContainerName (leading digit allowed)
     '2mail.example.com', // ditto
+    '1234', // numeric-only docker container name (not IPv4-shaped: only 1 octet)
+    '12.34', // 2 octets, not 4 — not an IP literal
+    '1.2.3', // 3 octets, not 4 — not an IP literal
+    '1.2.3.4.5', // 5 octets, not 4 — not an IP literal
   ]) {
     it(`accepts hostname '${ok}'`, () => {
       const r = getTargetDict('mailserver', 'dms', settingsWithHost(ok));
@@ -228,6 +232,7 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     '10.0.0.5', // private LAN
     '192.168.1.1', // private LAN
     '0.0.0.0',
+    '999.999.999.999', // IPv4-shaped but out of range — still rejected
     '[::1]', // IPv6 loopback
     'mailserver:8888/path', // URL metacharacters
     'mailserver/foo',

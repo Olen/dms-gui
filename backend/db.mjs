@@ -1688,13 +1688,20 @@ const ALLOWED_TARGET_PROTOCOLS = new Set(['http', 'https']);
 // value as a sanitizer for the js/request-forgery taint flow.
 // `1024` cap is well above any realistic FQDN.
 const HOSTNAME_SHAPE_RE = /^[a-z0-9][a-z0-9._-]*$/i;
-const NOT_IPV4_RE = /^[0-9.]+$/;
+// Reject IPv4 dotted-decimal literals specifically: four numeric
+// octets separated by dots. Each octet is 1–3 digits. We don't
+// validate the 0–255 range here because that's a stricter check
+// than needed — `999.999.999.999` is also an IPv4-shaped string
+// that we want to reject, regardless of whether it parses to a
+// routable address. The looser shape was rejecting legitimate
+// numeric-only docker container names like `1234`.
+const IPV4_LITERAL_RE = /^[0-9]{1,3}(\.[0-9]{1,3}){3}$/;
 const isValidTargetHost = (s) =>
   typeof s === 'string' &&
   s.length > 0 &&
   s.length <= 1024 &&
   HOSTNAME_SHAPE_RE.test(s) &&
-  !NOT_IPV4_RE.test(s);
+  !IPV4_LITERAL_RE.test(s);
 
 // Port must be a numeric string in the valid TCP/UDP range (1..65535).
 // We allow leading zeros (`080` is accepted) because Node's URL

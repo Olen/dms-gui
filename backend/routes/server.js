@@ -107,10 +107,18 @@ router.post(
       // that isn't yet in the DB — the legitimate FormContainerAdd
       // flow).
       if (!hasOverride) {
-        const configs = await getConfigs(
-          plugin,
-          req.user.isAdmin ? [] : req.user.roles
-        );
+        // Scope the config lookup the same way settings.js does:
+        // admins see everything; non-admins on mailserver see configs
+        // they have a mailbox role for; non-admins on non-mailserver
+        // plugins see configs scoped to their login id. Passing
+        // req.user.roles unconditionally would return zero configs
+        // for non-mailserver plugins and yield false 403s.
+        const configsScope = req.user.isAdmin
+          ? []
+          : plugin === 'mailserver'
+            ? req.user.roles
+            : [req.user.id];
+        const configs = await getConfigs(plugin, configsScope);
         // Surface DB / query errors instead of masking them as 403:
         // a non-success result here is operational (DB locked, plugin
         // misconfigured) — not the user's fault, and returning 403
