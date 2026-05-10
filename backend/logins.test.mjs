@@ -52,7 +52,7 @@ vi.mock('./demoMode.mjs', () => ({
 }));
 
 import { addLogin, getLogin, getRoles, loginUser } from './logins.mjs';
-import { dbGet, getTargetDict, sql } from './db.mjs';
+import { dbGet, sql } from './db.mjs';
 
 describe('addLogin — password redaction', () => {
   beforeEach(() => {

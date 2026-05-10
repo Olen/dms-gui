@@ -23,13 +23,7 @@
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
 // settings UI that a hardcoded constant would silently ignore.
 
-import dotenv from 'dotenv';
-// Load the same env file env.mjs uses. If env.mjs's dotenv.config() has
-// already run (when this module is re-imported), the second call is a
-// no-op (dotenv default override is false). If env.mjs hasn't yet loaded
-// dotenv (because env.mjs imports us BEFORE its own dotenv.config call),
-// we ensure DMS_CONFIG_PATH from .dms-gui.env is visible here too.
-dotenv.config({ path: '/app/config/.dms-gui.env' });
+import './envBootstrap.mjs';
 
 // DMS config path — the directory where postfix-regexp.cf lives. Read
 // from process.env directly (rather than ./env.mjs) to avoid the

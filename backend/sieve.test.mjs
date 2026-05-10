@@ -33,7 +33,6 @@ import {
 } from './sieve.mjs';
 const { generateSieveScript, parseSieveScript, defaultRules } = _test;
 import { execAction } from './backend.mjs';
-import { getTargetDict } from './db.mjs';
 
 describe('generateSieveScript', () => {
   it('generates minimal script when all rules are disabled', () => {
