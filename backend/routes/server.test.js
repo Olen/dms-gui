@@ -26,8 +26,10 @@ const mockGetMailLogs = vi.fn();
 const mockGetMailBounces = vi.fn();
 const mockInitAPI = vi.fn();
 const mockKillContainer = vi.fn();
+const mockGetConfigs = vi.fn();
 
 vi.mock('../settings.mjs', () => ({
+  getConfigs: (...args) => mockGetConfigs(...args),
   getServerStatus: (...args) => mockGetServerStatus(...args),
   getServerEnvs: (...args) => mockGetServerEnvs(...args),
   getNodeInfos: (...args) => mockGetNodeInfos(...args),
@@ -46,19 +48,26 @@ import serverRoutes from './server.js';
 
 const app = createTestApp(serverRoutes);
 
-describe('POST /api/status/:plugin/:containerName — settings override (SSRF gate)', () => {
-  // Regression coverage for code-scanning alert #68 (js/request-forgery).
-  // The route accepts a `settings` body that is fed straight into
-  // getTargetDict and used to construct the URL fetch() hits. The flow
-  // is by-design for FormContainerAdd's first-time setup, but it must
-  // be admin-only — a non-admin authenticated caller passing arbitrary
-  // host/port/protocol would otherwise weaponise the dms-gui server
-  // into making outbound requests against internal targets.
+describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', () => {
+  // Two related defenses against `js/request-forgery`:
+  //   1. The user-supplied `settings` body is admin-only — non-admins
+  //      cannot inject host/port/protocol values straight into the
+  //      URL fetch() hits.
+  //   2. When no settings override is supplied, the route checks that
+  //      `containerName` is in the caller's accessible config set
+  //      before letting getServerStatus issue a ping — otherwise an
+  //      authenticated user could probe arbitrary hostnames just by
+  //      varying the path param.
   beforeEach(() => {
     vi.clearAllMocks();
     mockGetServerStatus.mockResolvedValue({
       success: true,
       message: { status: { status: 'running' } },
+    });
+    // Default: 'dms' is configured. Override per-test as needed.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'dms', plugin: 'mailserver' }],
     });
   });
 
@@ -76,26 +85,92 @@ describe('POST /api/status/:plugin/:containerName — settings override (SSRF ga
     expect(mockGetServerStatus).toHaveBeenCalledOnce();
     const [, , , forwardedSettings] = mockGetServerStatus.mock.calls[0];
     expect(forwardedSettings).toEqual(userSettings);
+    // Settings-supplied path skips the DB-presence check (admin
+    // testing a NEW container that isn't yet in the DB).
+    expect(mockGetConfigs).not.toHaveBeenCalled();
   });
 
   it('drops the settings body for non-admin callers', async () => {
     const userSettings = [
-      // What an attacker would supply to redirect the outbound fetch:
       { name: 'protocol', value: 'http' },
       { name: 'containerName', value: '169.254.169.254' },
       { name: 'DMS_API_PORT', value: '80' },
       { name: 'DMS_API_KEY', value: 'attacker-controlled' },
     ];
+    // For the non-admin path, getConfigs is filtered by req.user.roles
+    // — make 'dms' visible so the DB-presence check passes and we
+    // can verify the settings drop separately.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'dms' }],
+    });
+
     await request(app)
       .post('/api/status/mailserver/dms')
       .set('Cookie', [`accessToken=${userToken}`])
       .send({ settings: userSettings });
 
-    // The route still runs (non-admins can ping their existing
-    // container), but the forwarded settings must be undefined so
-    // getServerStatus falls through to the DB-stored target dict.
     expect(mockGetServerStatus).toHaveBeenCalledOnce();
     const [, , , forwardedSettings] = mockGetServerStatus.mock.calls[0];
     expect(forwardedSettings).toBeUndefined();
+  });
+
+  it('returns 403 when non-admin requests a containerName not in their roles', async () => {
+    // getConfigs(plugin, roles) returns only configs the user can see;
+    // when 'dms' is not visible, the DB-presence check rejects.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'other-container' }],
+    });
+
+    const res = await request(app)
+      .post('/api/status/mailserver/dms')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(mockGetServerStatus).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 when admin requests a containerName not in any config', async () => {
+    // Admins also get gated when there is no settings override:
+    // probing arbitrary hostnames isn't valuable for an admin either,
+    // and the FormContainerAdd path always supplies settings.
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [],
+    });
+
+    const res = await request(app)
+      .post('/api/status/mailserver/random-host')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({});
+
+    expect(res.status).toBe(403);
+    expect(mockGetServerStatus).not.toHaveBeenCalled();
+  });
+
+  it('admin without settings on a configured container reaches getServerStatus', async () => {
+    // Existing happy path for the dashboard polling: admin loads the
+    // status of a container they already configured.
+    await request(app)
+      .post('/api/status/mailserver/dms')
+      .set('Cookie', [`accessToken=${adminToken}`])
+      .send({});
+
+    expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', []);
+    expect(mockGetServerStatus).toHaveBeenCalledOnce();
+  });
+
+  it('non-admin getConfigs is filtered by req.user.roles', async () => {
+    await request(app)
+      .post('/api/status/mailserver/dms')
+      .set('Cookie', [`accessToken=${userToken}`])
+      .send({});
+
+    // userPayload.roles is ['user@test.com']
+    expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', [
+      'user@test.com',
+    ]);
   });
 });

@@ -1792,16 +1792,48 @@ export const getTargetDict = (
         result.message.length >=
           Object.keys(plugins[plugin][schema].keys).length
       ) {
-        // limit results to protocol, host, port, and also Authorization but we add everything because we end up needing schema sometimes
-        // we could use a for loop over plugins[plugin][schema].keys but then the code becomes hard to debug
+        // Apply the same protocol/host/port allowlist as the
+        // user-supplied path above. The DB values came from a
+        // previous user-supplied save, so a malicious or accidentally-
+        // wrong value persisted to the DB would otherwise reintroduce
+        // the SSRF channel without going through the route-level
+        // admin gate. Defense-in-depth: validate at every layer.
+        const protocol = getValueFromArrayOfObj(result.message, 'protocol');
+        if (!ALLOWED_TARGET_PROTOCOLS.has(protocol)) {
+          return {
+            success: false,
+            error: `stored protocol must be one of: ${[...ALLOWED_TARGET_PROTOCOLS].join(', ')}`,
+          };
+        }
+        const host = getValueFromArrayOfObj(result.message, 'containerName');
+        if (
+          typeof host !== 'string' ||
+          !TARGET_HOST_RE.test(host) ||
+          host.length > 1024
+        ) {
+          return {
+            success: false,
+            error:
+              'stored host must be a valid hostname (alphanumeric labels separated by dots; IP literals not allowed)',
+          };
+        }
+        const portRaw = getValueFromArrayOfObj(result.message, 'DMS_API_PORT');
+        const portStr = typeof portRaw === 'number' ? String(portRaw) : portRaw;
+        if (
+          typeof portStr !== 'string' ||
+          !TARGET_PORT_RE.test(portStr) ||
+          !isValidPortNumber(Number(portStr))
+        ) {
+          return {
+            success: false,
+            error: 'stored port must be an integer between 1 and 65535',
+          };
+        }
         let targetDict = {
-          containerName: getValueFromArrayOfObj(
-            result.message,
-            'containerName'
-          ),
-          protocol: getValueFromArrayOfObj(result.message, 'protocol'),
-          host: getValueFromArrayOfObj(result.message, 'containerName'),
-          port: getValueFromArrayOfObj(result.message, 'DMS_API_PORT'),
+          containerName: host,
+          protocol,
+          host,
+          port: portStr,
           Authorization: getValueFromArrayOfObj(result.message, 'DMS_API_KEY'),
           setupPath: getValueFromArrayOfObj(result.message, 'setupPath'),
           timeout: getValueFromArrayOfObj(result.message, 'timeout'),

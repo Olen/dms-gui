@@ -7,6 +7,7 @@ import {
   validateContainerName,
 } from '../middleware.js';
 import {
+  getConfigs,
   getNodeInfos,
   getServerEnvs,
   getServerStatus,
@@ -76,6 +77,28 @@ router.post(
       // non-admins fall back to the DB-stored target dict for the
       // requested container.
       const settings = req.user.isAdmin ? req.body.settings : undefined;
+
+      // When no settings override is supplied, getServerStatus uses
+      // the DB-backed target dict for `containerName`. Without a
+      // presence check, any authenticated user could submit a
+      // hostname-shaped string in the path param and trigger a
+      // server-side ping/setup_help against it, turning the endpoint
+      // into a network scanner. Verify the containerName is in the
+      // caller's accessible config set first. Skipped when settings
+      // is provided (admin testing a NEW container that isn't yet
+      // in the DB — the legitimate FormContainerAdd flow).
+      if (!settings) {
+        const configs = await getConfigs(
+          plugin,
+          req.user.isAdmin ? [] : req.user.roles
+        );
+        const validContainers = (configs.message || []).map((c) => c.value);
+        if (!validContainers.includes(containerName)) {
+          return res
+            .status(403)
+            .json({ success: false, error: 'Permission denied' });
+        }
+      }
 
       const status = await getServerStatus(
         plugin,
