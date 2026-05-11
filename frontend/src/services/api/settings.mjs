@@ -1,5 +1,5 @@
-// Settings + configs + branding (which lives in routes/settings.js
-// on the backend too).
+// Settings + configs + branding. Mirrors backend/routes/settings.js
+// (branding lives there too on the backend).
 
 import { request } from './_client.mjs';
 import { api } from './_client.mjs';
