@@ -29,7 +29,7 @@
       "prettier --write",
       "eslint --no-error-on-unmatched-pattern"
     ],
-    "frontend/src/**/*.{js,jsx}": [
+    "frontend/src/**/*.{js,jsx,mjs,cjs}": [
       "prettier --write",
       "eslint --no-error-on-unmatched-pattern"
     ],
