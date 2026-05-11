@@ -96,7 +96,7 @@ const Domains = () => {
       setLoading(false);
       return;
     }
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchDomains; tracked in #105 sweep
     fetchDomains();
     // Fetch DKIM selector from DMS rspamd config
     getDkimSelector(containerName)
@@ -529,7 +529,15 @@ const Domains = () => {
           <div
             className="d-flex align-items-center gap-1"
             style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
             onClick={() => showDetails(item.domain)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showDetails(item.domain);
+              }
+            }}
           >
             <DnsBadge label="A" value={dns.a?.length} />
             <DnsBadge label="MX" value={dns.mx?.length} />
@@ -592,7 +600,15 @@ const Domains = () => {
           <div
             className="d-flex align-items-center gap-1"
             style={{ cursor: 'pointer' }}
+            role="button"
+            tabIndex={0}
             onClick={() => showDnsblDetails(item.domain)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                showDnsblDetails(item.domain);
+              }
+            }}
           >
             {listedCount > 0 ? (
               <Badge bg="danger">

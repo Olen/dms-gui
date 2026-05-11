@@ -42,12 +42,14 @@ const computeSpfRecord = (dns, domain, spfAllMode) => {
 };
 
 // Build the DMARC record from the editor state. Always includes the
-// policy; rua/ruf are optional.
+// policy; rua/ruf are optional. Output shape mirrors the original
+// inline implementation (no trailing semicolon) to avoid pushing a
+// gratuitously different record to DNS on each edit.
 const computeDmarcRecord = (policy, rua, ruf) => {
-  const parts = [`v=DMARC1`, `p=${policy}`];
-  if (rua?.trim()) parts.push(`rua=mailto:${rua.trim()}`);
-  if (ruf?.trim()) parts.push(`ruf=mailto:${ruf.trim()}`);
-  return parts.join('; ') + ';';
+  let record = `v=DMARC1; p=${policy}`;
+  if (rua?.trim()) record += `; rua=mailto:${rua.trim()}`;
+  if (ruf?.trim()) record += `; ruf=mailto:${ruf.trim()}`;
+  return record;
 };
 
 // "DNS Details" modal — the centerpiece of the domains page.

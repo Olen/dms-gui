@@ -1,4 +1,5 @@
 import React from 'react';
+import { Form } from 'react-bootstrap';
 import { useTranslation } from 'react-i18next';
 import { getValueFromArrayOfObj } from '../../../common.mjs';
 import Button from './Button.jsx';
@@ -210,11 +211,17 @@ const ContainerSettingsForm = ({
           className="me-2"
           disabled={!formValidated}
         />
-        <FormField
+        {/* FormField is a function component without forwardRef, so a
+            `ref={…}` prop wouldn't reach the underlying input. The
+            caller reads `makeFavoriteRef.current.checked` to decide
+            whether to add the new container to the user's favorites
+            after save — use a native Form.Check here so the ref
+            actually attaches to the DOM checkbox. */}
+        <Form.Check
           type="checkbox"
           id="makeFavorite"
           name="makeFavorite"
-          label="settings.makeFavorite"
+          label={t('settings.makeFavorite')}
           ref={makeFavoriteRef}
           disabled={!formValidated}
         />
