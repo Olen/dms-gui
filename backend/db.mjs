@@ -1049,10 +1049,13 @@ export const refreshTokens = async (credentials) => {
 // time, callers can migrate to the per-domain import paths and we can
 // retire this block.
 //
-// Kept at the end so any function in db.mjs that the sibling modules
-// import (e.g. dbOpen from targetDict.mjs's catch block) is already
-// defined when the re-export pulls in the sibling, avoiding
-// partial-initialization on the cycle.
+// `targetDict.mjs` imports `dbOpen` from this file (a cycle). ESM
+// hoists the re-export declarations during linking and partially
+// initialises the cycle, so statement position here doesn't gate when
+// sibling modules load. The cycle is safe because `targetDict.mjs`
+// only calls `dbOpen` at runtime (inside the catch block of
+// `getTargetDict`), not at module-load time — by then the live
+// binding points at the fully defined function.
 // =====================================================================
 export { sql, sqlMatch } from './sql.mjs';
 export {

@@ -143,13 +143,24 @@ export const getTargetDict = (
       if (result.success)
         schema = getValueFromArrayOfObj(result.message, 'schema');
 
-      debugLog(
-        `ddebug result.message.length >= Object.keys(plugins[${plugin}][${schema}].keys: ${result.message.length} >= ${Object.keys(plugins[plugin][schema].keys).length}`
-      );
+      // Guard the diagnostic + the length comparison: if getSettings
+      // failed, `result.message` is undefined; if plugin/schema were
+      // never configured, `plugins[plugin][schema]` is undefined.
+      // Without these guards the debugLog itself throws a TypeError,
+      // masking the underlying getSettings error and forcing the
+      // catch-path with a confusing "Cannot read properties of
+      // undefined" message instead of the real cause.
+      const pluginKeys = plugins[plugin]?.[schema]?.keys;
+      const messageOK = result.success && Array.isArray(result.message);
+      if (messageOK && pluginKeys) {
+        debugLog(
+          `ddebug result.message.length >= Object.keys(plugins[${plugin}][${schema}].keys: ${result.message.length} >= ${Object.keys(pluginKeys).length}`
+        );
+      }
       if (
-        result.success &&
-        result.message.length >=
-          Object.keys(plugins[plugin][schema].keys).length
+        messageOK &&
+        pluginKeys &&
+        result.message.length >= Object.keys(pluginKeys).length
       ) {
         // Apply the same protocol/host/port allowlist as the
         // user-supplied path above. The DB values came from a

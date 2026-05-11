@@ -109,7 +109,7 @@ export const sql = {
     },
 
     update: {
-      config: `UPDATE configs set name = @name, schema = @schema WHERE 1=1 AND plugin = @plugin AND name = ? RETURNING id)`,
+      config: `UPDATE configs set name = @name, schema = @schema WHERE 1=1 AND plugin = @plugin AND name = ? RETURNING id`,
     },
 
     delete: {
