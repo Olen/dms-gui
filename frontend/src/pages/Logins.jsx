@@ -324,7 +324,12 @@ const Logins = () => {
         newLoginformData.isAdmin,
         newLoginformData.isAccount,
         newLoginformData.isActive,
-        newLoginformData.mailserver,
+        // The form's mailserver dropdown displays containerName as
+        // default but only populates `data.mailserver` if the user
+        // explicitly changes it. Fall back to containerName so a
+        // user who left the dropdown untouched doesn't submit an
+        // empty mailserver (which fails the account-login check).
+        newLoginformData.mailserver || containerName,
         newLoginformData.roles,
         []
       );

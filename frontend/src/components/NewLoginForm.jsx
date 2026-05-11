@@ -53,11 +53,18 @@ const NewLoginForm = ({
         disabled={data.isAdmin}
       />
 
+      {/* Display the current containerName as the default. If the user
+          changes the dropdown, onInputChange populates `data.mailserver`
+          and the displayed value follows. Falling back to containerName
+          when data.mailserver is empty keeps the previous behaviour but
+          also ensures the submission below (which reads
+          `data.mailserver || containerName`) doesn't send an empty
+          mailserver when the user just left the dropdown alone. */}
       <SelectField
         id="mailserver"
         name="mailserver"
         label="logins.mailserver"
-        value={containerName}
+        value={data.mailserver || containerName}
         onChange={onInputChange}
         options={mailservers}
         placeholder="logins.mailserverRequired"
