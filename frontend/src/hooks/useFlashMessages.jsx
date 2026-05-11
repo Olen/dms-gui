@@ -1,10 +1,10 @@
-import React, { useState, useCallback, useMemo } from 'react';
+import React, { useState, useCallback } from 'react';
 import AlertMessage from '../components/AlertMessage.jsx';
 
-// Stable module-level component. Render it via the hook's memoized
-// `messages` field so the subtree's identity doesn't change with
-// each state update (which would unmount/remount AlertMessage and
-// blow away its transition state).
+// Stable module-level component. Defined outside the hook so React's
+// element-type reconciliation sees the same function reference across
+// renders — render it inline via `{flash.messages}` and the subtree
+// keeps its identity even when the message state changes.
 const FlashAlerts = ({ error, success, warning }) => (
   <>
     <AlertMessage type="danger" message={error} />
@@ -41,15 +41,12 @@ export const useFlashMessages = () => {
     setWarningMessage(null);
   }, []);
 
-  const messages = useMemo(
-    () => (
-      <FlashAlerts
-        error={errorMessage}
-        success={successMessage}
-        warning={warningMessage}
-      />
-    ),
-    [errorMessage, successMessage, warningMessage]
+  const messages = (
+    <FlashAlerts
+      error={errorMessage}
+      success={successMessage}
+      warning={warningMessage}
+    />
   );
 
   return {
