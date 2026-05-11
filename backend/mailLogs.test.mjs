@@ -111,3 +111,98 @@ describe('getMailBounces — grep_postfix_bounces returncode handling', () => {
     expect(mockExecAction).not.toHaveBeenCalled();
   });
 });
+
+describe('getMailBounces — BSD-syslog timestamp parsing (#109)', () => {
+  // BSD-syslog format: "Mar  6 09:24:34 mail postfix/smtp[1234]: ..."
+  // Plain `postfix` writing to /var/log/mail.log emits this; modern
+  // systemd-journal-fed DMS uses ISO 8601. The parser tries ISO first
+  // and falls back to BSD via parseBsdTimestamp (which injects the
+  // current year, with year-rollover handling).
+  //
+  // The tests build BSD lines relative to a `now` reference so they
+  // stay inside the 48h cutoff regardless of when the suite runs.
+  // BSD has no timezone marker; new Date(year, mon, day, h, m, s)
+  // builds a *local-time* Date, so the test computes the BSD string
+  // from a Date in local time too.
+
+  const formatBsdLocal = (date) => {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const mon = months[date.getMonth()];
+    const day = String(date.getDate()).padStart(2, ' ');
+    const hh = String(date.getHours()).padStart(2, '0');
+    const mm = String(date.getMinutes()).padStart(2, '0');
+    const ss = String(date.getSeconds()).padStart(2, '0');
+    return `${mon} ${day} ${hh}:${mm}:${ss}`;
+  };
+
+  it('parses a BSD-syslog bounce line', async () => {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const bsdTs = formatBsdLocal(oneHourAgo);
+    const bsdLine = `${bsdTs} mail postfix/smtp[1234]: ABCDEF: to=<alice@example.com>, relay=mx.example.com[1.2.3.4]:25, delay=2.1, delays=0.1/0/1/1, dsn=5.1.1, status=deferred (delivery temporarily suspended: connect to mx.example.com[1.2.3.4]:25: Connection refused)`;
+    mockExecAction.mockResolvedValue({
+      returncode: 0,
+      stdout: bsdLine,
+      stderr: '',
+    });
+
+    const r = await getMailBounces('dms', 48);
+
+    expect(r.success).toBe(true);
+    expect(r.message.summary).toEqual({ bounced: 0, deferred: 1 });
+    expect(r.message.bounces).toHaveLength(1);
+    expect(r.message.bounces[0]).toMatchObject({
+      to: 'alice@example.com',
+      status: 'deferred',
+    });
+  });
+
+  it('handles a mix of ISO and BSD lines in the same response', async () => {
+    const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+    const twoHoursAgo = new Date(Date.now() - 2 * 60 * 60 * 1000);
+    const isoLine = `${oneHourAgo.toISOString()} mail postfix/smtp[1234]: AAAAAA: to=<iso@example.com>, status=bounced (no user)`;
+    const bsdLine = `${formatBsdLocal(twoHoursAgo)} mail postfix/smtp[5678]: BBBBBB: to=<bsd@example.com>, status=bounced (no user)`;
+    mockExecAction.mockResolvedValue({
+      returncode: 0,
+      stdout: `${isoLine}\n${bsdLine}`,
+      stderr: '',
+    });
+
+    const r = await getMailBounces('dms', 48);
+
+    expect(r.success).toBe(true);
+    expect(r.message.bounces).toHaveLength(2);
+    const recipients = r.message.bounces.map((b) => b.to).sort();
+    expect(recipients).toEqual(['bsd@example.com', 'iso@example.com']);
+  });
+
+  it('skips lines older than the cutoff window', async () => {
+    // BSD timestamps from 100 days ago should be filtered by the
+    // maxHours cutoff. parseBsdTimestamp will read it as ~3 months
+    // ago (this year), and the cutoff (48h) excludes it.
+    const longAgo = new Date(Date.now() - 100 * 24 * 60 * 60 * 1000);
+    const bsdLine = `${formatBsdLocal(longAgo)} mail postfix/smtp[1234]: ABCDEF: to=<old@example.com>, status=bounced (no user)`;
+    mockExecAction.mockResolvedValue({
+      returncode: 0,
+      stdout: bsdLine,
+      stderr: '',
+    });
+
+    const r = await getMailBounces('dms', 48);
+
+    expect(r.success).toBe(true);
+    expect(r.message.bounces).toHaveLength(0);
+  });
+});

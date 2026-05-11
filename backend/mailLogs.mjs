@@ -6,6 +6,51 @@ import { errorLog, execAction } from './backend.mjs';
 import { demoResponse } from './demoMode.mjs';
 import { getTargetDict } from './db.mjs';
 
+const MONTHS = {
+  Jan: 0,
+  Feb: 1,
+  Mar: 2,
+  Apr: 3,
+  May: 4,
+  Jun: 5,
+  Jul: 6,
+  Aug: 7,
+  Sep: 8,
+  Oct: 9,
+  Nov: 10,
+  Dec: 11,
+};
+
+// Parse a BSD-syslog timestamp ("Mar  6 09:24:34" — possibly with
+// double space before single-digit days) into a Date.
+//
+// BSD syslog carries no year. Strategy: try the current calendar
+// year first; if the result is more than 12 hours in the future
+// (almost certainly because we just crossed a year boundary), back
+// off to the previous year. The 12-hour buffer absorbs minor clock
+// skew between the log source and dms-gui without re-classifying
+// genuinely-future entries as last-year.
+//
+// `now` is injected so tests can pin a stable reference time.
+const parseBsdTimestamp = (tsStr, now = new Date()) => {
+  const parts = tsStr.trim().split(/\s+/);
+  if (parts.length !== 3) return null;
+  const [mon, day, time] = parts;
+  const monthIdx = MONTHS[mon];
+  if (monthIdx === undefined) return null;
+  const [h, m, s] = time.split(':').map(Number);
+  if ([h, m, s].some((n) => Number.isNaN(n))) return null;
+  const dayNum = Number(day);
+  if (!Number.isInteger(dayNum) || dayNum < 1 || dayNum > 31) return null;
+
+  let dt = new Date(now.getFullYear(), monthIdx, dayNum, h, m, s);
+  if (isNaN(dt.getTime())) return null;
+  if (dt.getTime() > now.getTime() + 12 * 3600 * 1000) {
+    dt = new Date(now.getFullYear() - 1, monthIdx, dayNum, h, m, s);
+  }
+  return dt;
+};
+
 export const getMailLogs = async (
   containerName = null,
   source = 'mail',
@@ -92,26 +137,34 @@ export const getMailBounces = async (containerName = null, hours = 48) => {
       .filter((l) => l.length > 0);
     const cutoff = new Date(Date.now() - maxHours * 3600 * 1000);
 
-    // Parse postfix smtp bounce/defer lines. The capture group requires
-    // the timestamp to be a single whitespace-free token, which fits
-    // modern DMS output (ISO 8601, e.g.
-    // "2026-03-06T09:24:34.123456+01:00 mail postfix/smtp[1234]: ...").
-    // Legacy BSD-syslog timestamps ("Mar  6 09:24:34 mail ...") have
-    // three whitespace-separated parts and are not parsed by this
-    // regex; modern systemd-journal-fed DMS doesn't emit them, but if
-    // that ever changes a second regex + year/timezone injection is
-    // needed (BSD syslog has no year).
-    const lineRe =
-      /^(\S+)\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
+    // Parse postfix smtp bounce/defer lines. Try ISO 8601 first
+    // (modern systemd-journal-fed DMS) and fall back to BSD syslog
+    // ("Mar  6 09:24:34 mail ..." — three space-separated tokens, no
+    // year). Bare bash `postfix` writing to /var/log/mail.log emits
+    // the BSD form; without it those lines would silently disappear
+    // from the bounces report.
+    const TAIL_RE =
+      /\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
+    const ISO_LINE_RE = new RegExp('^(\\S+)' + TAIL_RE.source);
+    const BSD_LINE_RE = new RegExp('^(\\S+\\s+\\S+\\s+\\S+)' + TAIL_RE.source);
 
+    const now = new Date();
     const byQueueId = new Map();
     for (const line of lines) {
-      const m = line.match(lineRe);
-      if (!m) continue;
+      let tsStr, queueId, to, origTo, status, reason;
+      let ts;
 
-      const [, tsStr, queueId, to, origTo, status, reason] = m;
-      const ts = new Date(tsStr);
-      if (isNaN(ts.getTime())) continue;
+      const iso = line.match(ISO_LINE_RE);
+      if (iso) {
+        [, tsStr, queueId, to, origTo, status, reason] = iso;
+        ts = new Date(tsStr);
+      } else {
+        const bsd = line.match(BSD_LINE_RE);
+        if (!bsd) continue;
+        [, tsStr, queueId, to, origTo, status, reason] = bsd;
+        ts = parseBsdTimestamp(tsStr, now);
+      }
+      if (!ts || isNaN(ts.getTime())) continue;
 
       if (ts < cutoff) continue;
 
