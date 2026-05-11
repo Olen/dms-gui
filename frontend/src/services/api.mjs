@@ -121,15 +121,20 @@ api.interceptors.response.use(
 );
 
 // ============================================
-// request() — generic wrapper used by every export below.
+// request() — generic wrapper used by most exports below.
 // ============================================
 //
 // Returns response.data on success, throws on HTTP error after
 // errorLog'ing. The `requires` map shortcuts to a {success:false}
 // shape when any value is falsy — mirroring the inline guards
-// every export used to do by hand.
+// most exports used to do by hand.
 //
 // Most exports collapse to a single `return request(method, path, opts)`.
+// A few exports intentionally bypass request() when they need custom
+// axios behavior or payload handling (for example, uploadLogo and
+// deleteLogo), so this helper is the common path rather than a strict
+// requirement for every export in the module.
+//
 // The few "silent-failure" exports (getBranding, forgotPassword,
 // validateResetToken, testDnsProvider, pushDnsRecord, getDkimSelector)
 // wrap their request() call in try/catch to substitute a fallback
