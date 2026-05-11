@@ -2,7 +2,14 @@ import { Router } from 'express';
 import fs from 'node:fs';
 import path from 'node:path';
 import multer from 'multer';
-import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError, validateContainerName } from '../middleware.js';
+import {
+  authenticateToken,
+  denyPermission,
+  requireActive,
+  requireAdmin,
+  serverError,
+  validateContainerName,
+} from '../middleware.js';
 import { getConfigs, getSettings, saveSettings } from '../settings.mjs';
 import { dbAll, dbGet } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
@@ -14,10 +21,20 @@ const router = Router();
 router.param('containerName', validateContainerName);
 
 // Logo upload config
-const UPLOADS_DIR = path.join(env.DMSGUI_CONFIG_PATH || '/app/config', 'uploads');
+const UPLOADS_DIR = path.join(
+  env.DMSGUI_CONFIG_PATH || '/app/config',
+  'uploads'
+);
 fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
-const ALLOWED_MIMES = ['image/png', 'image/jpeg', 'image/gif', 'image/x-icon', 'image/webp', 'image/vnd.microsoft.icon'];
+const ALLOWED_MIMES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/x-icon',
+  'image/webp',
+  'image/vnd.microsoft.icon',
+];
 const ALLOWED_EXTS = ['.png', '.jpg', '.jpeg', '.gif', '.ico', '.webp'];
 const SCOPE_RE = /^[a-zA-Z0-9_-]+$/;
 
@@ -37,13 +54,21 @@ const logoUpload = multer({
   fileFilter: (_req, file, cb) => {
     const ext = path.extname(file.originalname).toLowerCase();
     if (!ALLOWED_MIMES.includes(file.mimetype) || !ALLOWED_EXTS.includes(ext)) {
-      return cb(new Error('Only image files are allowed (PNG, JPG, GIF, ICO, WebP)'));
+      return cb(
+        new Error('Only image files are allowed (PNG, JPG, GIF, ICO, WebP)')
+      );
     }
     cb(null, true);
   },
 });
 
-const BRANDING_KEYS = ['brandName', 'brandIcon', 'brandLogo', 'brandColorPrimary', 'brandColorSidebar'];
+const BRANDING_KEYS = [
+  'brandName',
+  'brandIcon',
+  'brandLogo',
+  'brandColorPrimary',
+  'brandColorSidebar',
+];
 
 // Public branding endpoint — no auth needed (used on login page)
 router.get('/branding{/:containerName}', async (req, res) => {
@@ -52,22 +77,28 @@ router.get('/branding{/:containerName}', async (req, res) => {
     let result = getSettings('dms-gui', containerName);
     // Fallback to global if container config has no branding keys
     // (e.g. "mailserver" config has DMS_API_KEY etc., not branding)
-    const hasBranding = result.success && result.message?.some(s => BRANDING_KEYS.includes(s.name));
+    const hasBranding =
+      result.success &&
+      result.message?.some((s) => BRANDING_KEYS.includes(s.name));
     if (!hasBranding && containerName !== '_global') {
       result = getSettings('dms-gui', '_global');
     }
-    const msg = (result.success && result.message) ? [...result.message] : [];
+    const msg = result.success && result.message ? [...result.message] : [];
 
     // Also include webmailUrl if configured (public — shown on login page)
     try {
       const webmail = dbGet(
         'SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND s.name = ? LIMIT 1',
-        {}, 'userconfig', 'WEBMAIL_URL'
+        {},
+        'userconfig',
+        'WEBMAIL_URL'
       );
       if (webmail.success && webmail.message?.value) {
         msg.push({ name: 'webmailUrl', value: webmail.message.value });
       }
-    } catch { /* ignore */ }
+    } catch {
+      /* ignore */
+    }
 
     res.json({ success: true, message: msg });
   } catch (error) {
@@ -76,69 +107,78 @@ router.get('/branding{/:containerName}', async (req, res) => {
 });
 
 // Upload brand logo (admin only)
-router.post('/branding/logo{/:scope}',
+router.post(
+  '/branding/logo{/:scope}',
   authenticateToken,
   requireActive,
   requireAdmin,
   logoUpload.single('logo'),
-async (req, res) => {
-  try {
-    if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+  async (req, res) => {
+    try {
+      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
 
-    const scope = req.params.scope || '_global';
-    if (!SCOPE_RE.test(scope)) return res.status(400).json({ error: 'Invalid scope' });
+      const scope = req.params.scope || '_global';
+      if (!SCOPE_RE.test(scope))
+        return res.status(400).json({ error: 'Invalid scope' });
 
-    // Delete old logo file if one exists
-    const existing = getSettings('dms-gui', scope);
-    if (existing.success && existing.message?.length) {
-      const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
-      if (oldLogo) {
-        const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
-        if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      // Delete old logo file if one exists
+      const existing = getSettings('dms-gui', scope);
+      if (existing.success && existing.message?.length) {
+        const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
+        if (oldLogo) {
+          const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
+          if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath))
+            fs.unlinkSync(oldPath);
+        }
       }
+
+      // Save brandLogo setting
+      const filename = req.file.filename;
+      await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [
+        { name: 'brandLogo', value: filename },
+      ]);
+
+      res.json({ success: true, filename, url: `/uploads/${filename}` });
+    } catch (error) {
+      serverError(res, 'POST /api/branding/logo', error);
     }
-
-    // Save brandLogo setting
-    const filename = req.file.filename;
-    await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [{ name: 'brandLogo', value: filename }]);
-
-    res.json({ success: true, filename, url: `/uploads/${filename}` });
-
-  } catch (error) {
-    serverError(res, 'POST /api/branding/logo', error);
   }
-});
+);
 
 // Delete brand logo (admin only)
-router.delete('/branding/logo{/:scope}',
+router.delete(
+  '/branding/logo{/:scope}',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const scope = req.params.scope || '_global';
-    if (!SCOPE_RE.test(scope)) return res.status(400).json({ error: 'Invalid scope' });
+  async (req, res) => {
+    try {
+      const scope = req.params.scope || '_global';
+      if (!SCOPE_RE.test(scope))
+        return res.status(400).json({ error: 'Invalid scope' });
 
-    // Find and delete the logo file
-    const existing = getSettings('dms-gui', scope);
-    if (existing.success && existing.message?.length) {
-      const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
-      if (oldLogo) {
-        const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
-        if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath)) fs.unlinkSync(oldPath);
+      // Find and delete the logo file
+      const existing = getSettings('dms-gui', scope);
+      if (existing.success && existing.message?.length) {
+        const oldLogo = getValueFromArrayOfObj(existing.message, 'brandLogo');
+        if (oldLogo) {
+          const oldPath = path.resolve(UPLOADS_DIR, path.basename(oldLogo));
+          if (oldPath.startsWith(UPLOADS_DIR) && fs.existsSync(oldPath))
+            fs.unlinkSync(oldPath);
+        }
       }
+
+      // Clear brandLogo setting
+      await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [
+        { name: 'brandLogo', value: '' },
+      ]);
+
+      res.json({ success: true, message: 'Logo removed' });
+    } catch (error) {
+      serverError(res, 'DELETE /api/branding/logo', error);
     }
-
-    // Clear brandLogo setting
-    await saveSettings('dms-gui', 'branding', 'dms-gui', scope, [{ name: 'brandLogo', value: '' }]);
-
-    res.json({ success: true, message: 'Logo removed' });
-
-  } catch (error) {
-    serverError(res, 'DELETE /api/branding/logo', error);
   }
-});
-
+);
 
 /**
  * @swagger
@@ -178,79 +218,100 @@ async (req, res) => {
  *       500:
  *         description: Unable to retrieve settings
  */
-router.get('/settings/:plugin/:containerName{/:scope}',
+router.get(
+  '/settings/:plugin/:containerName{/:scope}',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { plugin, containerName, scope } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    const name = ('name' in req.query) ? req.query.name : null;
-    const encrypted = ('encrypted' in req.query) ? req.query.encrypted : false;
+  async (req, res) => {
+    try {
+      const { plugin, containerName, scope } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
+      const name = 'name' in req.query ? req.query.name : null;
+      const encrypted = 'encrypted' in req.query ? req.query.encrypted : false;
 
-    if (!req.user.isAdmin && String(req.user.id) !== scope) return denyPermission(res);
-    const settings = getSettings(plugin, containerName, name, encrypted);
-    res.json(settings);
-
-  } catch (error) {
-    serverError(res, 'GET /api/settings', error);
+      if (!req.user.isAdmin && String(req.user.id) !== scope)
+        return denyPermission(res);
+      const settings = getSettings(plugin, containerName, name, encrypted);
+      res.json(settings);
+    } catch (error) {
+      serverError(res, 'GET /api/settings', error);
+    }
   }
-});
-
+);
 
 // Endpoint for retrieving public user-facing settings (no admin required)
-router.get('/user-settings/:containerName',
+router.get(
+  '/user-settings/:containerName',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const demo = demoResponse('userSettings');
-    if (demo) return res.json(demo);
+      const demo = demoResponse('userSettings');
+      if (demo) return res.json(demo);
 
-    const publicKeys = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES', 'RSPAMD_URL'];
-    const settings = {};
+      const publicKeys = [
+        'WEBMAIL_URL',
+        'IMAP_HOST',
+        'IMAP_PORT',
+        'SMTP_HOST',
+        'SMTP_PORT',
+        'POP3_HOST',
+        'POP3_PORT',
+        'ALLOW_USER_ALIASES',
+        'RSPAMD_URL',
+      ];
+      const settings = {};
 
-    // Read directly from DB — getSetting's SQL has a correlated subquery bug
-    // that fails when multiple configs share the same plugin name
-    const allSettings = dbAll(
-      `SELECT s.name, s.value FROM settings s
+      // Read directly from DB — getSetting's SQL has a correlated subquery bug
+      // that fails when multiple configs share the same plugin name
+      const allSettings = dbAll(
+        `SELECT s.name, s.value FROM settings s
        JOIN configs c ON s.configID = c.id
        WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
-      {}, 'userconfig', containerName
-    );
-    if (allSettings.success && allSettings.message) {
-      for (const row of allSettings.message) {
-        if (publicKeys.includes(row.name)) {
-          settings[row.name] = row.value;
+        {},
+        'userconfig',
+        containerName
+      );
+      if (allSettings.success && allSettings.message) {
+        for (const row of allSettings.message) {
+          if (publicKeys.includes(row.name)) {
+            settings[row.name] = row.value;
+          }
         }
       }
-    }
 
-    // Count aliases for this user (exact or comma-delimited match, not LIKE substring)
-    const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
-    if (mailbox) {
-      try {
-        const mb = mailbox.replace(/[%_\\]/g, '\\$&');
-        const aliasRows = dbAll(
-          `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
-          {}, mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`
-        );
-        if (aliasRows.success && aliasRows.message?.[0]) {
-          settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
+      // Count aliases for this user (exact or comma-delimited match, not LIKE substring)
+      const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
+      if (mailbox) {
+        try {
+          const mb = mailbox.replace(/[%_\\]/g, '\\$&');
+          const aliasRows = dbAll(
+            `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
+            {},
+            mailbox,
+            `${mb},%`,
+            `%,${mb},%`,
+            `%,${mb}`
+          );
+          if (aliasRows.success && aliasRows.message?.[0]) {
+            settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
+          }
+        } catch (e) {
+          /* non-critical */
         }
-      } catch (e) { /* non-critical */ }
+      }
+
+      res.json({ success: true, message: settings });
+    } catch (error) {
+      serverError(res, 'GET /api/user-settings', error);
     }
-
-    res.json({ success: true, message: settings });
-
-  } catch (error) {
-    serverError(res, 'GET /api/user-settings', error);
   }
-});
-
+);
 
 /**
  * @swagger
@@ -279,33 +340,56 @@ async (req, res) => {
  *       500:
  *         description: Unable to retrieve configs
  */
-router.get('/configs/:plugin{/:name}',
+router.get(
+  '/configs/:plugin{/:name}',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { plugin, name } = req.params;
-    // for non-admins:  for mailserver plugin we send scope=roles, for anything else we send scope=userID
-    debugLog(            `getConfigs(${plugin}, ${(req.user.isAdmin) ? [] : (plugin === 'mailserver') ? req.user.roles : [req.user.id]}, ${name})`)
-    const configs = await getConfigs(plugin,      (req.user.isAdmin) ? [] : (plugin === 'mailserver') ? req.user.roles : [req.user.id],    name);
+  async (req, res) => {
+    try {
+      const { plugin, name } = req.params;
 
-    // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
-    // always serve the static templates — DB rows are container configs, not templates
-    if (plugin !== 'mailserver' && plugins[plugin]) {
-      const templateEntries = Object.entries(plugins[plugin]).map(([key, val]) => ({ name: key, value: val }));
-      if (name) {
-        const filtered = templateEntries.filter(e => e.name === name);
-        return res.json({ success: true, message: filtered });
+      // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
+      // always serve the static templates — DB rows are container configs,
+      // not templates. Handle this first so template-backed plugins skip
+      // the getConfigs DB query entirely.
+      if (plugin !== 'mailserver' && plugins[plugin]) {
+        const templateEntries = Object.entries(plugins[plugin]).map(
+          ([key, val]) => ({ name: key, value: val })
+        );
+        if (name) {
+          const filtered = templateEntries.filter((e) => e.name === name);
+          return res.json({ success: true, message: filtered });
+        }
+        return res.json({ success: true, message: templateEntries });
       }
-      return res.json({ success: true, message: templateEntries });
+
+      // getConfigs treats an empty `roles` array as the admin path
+      // (no scope filter → all configs). A non-admin with no mailbox
+      // roles on the mailserver plugin would otherwise be granted
+      // access to every container's configs. Reject upfront rather
+      // than calling getConfigs with `[]`. Non-mailserver plugins
+      // always pass `[req.user.id]` so this is mailserver-specific.
+      if (
+        !req.user.isAdmin &&
+        plugin === 'mailserver' &&
+        (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
+      ) {
+        return denyPermission(res);
+      }
+      const configsScope = req.user.isAdmin
+        ? []
+        : plugin === 'mailserver'
+          ? req.user.roles
+          : [req.user.id];
+      debugLog(`getConfigs(${plugin}, ${configsScope}, ${name})`);
+      const configs = await getConfigs(plugin, configsScope, name);
+
+      res.json(configs);
+    } catch (error) {
+      serverError(res, 'GET /api/configs', error);
     }
-
-    res.json(configs);
-
-  } catch (error) {
-    serverError(res, 'GET /api/configs', error);
   }
-});
+);
 
 /**
  * @swagger
@@ -361,26 +445,35 @@ async (req, res) => {
  *       500:
  *         description: Unable to save settings
  */
-router.post('/settings/:plugin/:schema/:scope/:containerName',
+router.post(
+  '/settings/:plugin/:schema/:scope/:containerName',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { plugin, schema, scope, containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { plugin, schema, scope, containerName } = req.params;
+      if (!containerName)
+        return res.status(400).json({ error: 'containerName is required' });
 
-    const encrypted = ('encrypted' in req.query) ? req.query.encrypted : false;
+      const encrypted = 'encrypted' in req.query ? req.query.encrypted : false;
 
-    debugLog('ddebug containerName', containerName);
-    debugLog('ddebug req.body', req.body);
-    const result = await saveSettings(plugin, schema, scope, containerName, req.body, encrypted);     // req.body = [{name:name, value:value}, ..]
-    res.status(201).json(result);
-
-  } catch (error) {
-    serverError(res, 'POST /api/settings', error);
+      debugLog('ddebug containerName', containerName);
+      debugLog('ddebug req.body', req.body);
+      const result = await saveSettings(
+        plugin,
+        schema,
+        scope,
+        containerName,
+        req.body,
+        encrypted
+      ); // req.body = [{name:name, value:value}, ..]
+      res.status(201).json(result);
+    } catch (error) {
+      serverError(res, 'POST /api/settings', error);
+    }
   }
-});
+);
 
 export { logoUpload };
 export default router;
