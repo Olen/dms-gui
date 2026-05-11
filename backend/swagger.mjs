@@ -14,10 +14,10 @@ const defaultImporter = (specifier) => import(specifier);
 /**
  * Mount the swagger /docs route on the given Express app.
  *
- * The swagger packages are devDependencies (see PR #98) so the
- * production runtime can skip the ~12 MB swagger-ui-dist payload.
- * They're loaded lazily here; a missing package is a clear, clearly-
- * messaged setup error rather than a crash.
+ * The swagger packages are kept as devDependencies so the production
+ * runtime can skip the ~12 MB swagger-ui-dist payload by default.
+ * They're loaded lazily here; a missing package is a clearly messaged
+ * setup error rather than a crash.
  *
  * @param {import('express').Application} app
  * @param {object} env - the resolved env config (uses DMSGUI_VERSION + DMSGUI_DESCRIPTION)
