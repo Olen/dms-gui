@@ -1504,9 +1504,14 @@ export const killContainer = async (
 // `./settings.mjs`. Over time, callers can migrate to the per-domain
 // import paths and we can retire this block.
 //
-// Kept at the end so dnsblCheck's `getSetting` import is satisfied by
-// this module's own definition before the re-export pulls dnsTools.mjs
-// in (avoiding partial-initialization on the cycle).
+// `dnsTools.mjs` and the others import names *back* from this file
+// (e.g. dnsblCheck → getSetting), so this is a cycle. ESM hoists the
+// re-export declarations during linking and partially initialises the
+// cycle, so statement position here doesn't gate when sibling modules
+// load. The cycle is safe because the sibling modules only call back
+// into `settings.mjs` at runtime (inside their exported functions),
+// not at module-load time — by then the live bindings point at fully
+// defined functions.
 // =====================================================================
 export * from './dnsTools.mjs';
 export * from './dovecot.mjs';

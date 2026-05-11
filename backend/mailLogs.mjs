@@ -67,15 +67,24 @@ export const getMailBounces = async (containerName = null, hours = 48) => {
       timeout: 10,
     });
 
-    if (results.returncode && !results.stdout) {
-      // grep returns 1 when no matches — that's normal
+    // grep exits 1 only when there are no matching lines — treat that
+    // (and only that) as success-with-empty-result. Any other non-zero
+    // exit code is a real error (rc=2 == grep failure, rc=126/127 ==
+    // exec failure, anything else == unexpected) and must surface to
+    // the caller even when stderr happens to be empty.
+    if (results.returncode === 1) {
       return {
         success: true,
         message: { bounces: [], summary: { bounced: 0, deferred: 0 } },
       };
     }
-    if (results.returncode && results.stderr) {
-      return { success: false, error: results.stderr };
+    if (results.returncode) {
+      return {
+        success: false,
+        error:
+          results.stderr ||
+          `grep_postfix_bounces exited with code ${results.returncode}`,
+      };
     }
 
     const lines = (results.stdout || '')
@@ -83,9 +92,15 @@ export const getMailBounces = async (containerName = null, hours = 48) => {
       .filter((l) => l.length > 0);
     const cutoff = new Date(Date.now() - maxHours * 3600 * 1000);
 
-    // Parse postfix smtp bounce/defer lines — supports both timestamp formats:
-    // ISO 8601: "2026-03-06T09:24:34.123456+01:00 mail postfix/smtp[1234]: QUEUEID: ..."
-    // BSD syslog: "Mar  6 09:24:34 mail postfix/smtp[1234]: QUEUEID: ..."
+    // Parse postfix smtp bounce/defer lines. The capture group requires
+    // the timestamp to be a single whitespace-free token, which fits
+    // modern DMS output (ISO 8601, e.g.
+    // "2026-03-06T09:24:34.123456+01:00 mail postfix/smtp[1234]: ...").
+    // Legacy BSD-syslog timestamps ("Mar  6 09:24:34 mail ...") have
+    // three whitespace-separated parts and are not parsed by this
+    // regex; modern systemd-journal-fed DMS doesn't emit them, but if
+    // that ever changes a second regex + year/timezone injection is
+    // needed (BSD syslog has no year).
     const lineRe =
       /^(\S+)\s+\S+\s+postfix\/smtp\[\d+\]:\s+([A-F0-9]+):\s+to=<([^>]*)>(?:,\s+orig_to=<([^>]*)>)?,.*?status=(\w+)\s+\((.+)\)$/;
 
