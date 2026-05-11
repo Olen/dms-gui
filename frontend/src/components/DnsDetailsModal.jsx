@@ -261,9 +261,12 @@ const DnsDetailsModal = ({
                     fontSize: '0.85em',
                   }}
                 >
-                  {generatedDkimRecord.selector}._domainkey.{domain} IN TXT
-                  &quot;
-                  {generatedDkimRecord.record}&quot;
+                  {/* Single template literal so <pre> sees the record as
+                      one continuous line. Splitting it across JSX text
+                      nodes would inject a newline+indent between
+                      `IN TXT` and the quoted value — copy/paste would
+                      produce a broken DNS record. */}
+                  {`${generatedDkimRecord.selector}._domainkey.${domain} IN TXT "${generatedDkimRecord.record}"`}
                 </pre>
                 {hasProvider && (
                   <div className="mt-2">
