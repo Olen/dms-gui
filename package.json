@@ -44,7 +44,7 @@
     "**/*.{css,json}": [
       "prettier --write"
     ],
-    "frontend/public/index.html": [
+    "frontend/index.html": [
       "prettier --write"
     ]
   }
