@@ -14,7 +14,6 @@ import * as crypto from 'crypto';
 import express from 'express';
 import multer from 'multer';
 import cron from 'node-cron';
-import qs from 'qs';
 import swaggerJsdoc from 'swagger-jsdoc';
 import swaggerUi from 'swagger-ui-express';
 
@@ -137,23 +136,10 @@ if (env.ENABLE_SWAGGER) {
   infoLog('Swagger docs enabled at /docs (admin-only)');
 }
 
-// Parser
-// https://www.codemzy.com/blog/parse-booleans-express-query-params
-app.set('query parser', function (str) {
-  return qs.parse(str, {
-    decoder: function (str, defaultDecoder, charset, type) {
-      let bools = {
-        true: true,
-        false: false,
-      };
-      if (type === 'value' && typeof bools[str] === 'boolean') {
-        return bools[str];
-      } else {
-        return defaultDecoder(str);
-      }
-    },
-  });
-});
+// Use Express's default query parser (extended/qs). Values arrive as
+// strings; routes that accept boolean-like query params already coerce
+// via `=== true || === 'true' || === '1'` checks, so a custom
+// string-to-boolean decoder is unnecessary.
 
 // Mount route modules. CSRF protection is applied to every
 // non-auth router via requireCsrf — those routers all rely on the

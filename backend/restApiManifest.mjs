@@ -20,8 +20,6 @@
 // env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
 // settings UI that a hardcoded constant would silently ignore.
 
-import './envBootstrap.mjs';
-
 // DMS config path — the directory where postfix-regexp.cf lives. Read
 // from process.env directly (rather than ./env.mjs) to avoid the
 // circular import that env.mjs ↔ restApiManifest.mjs would otherwise

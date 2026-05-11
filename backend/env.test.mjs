@@ -1,12 +1,12 @@
 import { describe, it, expect, vi } from 'vitest';
 
-// env.mjs runs side effects at import time (dotenv.config, plus a few
-// process.env destructures that throw on missing values). Stub the
-// minimum needed *before* env.mjs imports.
+// env.mjs runs side effects at import time (process.env destructures
+// that throw on missing values). Stub the minimum needed *before*
+// env.mjs imports. Production env-file loading is handled by Node's
+// --env-file flag at process startup, not at module-import time.
 vi.hoisted(() => {
   process.env.DMSGUI_VERSION = 'test';
 });
-vi.mock('dotenv', () => ({ default: { config: vi.fn() } }));
 
 import { resolveSmtpTlsVerify, mailserverRESTAPI, env } from './env.mjs';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
