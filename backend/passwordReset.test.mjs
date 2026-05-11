@@ -40,7 +40,7 @@ vi.mock('./env.mjs', () => ({
 
 import { buildSmtpTransportConfig } from './passwordReset.mjs';
 
-describe('buildSmtpTransportConfig — TLS hardening (#34)', () => {
+describe('buildSmtpTransportConfig — TLS hardening', () => {
   it('always sets requireTLS:true so an attacker cannot strip STARTTLS', () => {
     const cfg = buildSmtpTransportConfig({
       SMTP_HOST: 'mailserver',

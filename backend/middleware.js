@@ -81,7 +81,7 @@ export const requireActive = (req, res, next) => {
 // entropy floor for CSRF tokens.
 export const generateCsrfToken = () => crypto.randomBytes(32).toString('hex');
 
-// CSRF protection via the double-submit-cookie pattern (#40). On
+// CSRF protection via the double-submit-cookie pattern. On
 // state-changing requests (POST/PUT/PATCH/DELETE), the request must
 // include `X-XSRF-TOKEN` header whose value matches the value of the
 // xsrfToken cookie. Both are issued at login (and rotated on
@@ -154,7 +154,7 @@ export const authLimiter = rateLimit({
   },
 });
 
-// Rate limiter for authenticated API traffic (#59). Looser than
+// Rate limiter for authenticated API traffic. Looser than
 // authLimiter — applied at the router level for every authenticated
 // router so both existing and future routes inherit it. Sized for the
 // dashboard auto-refresh pattern (~5 req per 30s × 15 min ≈ 150

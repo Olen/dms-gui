@@ -436,7 +436,7 @@ const mockCsrfReq = ({ method = 'POST', cookies = {}, headers = {} } = {}) => ({
   get: (name) => headers[name] || headers[name.toLowerCase()],
 });
 
-describe('requireCsrf (#40)', () => {
+describe('requireCsrf', () => {
   it('passes through GET requests without checking', () => {
     const req = mockCsrfReq({ method: 'GET' });
     const res = mockRes();
@@ -543,7 +543,7 @@ describe('requireCsrf (#40)', () => {
   );
 });
 
-describe('generateCsrfToken (#40)', () => {
+describe('generateCsrfToken', () => {
   it('returns a 64-char hex string (32 bytes)', () => {
     const t = generateCsrfToken();
     expect(t).toMatch(/^[0-9a-f]{64}$/);
@@ -556,7 +556,7 @@ describe('generateCsrfToken (#40)', () => {
   });
 });
 
-describe('rate limiters (#59)', () => {
+describe('rate limiters', () => {
   it('authLimiter and apiLimiter are both middleware functions', () => {
     expect(typeof authLimiter).toBe('function');
     expect(typeof apiLimiter).toBe('function');

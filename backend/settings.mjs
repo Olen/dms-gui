@@ -42,7 +42,7 @@ import dns from 'node:dns';
 import path from 'path';
 
 // Classify a targetDict that is known to lack `Authorization` for the
-// purpose of the dashboard status indicator (#49). Three sub-cases:
+// purpose of the dashboard status indicator. Three sub-cases:
 //   - null/undefined targetDict           → 'unknown' (no config at all)
 //   - {success:false, error:...} (the     → 'unknown' (propagate the
 //     getTargetDict catch-block shape)      actual error to the user)
@@ -625,15 +625,13 @@ export const getServerStatus = async (
         if (test == 'status' || test == 'disk')
           return { success: true, message: status };
       } else {
-        // No Authorization on targetDict. Three sub-cases (#49):
+        // No Authorization on targetDict. Three sub-cases:
         //   - getTargetDict returned null/undefined → caller error
         //   - getTargetDict returned its catch-block failure shape
         //     ({success:false, error:...}) → propagate the error
         //   - getTargetDict returned a real config object with no
         //     DMS_API_KEY value → the API key just hasn't been
         //     generated yet, route the user to the api_gen UX.
-        // Pre-#49 the second-and-third cases both fell into 'unknown'
-        // via an inverted `Object.keys(targetDict).length` check.
         const classified = classifyMissingAuthTargetDict(targetDict);
         status.status.status = classified.status;
         status.status.error = classified.error;
