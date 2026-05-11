@@ -5,11 +5,11 @@ import {
   errorLog
 } from '../../frontend.mjs';
 
-// Fallback to '/api' if environment variable is not available
-const API_URL =
-  (typeof process !== 'undefined' &&
-    process.env.API_URL) ||
-  '/api';
+// API_URL is injected at build time by vite.config.js's `define` block.
+// `process.env.API_URL` becomes a string literal during the build, so
+// no runtime `process` object exists in the browser bundle. The `|| '/api'`
+// guards the same-origin default for callers that didn't set the env var.
+const API_URL = process.env.API_URL || '/api';
 
     // 'Authorization': 'Bearer YOUR_AUTH_TOKEN',
 const api = axios.create({
