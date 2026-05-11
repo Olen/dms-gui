@@ -135,16 +135,17 @@ router.post(
             ? req.user.roles
             : [req.user.id];
         const configs = await getConfigs(plugin, configsScope);
-        // Surface DB / query errors instead of masking them as 403:
-        // a non-success result here is operational (DB locked, plugin
-        // misconfigured) — not the user's fault, and returning 403
-        // would make every status poll fail with "Permission denied"
-        // during a database hiccup.
+        // Distinguish operational getConfigs failures (DB locked,
+        // plugin misconfigured) from real permission denials: a 500
+        // here keeps "Permission denied" toasts from firing during a
+        // database hiccup. Detailed error stays server-side via
+        // serverError — the client gets the generic 500 body so DB
+        // internals don't leak in the response.
         if (!configs.success) {
-          return clientError(
+          return serverError(
             res,
-            500,
-            `getConfigs failed: ${configs.error || 'unknown error'}`
+            'POST /api/status getConfigs',
+            new Error(configs.error || 'unknown error')
           );
         }
         const validContainers = (configs.message || []).map((c) => c.value);
