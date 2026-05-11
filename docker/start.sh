@@ -22,12 +22,22 @@ cd /app/backend
 # mailserver supervisor process to reload Python's in-memory copy —
 # the error message in backend.mjs's postJsonToApi surfaces that hint
 # when it detects a version-marker mismatch on a failed request.
-node --env-file-if-exists=/app/config/.dms-gui.env --input-type=module -e "
+#
+# Failure-mode policy: WARN + continue, do not block container start.
+# A stale-but-working on-disk file is strictly better than refusing
+# to boot (operator can't even log in to diagnose). The drift-detection
+# in postJsonToApi is the safety net for the case where the file is
+# stale enough to actually break a request — at that point the error
+# message surfaces the remediation. Loud stderr so `docker logs` shows
+# the boot-time failure when an operator goes looking.
+if ! node --env-file-if-exists=/app/config/.dms-gui.env --input-type=module -e "
   import('./settings.mjs')
     .then(({ createAPIfiles }) => createAPIfiles('dms'))
     .then(r => { if (!r.success) { console.error(r.error); process.exit(1); } })
     .catch(e => { console.error(e); process.exit(1); });
-"
+"; then
+  echo "[STARTUP WARNING] createAPIfiles failed — continuing with the on-disk rest-api.py + rest-api.conf if present. The drift-detection hint in postJsonToApi will flag stale-file issues at request time. Check /app/config/ permissions and that the volume is mounted." >&2
+fi
 
 # Start the backend server in the background. --env-file-if-exists
 # loads /app/config/.dms-gui.env before any module sees process.env,
