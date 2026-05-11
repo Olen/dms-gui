@@ -3,10 +3,21 @@
 // during the #82 split.
 //
 // CodeQL recognises the boolean-AND chain in `isValidTargetHost` as a
-// sanitiser for the js/request-forgery taint flow into fetch(). Keep
-// the validators as expressions, not imperative early returns —
-// dataflow analysers lose the chain when it's split across statements.
-// See memory/feedback-codeql-sanitizers.md for the why.
+// sanitiser for the js/request-forgery taint flow into fetch(). The
+// validators MUST stay as a single expression — splitting them into
+// imperative early returns
+//
+//     if (typeof s !== 'string') return false;
+//     if (s.length === 0) return false;
+//     if (!HOSTNAME_SHAPE_RE.test(s)) return false;   // ← these
+//     if (IPV4_LITERAL_RE.test(s)) return false;        //   look
+//     if (isCanonicalizedByUrlParser(s)) return false;  //   identical
+//     return true;                                      //   to a reader
+//
+// loses the sanitiser recognition because the dataflow analyser
+// stops tracking the path-through-multiple-statements form. A
+// previous attempt at this shape regressed the js/request-forgery
+// CodeQL alert; keep the chain expression-shaped.
 //
 // Re-exported through db.mjs so existing call sites don't churn.
 

@@ -138,7 +138,7 @@ export const sql = {
   // ██      ██    ██ ██    ██ ██ ██  ██ ██      ██
   // ███████  ██████   ██████  ██ ██   ████ ███████
   logins: {
-    desc: "password in the the list of keys even tho it's not a column",
+    desc: "password is in the list of keys even though it's not a column",
     id: 'id',
     keys: {
       mailbox: 'string',
