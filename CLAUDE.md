@@ -193,7 +193,7 @@ Backend is split into modular route files + business-logic modules:
 - `backend/dnsTools.mjs` — `dnsLookup` (A/MX/SPF/DKIM/DMARC/TLSA/SRV) + `dnsblCheck` against OPEN/KEY/DOMAIN RBLs. Owns `isPrivateIp`/`getPublicIp` and the RBL tables.
 - `backend/dkim.mjs` — `getDkimSelector` (parses rspamd signing config) + `generateDkim` (four-way dispatch on `keytype`/`force` to manifest action ids, copies keys into the `keys/$domain/$selector.private` layout rspamd expects, updates the domain DB row).
 - `backend/rspamd.mjs` — Stats, config, Bayes user breakdown, top-symbol counters, message history with Bayes-learned overlay, per-user history summary, and `rspamdLearnMessage` (the doveadm-search → unlearn-if-flipped → learn → DB-record pipeline).
-- `backend/mailLogs.mjs` — `getMailLogs` (tail postfix/rspamd logs via `tail_log`) + `getMailBounces` (parse postfix smtp bounce/defer lines, supports both ISO 8601 and BSD syslog timestamps).
+- `backend/mailLogs.mjs` — `getMailLogs` (tail postfix/rspamd logs via `tail_log`) + `getMailBounces` (parse postfix smtp bounce/defer lines; current regex captures ISO 8601 timestamps only — modern DMS emits ISO via journald, BSD-syslog support tracked as #109).
 - `backend/dovecot.mjs` — `getDovecotSessions` (parses `doveadm who` output).
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (action protocol)
