@@ -130,7 +130,7 @@ describe('getLogin — key validation', () => {
     expect(dbGet).toHaveBeenCalled();
   });
 
-  it('treats a string credential as a mailbox (issue #39)', async () => {
+  it('treats a string credential as a mailbox', async () => {
     // The fix is specifically for the guess=false branch: a bare
     // getLogin(string) — i.e., the GET /api/roles/:credential and
     // similar contracts where the input is contractually a mailbox.
