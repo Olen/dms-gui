@@ -202,7 +202,7 @@ router.post('/loginUser', authLimiter, async (req, res, next) => {
           maxAge: REFRESH_COOKIE_MAX_AGE,
         });
 
-        // CSRF double-submit cookie (#40). Issued non-httpOnly so axios
+        // CSRF double-submit cookie. Issued non-httpOnly so axios
         // can read it client-side and forward it as the X-XSRF-TOKEN
         // header on every state-changing request. Server validates
         // header == cookie via requireCsrf middleware.

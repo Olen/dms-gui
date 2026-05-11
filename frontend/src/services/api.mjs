@@ -15,7 +15,7 @@ const API_URL =
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, // Security with HTTP-Only Cookie
-  // CSRF double-submit cookie (#40). axios reads the named cookie
+  // CSRF double-submit cookie. axios reads the named cookie
   // value and forwards it as the named header on every request,
   // matching the requireCsrf middleware on the backend. The cookie
   // itself is set non-httpOnly server-side at /loginUser and

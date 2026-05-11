@@ -39,8 +39,8 @@ import {
 const app = express();
 
 // Trust proxy headers (X-Forwarded-For/Proto/Host) when running behind
-// a reverse proxy. Required for express-rate-limit (#59) and req.ip to
-// see the real client IP, not the proxy's. Configurable via TRUST_PROXY
+// a reverse proxy. Required for express-rate-limit and req.ip to see
+// the real client IP, not the proxy's. Configurable via TRUST_PROXY
 // env (true | false | <hop-count> | <CIDR>); default false because the
 // header is forgeable when the app is reachable directly.
 const trustProxy = process.env.TRUST_PROXY;
@@ -99,7 +99,7 @@ const corsOptions = {
     'Content-Type',
     'Authorization',
     'Accept-Language',
-    'X-XSRF-TOKEN', // CSRF double-submit header (#40); CORS preflight needs this listed
+    'X-XSRF-TOKEN', // CSRF double-submit header; CORS preflight needs this listed
   ],
 };
 
@@ -107,7 +107,7 @@ app.use(cookieParser());
 app.use(cors(corsOptions));
 app.use(express.json());
 
-// Swagger UI: gated behind ENABLE_SWAGGER + auth chain (#35). When
+// Swagger UI: gated behind ENABLE_SWAGGER + auth chain. When
 // disabled, there is no /docs route at all — anonymous probes get
 // 404 from Express's default catch-all rather than the index page.
 // The OpenAPI spec is also built lazily inside this branch so the
@@ -155,7 +155,7 @@ app.set('query parser', function (str) {
   });
 });
 
-// Mount route modules. CSRF protection (#40) is applied to every
+// Mount route modules. CSRF protection is applied to every
 // non-auth router via requireCsrf — those routers all rely on the
 // authenticateToken cookie and are therefore reachable via CSRF
 // without it. The auth router applies its own per-route CSRF policy

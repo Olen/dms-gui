@@ -1,4 +1,4 @@
-// Integration test for the /docs Swagger guard (#35). Builds a small
+// Integration test for the /docs Swagger guard. Builds a small
 // app that mirrors backend/index.js's mount pattern so the auth-gate
 // behaviour can be verified end-to-end without standing up the full
 // backend bringup.
@@ -52,7 +52,7 @@ const buildApp = ({ enableSwagger }) => {
   return app;
 };
 
-describe('Swagger /docs guard (#35)', () => {
+describe('Swagger /docs guard', () => {
   describe('when ENABLE_SWAGGER=false', () => {
     const app = buildApp({ enableSwagger: false });
 

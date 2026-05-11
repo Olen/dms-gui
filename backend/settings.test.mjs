@@ -1,8 +1,7 @@
 // Unit tests for the targetDict classification helper extracted from
-// getServerStatus's no-Authorization branch (#49). The full
-// getServerStatus integration is much larger and depends on the DB,
-// execAction, etc.; this test surface deliberately covers only the
-// classification logic that issue #49 corrects.
+// getServerStatus's no-Authorization branch. The full getServerStatus
+// integration is much larger and depends on the DB, execAction, etc.;
+// this test surface deliberately covers only the classification logic.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
 vi.mock('./backend.mjs', () => ({
@@ -57,7 +56,7 @@ import { classifyMissingAuthTargetDict, generateDkim } from './settings.mjs';
 import { execAction } from './backend.mjs';
 import { getTargetDict } from './db.mjs';
 
-describe('classifyMissingAuthTargetDict (#49)', () => {
+describe('classifyMissingAuthTargetDict', () => {
   it('returns unknown for null targetDict', () => {
     expect(classifyMissingAuthTargetDict(null)).toEqual({
       status: 'unknown',
@@ -74,8 +73,8 @@ describe('classifyMissingAuthTargetDict (#49)', () => {
 
   it('propagates getTargetDict failure-shape error message', () => {
     // getTargetDict's catch-block returns { success: false, error: ... }.
-    // Pre-#49 this fell into a generic "Missing elements in targetDict"
-    // message and the actual error was lost.
+    // A previous implementation fell into a generic "Missing elements
+    // in targetDict" message and lost the actual error.
     const failureShape = {
       success: false,
       error: 'getSettings failed: db locked',
@@ -95,7 +94,7 @@ describe('classifyMissingAuthTargetDict (#49)', () => {
 
   it('returns api_gen when targetDict has fields but no Authorization', () => {
     // The "real" success path of getTargetDict when DMS_API_KEY hasn't
-    // been generated yet. Pre-#49 this incorrectly mapped to 'unknown'
+    // been generated yet. A previous form incorrectly mapped to 'unknown'
     // (the inverted condition `Object.keys(targetDict).length` was
     // truthy for any non-empty object). The frontend already has UX
     // for 'api_gen' (FormContainerAdd.jsx + Dashboard.jsx) to prompt

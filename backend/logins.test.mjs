@@ -135,9 +135,9 @@ describe('getLogin — key validation', () => {
     // getLogin(string) — i.e., the GET /api/roles/:credential and
     // similar contracts where the input is contractually a mailbox.
     // The login flow still uses guess=true (loginGuess, mailbox-OR-
-    // username) and is unaffected by this test. Pre-#39 the
-    // guess=false branch keyed by the primary-key id column and
-    // silently returned 0 rows for any mailbox-shape input.
+    // username) and is unaffected by this test. The previous form
+    // keyed by the primary-key id column and silently returned 0
+    // rows for any mailbox-shape input — this asserts the fix.
     dbGet.mockReturnValueOnce({ success: false });
     await getLogin('user@example.com');
     // Assert the *exact* prepared statement, not a substring — a column
@@ -169,11 +169,11 @@ describe('getRoles — key validation', () => {
     expect(result).toEqual({ success: true, message: ['admin'] });
   });
 
-  it('treats a string credential as a mailbox (issue #39)', async () => {
+  it('treats a string credential as a mailbox', async () => {
     // The GET /api/roles/:credential route hands its :credential path
     // param to getRoles() as a string and is contractually a mailbox
-    // (non-admins are restricted to req.user.mailbox). Pre-#39 the
-    // string path keyed by the primary-key id column instead.
+    // (non-admins are restricted to req.user.mailbox). The previous
+    // form keyed by the primary-key id column instead.
     dbGet.mockReturnValueOnce({ success: true, message: '["user@test.com"]' });
     await getRoles('user@test.com');
     // Assert the *exact* prepared statement, not a substring.

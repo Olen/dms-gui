@@ -12,7 +12,7 @@ const RATE_LIMIT_MAX = 3;
 
 let transporter = null;
 
-// Pure helper exported for test coverage of the TLS hardening (#34).
+// Pure helper exported for test coverage of the TLS hardening.
 // Keeps getTransporter() trivially testable without standing up the
 // whole module's mock graph.
 export const buildSmtpTransportConfig = (smtpEnv) => ({
