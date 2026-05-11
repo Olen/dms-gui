@@ -139,6 +139,24 @@ describe('computeSpfRecord', () => {
     );
   });
 
+  it('drops unqualified `all` (equivalent to +all per RFC 7208)', () => {
+    // An SPF record may use bare `all` without a qualifier — it
+    // defaults to `+all`. Same evaluation rule: SPF stops at the
+    // first `all`, so the bare token must be stripped before the
+    // editor's chosen mode is appended.
+    const dns = { spf: 'v=spf1 mx a all' };
+    expect(computeSpfRecord(dns, 'example.com', '-all')).toBe(
+      'v=spf1 mx a -all'
+    );
+  });
+
+  it('drops a mid-record unqualified `all` (the truly silent foot-gun)', () => {
+    const dns = { spf: 'v=spf1 mx all include:_spf.example.com' };
+    expect(computeSpfRecord(dns, 'example.com', '~all')).toBe(
+      'v=spf1 mx include:_spf.example.com ~all'
+    );
+  });
+
   it('synthesises a default record from MX hints when no SPF present', () => {
     const dns = {
       spf: null,

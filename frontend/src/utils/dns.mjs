@@ -58,7 +58,18 @@ export const keysizeBadge = (size) => {
 // an SPF, otherwise infer reasonable defaults from the MX records.
 // `dns` is the result shape returned by getDnsLookup (object with
 // `spf` string and `mx` array of `{priority, exchange}`).
-const SPF_ALL_TOKEN_RE = /^[~\-?+]all$/;
+//
+// SPF spec: https://www.rfc-editor.org/rfc/rfc7208. The `all`
+// mechanism (§5.1) can appear with any of four qualifiers (+, -, ~, ?)
+// or without one (defaults to +all). SPF evaluation stops at the
+// first `all` it encounters, so any stray `all` earlier in the
+// record would override our appended choice — we tokenise, drop all
+// `all` forms, then append the user-selected mode at the end.
+// Per RFC 7208 §5.1 an `all` mechanism may carry one of the four
+// qualifiers (`+`, `-`, `~`, `?`) OR appear without a qualifier
+// (defaulting to `+all`). Match all five forms so the editor's
+// chosen qualifier is the only `all` left in the record.
+const SPF_ALL_TOKEN_RE = /^[~\-?+]?all$/;
 
 export const computeSpfRecord = (dns, domain, spfAllMode) => {
   const currentSpf = dns?.spf;
