@@ -58,20 +58,22 @@ export const keysizeBadge = (size) => {
 // an SPF, otherwise infer reasonable defaults from the MX records.
 // `dns` is the result shape returned by getDnsLookup (object with
 // `spf` string and `mx` array of `{priority, exchange}`).
-const SPF_ALL_RE = /[~\-?+]all\s*$/;
+const SPF_ALL_TOKEN_RE = /^[~\-?+]all$/;
 
 export const computeSpfRecord = (dns, domain, spfAllMode) => {
   const currentSpf = dns?.spf;
   if (currentSpf) {
-    // If the record already ends with a qualified `all` mechanism,
-    // swap just the qualifier. Otherwise append the chosen `all` —
-    // a string.replace() with no match would silently return the
-    // record unchanged, and the editor would never be able to fix
-    // an SPF that omits `all` entirely (e.g. "v=spf1 mx a").
-    if (SPF_ALL_RE.test(currentSpf)) {
-      return currentSpf.replace(SPF_ALL_RE, spfAllMode);
-    }
-    return `${currentSpf.trimEnd()} ${spfAllMode}`;
+    // Tokenise on whitespace, drop every qualified `all` token, then
+    // append the user-selected mode at the end. SPF evaluation stops
+    // at the first `all` it encounters, so a stray `all` earlier in
+    // the record (e.g. "v=spf1 mx -all include:_spf.example.com")
+    // would override the editor's choice if we just rewrote the
+    // trailing token or appended without cleaning. Removing ALL
+    // qualified-all tokens makes the appended mode authoritative
+    // regardless of where the original ones sat.
+    const tokens = currentSpf.trim().split(/\s+/);
+    const kept = tokens.filter((t) => !SPF_ALL_TOKEN_RE.test(t));
+    return `${kept.join(' ')} ${spfAllMode}`;
   }
   const mechanisms = ['mx', 'a'];
   if (dns?.mx?.length) {

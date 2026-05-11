@@ -118,6 +118,27 @@ describe('computeSpfRecord', () => {
     );
   });
 
+  it('drops a mid-record all token before appending the new one', () => {
+    // SPF evaluation stops at the first `all`. A record like
+    // "v=spf1 mx -all include:..." silently overrides whatever the
+    // editor picks if we just append at the end. Strip every `all`
+    // token, then append the user's choice — the editor's mode is
+    // now the only `all` mechanism in the record.
+    const dns = { spf: 'v=spf1 mx -all include:_spf.example.com' };
+    expect(computeSpfRecord(dns, 'example.com', '~all')).toBe(
+      'v=spf1 mx include:_spf.example.com ~all'
+    );
+  });
+
+  it('drops multiple stray all tokens before appending', () => {
+    // Pathological but possible — handle gracefully rather than
+    // leaving residue.
+    const dns = { spf: 'v=spf1 ~all mx -all a' };
+    expect(computeSpfRecord(dns, 'example.com', '-all')).toBe(
+      'v=spf1 mx a -all'
+    );
+  });
+
   it('synthesises a default record from MX hints when no SPF present', () => {
     const dns = {
       spf: null,
