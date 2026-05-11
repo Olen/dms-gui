@@ -33,6 +33,7 @@ import {
   RECOMMENDED_KEYSIZE,
   spfGrade,
   dmarcGrade,
+  keytypeBadge,
   keysizeBadge,
 } from '../utils/dns.mjs';
 
@@ -418,16 +419,8 @@ const Domains = () => {
       label: 'domains.keytype',
       render: (item) =>
         item.keytype ? (
-          <Badge
-            bg={
-              item.keytype === 'rsa'
-                ? 'success'
-                : item.keytype === 'ed25519'
-                  ? 'warning'
-                  : 'secondary'
-            }
-          >
-            {item.keytype}
+          <Badge bg={keytypeBadge(item.keytype)}>
+            {item.keytype.toUpperCase()}
           </Badge>
         ) : (
           <Badge bg="danger">{t('domains.noDkimKey')}</Badge>
