@@ -1,9 +1,6 @@
 import axios from 'axios';
 
-import {
-  debugLog,
-  errorLog
-} from '../../frontend.mjs';
+import { debugLog, errorLog } from '../../frontend.mjs';
 
 // API_URL is injected at build time by vite.config.js's `define` block.
 // `process.env.API_URL` becomes a string literal during the build, so
@@ -11,7 +8,6 @@ import {
 // guards the same-origin default for callers that didn't set the env var.
 const API_URL = process.env.API_URL || '/api';
 
-    // 'Authorization': 'Bearer YOUR_AUTH_TOKEN',
 const api = axios.create({
   baseURL: API_URL,
   withCredentials: true, // Security with HTTP-Only Cookie
@@ -36,38 +32,23 @@ const api = axios.create({
 });
 
 // ============================================
-// FRONTEND: Axios Setup with Bearer token
-// ============================================
-// Security with Bearer token
-// api.interceptors.request.use((config) => {
-  // const { origin } = new URL(config.url);
-  // const token = localStorage.getItem('accessToken'); // Or retrieve from state
-  // if (token) {
-    // config.headers.Authorization = `Bearer ${token}`;
-  // }
-  // return config;
-// });
-
-
-// ============================================
-// FRONTEND: Axios Setup with Auto-Refresh
+// Axios response interceptor with automatic token refresh.
 // ============================================
 let isRefreshing = false;
 let failedQueue = [];
 
 const processQueue = (error, token = null) => {
-  failedQueue.forEach(prom => {
+  failedQueue.forEach((prom) => {
     if (error) {
       prom.reject(error);
     } else {
       prom.resolve(token);
     }
   });
-  
+
   failedQueue = [];
 };
 
-// Response interceptor with automatic token refresh
 api.interceptors.response.use(
   (response) => response,
   async (error) => {
@@ -80,29 +61,29 @@ api.interceptors.response.use(
         // Queue this request while refresh is in progress
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
-        }).then(() => {
-          return api(originalRequest);
-        }).catch((err) => {
-          return Promise.reject(err);
-        });
+        })
+          .then(() => {
+            return api(originalRequest);
+          })
+          .catch((err) => {
+            return Promise.reject(err);
+          });
       }
 
       originalRequest._retry = true;
       isRefreshing = true;
 
       try {
-        // Call refresh endpoint
         await api.post('/refresh');
-        
+
         isRefreshing = false;
         processQueue(null);
-        
-        // Retry the original request
+
         return api(originalRequest);
       } catch (refreshError) {
         isRefreshing = false;
         processQueue(refreshError);
-        
+
         // Refresh failed - redirect to login
         window.location.href = '/login';
         return Promise.reject(refreshError);
@@ -119,641 +100,469 @@ api.interceptors.response.use(
       case 'ERR_BAD_REQUEST':
         window.location.href = '/login';
         break;
-      
+
       case 'FORBIDDEN':
         console.error('Permission denied');
         break;
-      
+
       case 'ACCOUNT_INACTIVE':
         alert('Your account is inactive. Please contact support.');
         break;
-      
+
       default:
-        console.error('API Error:', error.response?.data?.error || 'Unknown error');
+        console.error(
+          'API Error:',
+          error.response?.data?.error || 'Unknown error'
+        );
     }
 
     return Promise.reject(error);
   }
 );
 
-// Server status API
-// export const getServerStatus = async (plugin, schema, containerName, test=undefined, settings=[]) => {
-export const getServerStatus = async (plugin, containerName, test=undefined, settings=[]) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  debugLog('api getServerStatus settings:', settings);
-
-  const params = {};
-  if (test !== undefined) params.test = test;
+// ============================================
+// request() — generic wrapper used by every export below.
+// ============================================
+//
+// Returns response.data on success, throws on HTTP error after
+// errorLog'ing. The `requires` map shortcuts to a {success:false}
+// shape when any value is falsy — mirroring the inline guards
+// every export used to do by hand.
+//
+// Most exports collapse to a single `return request(method, path, opts)`.
+// The few "silent-failure" exports (getBranding, forgotPassword,
+// validateResetToken, testDnsProvider, pushDnsRecord, getDkimSelector)
+// wrap their request() call in try/catch to substitute a fallback
+// shape — the silence is intentional (UX / info-disclosure
+// prevention) and is now explicit at each silent-failure site.
+const request = async (method, path, options = {}) => {
+  const { body, params, requires, headers } = options;
+  if (requires) {
+    for (const [name, val] of Object.entries(requires)) {
+      if (!val) return { success: false, error: `${name} is required` };
+    }
+  }
   try {
-    const response = await api.post(`/status/${plugin}/${containerName}`, {settings:settings}, {params});
+    debugLog(`api ${method.toUpperCase()} ${path}`);
+    const config = { method, url: path };
+    if (body !== undefined) config.data = body;
+    if (params) config.params = params;
+    if (headers) config.headers = headers;
+    const response = await api(config);
     return response.data;
   } catch (error) {
-    errorLog(error.message);
+    errorLog(`api ${method.toUpperCase()} ${path}: ${error.message}`);
     throw error;
   }
 };
 
-// export const getServerEnvs = async (plugin, schema, containerName, refresh, name) => {
-export const getServerEnvs = async (plugin, containerName, refresh=false, name) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+// ============================================
+// Server / status
+// ============================================
 
+export const getServerStatus = async (
+  plugin,
+  containerName,
+  test = undefined,
+  settings = []
+) => {
+  const params = {};
+  if (test !== undefined) params.test = test;
+  return request('post', `/status/${plugin}/${containerName}`, {
+    requires: { containerName },
+    body: { settings },
+    params,
+  });
+};
+
+export const getServerEnvs = async (
+  plugin,
+  containerName,
+  refresh = false,
+  name
+) => {
   const params = {};
   if (refresh !== undefined) params.refresh = refresh;
   if (name !== undefined) params.name = name;
-  try {
-    const response = await api.get(`/envs/${plugin}/${containerName}`, {params});
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  return request('get', `/envs/${plugin}/${containerName}`, {
+    requires: { containerName },
+    params,
+  });
 };
 
-// Node infos API
-export const getNodeInfos = async () => {
-  try {
-    const response = await api.get(`/infos`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getNodeInfos = async () => request('get', '/infos');
 
-export const getSettings = async (plugin, containerName, name, encrypted=false, scope) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+// ============================================
+// Settings / configs
+// ============================================
 
-  const params = {encrypted:encrypted};
+export const getSettings = async (
+  plugin,
+  containerName,
+  name,
+  encrypted = false,
+  scope
+) => {
+  const params = { encrypted };
   if (name !== undefined) params.name = name;
-
-  try {
-    let         path = `/settings/${plugin}/${containerName}`;
-    if (scope)  path = `/settings/${plugin}/${containerName}/${scope}`;
-
-    const response = await api.get(path, {params});
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  const path = scope
+    ? `/settings/${plugin}/${containerName}/${scope}`
+    : `/settings/${plugin}/${containerName}`;
+  return request('get', path, { requires: { containerName }, params });
 };
 
 export const getConfigs = async (plugin, name) => {
-  try {
-    let         path = `/configs/${plugin}`;
-    if (name)   path = `/configs/${plugin}/${name}`;
-
-    debugLog(`api getConfigs plugin=${plugin} path=${path} name=${name}`);
-    const response = await api.get(path);
-    debugLog(`api getConfigs plugin=${plugin} path=${path} response:`, response);
-    
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  const path = name ? `/configs/${plugin}/${name}` : `/configs/${plugin}`;
+  return request('get', path);
 };
 
-export const saveSettings = async (plugin, schema, scope, containerName, jsonArrayOfObjects, encrypted=false) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  const params = {encrypted:encrypted};
-  debugLog(`api saveSettings containerName=${containerName} jsonArrayOfObjects:`, jsonArrayOfObjects);
-  
-  try {
-    debugLog(`api.post(/settings/${plugin}/${schema}/${scope}/${containerName}`, jsonArrayOfObjects, 'params:', {params});
-    const response = await api.post(`/settings/${plugin}/${schema}/${scope}/${containerName}`, jsonArrayOfObjects, {params});   // jsonArrayOfObjects = [{name:name, value:value}, ..]
-    debugLog(`api.post(/settings/${plugin}/${schema}/${scope}/${containerName} response.data:`, response.data);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+export const saveSettings = async (
+  plugin,
+  schema,
+  scope,
+  containerName,
+  jsonArrayOfObjects,
+  encrypted = false
+) =>
+  request('post', `/settings/${plugin}/${schema}/${scope}/${containerName}`, {
+    requires: { containerName },
+    body: jsonArrayOfObjects,
+    params: { encrypted },
+  });
+
+// ============================================
+// Logins
+// ============================================
+
+export const getLogins = async (ids) =>
+  request('post', '/getLogins', { body: { ids } });
+
+export const addLogin = async (
+  mailbox,
+  username,
+  password,
+  email,
+  isAdmin = 0,
+  isAccount = 0,
+  isActive = 1,
+  mailserver,
+  roles = []
+) =>
+  request('put', '/logins', {
+    requires: { mailbox, username, password },
+    body: {
+      mailbox,
+      username,
+      password,
+      email,
+      isAdmin,
+      isActive,
+      isAccount,
+      mailserver,
+      roles,
+    },
+  });
+
+export const updateLogin = async (id, jsonDict) =>
+  request('patch', `/logins/${id}`, {
+    requires: { id, jsonDict },
+    body: jsonDict,
+  });
+
+export const deleteLogin = async (id) =>
+  request('delete', `/logins/${id}`, { requires: { id } });
+
+// ============================================
+// Auth
+// ============================================
+
+export const loginUser = async (credential, password, test = false) => {
+  // Distinctive contract: returns `false` (not an error object) when
+  // args are missing, because the Login page checks for that shape.
+  if (!credential || !password) return false;
+  return request('post', '/loginUser', { body: { credential, password, test } });
 };
 
-export const getLogins = async ids => {
-  debugLog(`api getLogins ids`, ids);
-  const body = {ids: ids};
-  try {
-    debugLog(`api getLogins api.post(/getLogins`, body);
-    const response = await api.post(`/getLogins`, body);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const logoutUser = async () => request('post', '/logout');
 
-export const addLogin = async (mailbox, username, password, email, isAdmin=0, isAccount=0, isActive=1, mailserver, roles=[]) => {
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  if (!username) return {success: false, error: 'username is required'};
-  if (!password) return {success: false, error: 'password is required'};
-  try {
-    const response = await api.put(`/logins`, { mailbox, username, password, email, isAdmin, isActive, isAccount, mailserver, roles });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+// ============================================
+// Accounts
+// ============================================
 
-export const updateLogin = async (id, jsonDict) => {
-  if (!id) return {success: false, error: 'id is required'};
-  if (!jsonDict) return {success: false, error: 'jsonDict is required'};
-  try {
-    const response = await api.patch(`/logins/${id}`, jsonDict); // jsonDict = {username:username, isAdmin:0, isActive:0, mailbox:newEmail} // mailbox had to be last, now ewe rely on id
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const deleteLogin = async id => {
-  if (!id) return {success: false, error: 'id is required'};
-  try {
-    const response = await api.delete(`/logins/${id}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const loginUser = async (credential, password, test=false) => {
-  if (!credential) return false;
-  if (!password) return false;
-  try {
-    const response = await api.post(`/loginUser`, { credential, password, test });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const logoutUser = async () => {
-  try {
-    const response = await api.post(`/logout`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getAccounts = async (containerName=null, refresh=false) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
+export const getAccounts = async (containerName = null, refresh = false) => {
   const params = {};
   if (refresh !== undefined) params.refresh = refresh;
-  try {
-    const response = await api.get(`/accounts/${containerName}`, {params});
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  return request('get', `/accounts/${containerName}`, {
+    requires: { containerName },
+    params,
+  });
 };
 
-export const addAccount = async (schema, containerName, mailbox, password, createLogin) => {
-  if (!schema) return {success: false, error: 'schema is required'};
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  if (!password) return {success: false, error: 'password is required'};
-  try {
-    const response = await api.post(`/accounts/${schema}/${containerName}`, { mailbox, password, createLogin });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const addAccount = async (
+  schema,
+  containerName,
+  mailbox,
+  password,
+  createLogin
+) =>
+  request('post', `/accounts/${schema}/${containerName}`, {
+    requires: { schema, containerName, mailbox, password },
+    body: { mailbox, password, createLogin },
+  });
 
-export const deleteAccount = async (schema, containerName, mailbox) => {
-  if (!schema) return {success: false, error: 'schema is required'};
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  try {
-    const response = await api.delete(`/accounts/${schema}/${containerName}/${mailbox}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const deleteAccount = async (schema, containerName, mailbox) =>
+  request('delete', `/accounts/${schema}/${containerName}/${mailbox}`, {
+    requires: { schema, containerName },
+  });
 
-export const doveadm = async (schema, containerName, command, mailbox, jsonDict={}) => {
-  if (!schema) return {success: false, error: 'schema is required'};
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!command) return {success: false, error: 'command is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.put(`/doveadm/${schema}/${containerName}/${command}/${mailbox}`, jsonDict); // jsonDict = {field:"messages unseen vsize", box:"INBOX Junk"}
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const doveadm = async (
+  schema,
+  containerName,
+  command,
+  mailbox,
+  jsonDict = {}
+) =>
+  request('put', `/doveadm/${schema}/${containerName}/${command}/${mailbox}`, {
+    requires: { schema, containerName, command, mailbox },
+    body: jsonDict,
+  });
 
-export const updateAccount = async (schema, containerName, mailbox, jsonDict) => {
-  if (!schema) return {success: false, error: 'schema is required'};
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.patch(`/accounts/${schema}/${containerName}/${mailbox}`, jsonDict); // jsonDict = {password:password}
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const updateAccount = async (schema, containerName, mailbox, jsonDict) =>
+  request('patch', `/accounts/${schema}/${containerName}/${mailbox}`, {
+    requires: { schema, containerName, mailbox },
+    body: jsonDict,
+  });
 
-export const setAccountQuota = async (containerName, mailbox, quota) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.put(`/accounts/${containerName}/${mailbox}/quota`, { quota });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const setAccountQuota = async (containerName, mailbox, quota) =>
+  request('put', `/accounts/${containerName}/${mailbox}/quota`, {
+    requires: { containerName, mailbox },
+    body: { quota },
+  });
 
-export const getSieveRules = async (containerName, mailbox) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.get(`/sieve/${containerName}/${mailbox}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+// ============================================
+// Sieve rules
+// ============================================
 
-export const saveSieveRules = async (containerName, mailbox, rules) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.put(`/sieve/${containerName}/${mailbox}`, { rules });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getSieveRules = async (containerName, mailbox) =>
+  request('get', `/sieve/${containerName}/${mailbox}`, {
+    requires: { containerName, mailbox },
+  });
 
-export const deleteSieveRules = async (containerName, mailbox) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!mailbox) return {success: false, error: 'mailbox is required'};
-  try {
-    const response = await api.delete(`/sieve/${containerName}/${mailbox}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const saveSieveRules = async (containerName, mailbox, rules) =>
+  request('put', `/sieve/${containerName}/${mailbox}`, {
+    requires: { containerName, mailbox },
+    body: { rules },
+  });
 
-export const getAliases = async (containerName=null, refresh=false) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const deleteSieveRules = async (containerName, mailbox) =>
+  request('delete', `/sieve/${containerName}/${mailbox}`, {
+    requires: { containerName, mailbox },
+  });
 
+// ============================================
+// Aliases
+// ============================================
+
+export const getAliases = async (containerName = null, refresh = false) => {
   const params = {};
   if (refresh !== undefined) params.refresh = refresh;
-  try {
-    const response = await api.get(`/aliases/${containerName}`, {params});
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  return request('get', `/aliases/${containerName}`, {
+    requires: { containerName },
+    params,
+  });
 };
 
-export const addAlias = async (containerName=null, source, destination) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  try {
-    const response = await api.post(`/aliases/${containerName}`, { source, destination });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+export const addAlias = async (containerName = null, source, destination) =>
+  request('post', `/aliases/${containerName}`, {
+    requires: { containerName },
+    body: { source, destination },
+  });
+
+export const deleteAlias = async (containerName = null, source, destination) =>
+  // DELETE-with-body — required because regex aliases can contain
+  // chars that aren't safe as URL path segments.
+  request('delete', `/aliases/${containerName}`, {
+    requires: { containerName },
+    body: { source, destination },
+  });
+
+export const updateAlias = async (containerName = null, source, destination) =>
+  request('put', `/aliases/${containerName}`, {
+    requires: { containerName },
+    body: { source, destination },
+  });
+
+// ============================================
+// Mail (logs / bounces / rspamd)
+// ============================================
+
+export const getMailLogs = async (
+  containerName = null,
+  source = 'mail',
+  lines = 100
+) =>
+  request('get', `/logs/${containerName}`, {
+    requires: { containerName },
+    params: { source, lines },
+  });
+
+export const getMailBounces = async (containerName = null, hours = 48) =>
+  request('get', `/bounces/${containerName}`, {
+    requires: { containerName },
+    params: { hours },
+  });
+
+export const getRspamdUserSummary = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/user-summary`, {
+    requires: { containerName },
+  });
+
+export const generatePassword = async (words = 4) =>
+  request('get', '/generate-password', { params: { words } });
+
+export const getDovecotSessions = async (containerName = null) =>
+  request('get', `/dovecot/${containerName}/sessions`, {
+    requires: { containerName },
+  });
+
+export const getUserSettings = async (containerName = null) =>
+  request('get', `/user-settings/${containerName}`, {
+    requires: { containerName },
+  });
+
+// ============================================
+// Domains / DNS
+// ============================================
+
+export const getDomains = async (containerName = null, name) => {
+  const path = name
+    ? `/domains/${containerName}/${name}`
+    : `/domains/${containerName}`;
+  return request('get', path, { requires: { containerName } });
 };
 
-export const deleteAlias = async (containerName=null, source, destination) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const updateDomain = async (containerName, domain, jsonDict) =>
+  request('patch', `/domains/${containerName}/${domain}`, {
+    requires: { containerName, domain },
+    body: jsonDict,
+  });
 
-  try {
-    // Although the HTTP specification for DELETE requests does not explicitly define semantics for a request body, Axios allows you to include one by using the data property within the optional config object.
-    const response = await api.delete(`/aliases/${containerName}`, { data: { source:source, destination:destination }});   // regex aliases cannot be url params
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const updateAlias = async (containerName=null, source, destination) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  try {
-    const response = await api.put(`/aliases/${containerName}`, { source, destination });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getMailLogs = async (containerName=null, source='mail', lines=100) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  try {
-    const response = await api.get(`/logs/${containerName}`, { params: { source, lines } });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getMailBounces = async (containerName=null, hours=48) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  try {
-    const response = await api.get(`/bounces/${containerName}`, { params: { hours } });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getRspamdUserSummary = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
-  try {
-    const response = await api.get(`/rspamd/${containerName}/user-summary`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const generatePassword = async (words=4) => {
-  try {
-    const response = await api.get(`/generate-password`, { params: { words } });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getDovecotSessions = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
-  try {
-    const response = await api.get(`/dovecot/${containerName}/sessions`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getUserSettings = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
-  try {
-    const response = await api.get(`/user-settings/${containerName}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getDomains = async (containerName=null, name) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
-  try {
-    let path = `/domains/${containerName}`;
-    if (name) path += `/${name}`;
-    const response = await api.get(path);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const updateDomain = async (containerName, domain, jsonDict) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!domain) return {success: false, error: 'domain is required'};
-  try {
-    const response = await api.patch(`/domains/${containerName}/${domain}`, jsonDict);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getDnsLookup = async (containerName=null, domain) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!domain) return {success: false, error: 'domain is required'};
-
-  try {
-    const response = await api.get(`/dns/${containerName}/${domain}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getDnsLookup = async (containerName = null, domain) =>
+  request('get', `/dns/${containerName}/${domain}`, {
+    requires: { containerName, domain },
+  });
 
 export const getDkimSelector = async (containerName) => {
+  // Silent-failure: this is read on the Domains page for every
+  // domain row; a network blip shouldn't blank the UI. Fall back
+  // to the project default selector so the page still renders.
   if (!containerName) return { success: false, selector: 'mail' };
   try {
-    const response = await api.get(`/domains/${containerName}/dkim-selector`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
+    return await request('get', `/domains/${containerName}/dkim-selector`);
+  } catch {
     return { success: true, selector: 'mail' };
   }
 };
 
-export const generateDkim = async (containerName, domain, options = {}) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!domain) return {success: false, error: 'domain is required'};
+export const generateDkim = async (containerName, domain, options = {}) =>
+  request('post', `/domains/${containerName}/${domain}/dkim`, {
+    requires: { containerName, domain },
+    body: options,
+  });
 
-  try {
-    const response = await api.post(`/domains/${containerName}/${domain}/dkim`, options);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getDnsblCheck = async (containerName, domain) =>
+  request('get', `/dnsbl/${containerName}/${domain}`, {
+    requires: { containerName, domain },
+  });
 
-export const getDnsblCheck = async (containerName, domain) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!domain) return {success: false, error: 'domain is required'};
+// ============================================
+// Rspamd
+// ============================================
 
-  try {
-    const response = await api.get(`/dnsbl/${containerName}/${domain}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getRspamdStats = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/stat`, {
+    requires: { containerName },
+  });
 
-export const getRspamdStats = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const getRspamdCounters = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/counters`, {
+    requires: { containerName },
+  });
 
-  try {
-    const response = await api.get(`/rspamd/${containerName}/stat`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getRspamdBayesUsers = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/bayes-users`, {
+    requires: { containerName },
+  });
 
-export const getRspamdCounters = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const getRspamdConfig = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/config`, {
+    requires: { containerName },
+  });
 
-  try {
-    const response = await api.get(`/rspamd/${containerName}/counters`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const getRspamdHistory = async (containerName = null) =>
+  request('get', `/rspamd/${containerName}/history`, {
+    requires: { containerName },
+  });
 
-export const getRspamdBayesUsers = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const rspamdLearnMessage = async (
+  containerName = null,
+  message_id,
+  action
+) =>
+  request('post', `/rspamd/${containerName}/learn`, {
+    requires: { containerName, message_id, action },
+    body: { message_id, action },
+  });
 
-  try {
-    const response = await api.get(`/rspamd/${containerName}/bayes-users`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+// ============================================
+// Misc admin
+// ============================================
 
-export const getRspamdConfig = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
+export const getCount = async (table, containerName) =>
+  request('get', `/getCount/${table}/${containerName}`, {
+    requires: { table },
+  });
 
-  try {
-    const response = await api.get(`/rspamd/${containerName}/config`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getRspamdHistory = async (containerName=null) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-
-  try {
-    const response = await api.get(`/rspamd/${containerName}/history`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const rspamdLearnMessage = async (containerName=null, message_id, action) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  if (!message_id) return {success: false, error: 'message_id is required'};
-  if (!action) return {success: false, error: 'action is required'};
-
-  try {
-    const response = await api.post(`/rspamd/${containerName}/learn`, { message_id, action });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-export const getCount = async (table, containerName) => {
-  if (!table) return {success: false, error: 'table is required'};
-
-  try {
-    const response = await api.get(`/getCount/${table}/${containerName}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
-
-// TBD
-export const getRoles = async credential => {
-  if (!credential) return {success: false, error: 'credential is required'};
-
-  try {
-    const response = await api.get(`/roles/${credential}`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+// TBD — not currently referenced by any page; kept until the
+// "Set roles" UI lands or until a follow-up audit decides to drop it.
+export const getRoles = async (credential) =>
+  request('get', `/roles/${credential}`, { requires: { credential } });
 
 // initAPI to define or generate a new DMS_API_KEY
 export const initAPI = async (plugin, schema, containerName, dms_api_key_param) => {
-  if (!containerName) return {success: false, error: 'containerName is required'};
-  
   const params = {};
   if (dms_api_key_param !== undefined) params.dms_api_key_param = dms_api_key_param;
-  
-  try {
-    const response = await api.post(`/initAPI/${plugin}/${schema}/${containerName}`, params);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
+  return request('post', `/initAPI/${plugin}/${schema}/${containerName}`, {
+    requires: { containerName },
+    body: params,
+  });
 };
-
 
 // kill will reboot this container
-export const killContainer = async (plugin, schema, containerName) => {
-  let                 path = `/configs`;
-  if (plugin)         path = `/configs/${plugin}`;
-  if (schema)         path = `/configs/${plugin}/${schema}`;
-  if (containerName)  path = `/configs/${plugin}/${schema}/${containerName}`;
-  
-  try {
-    const response = await api.post(`/killContainer`);
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+// eslint-disable-next-line no-unused-vars -- args kept for caller-API compatibility while server expects no path/body
+export const killContainer = async (plugin, schema, containerName) =>
+  request('post', '/killContainer');
 
+// ============================================
+// Branding (public — no auth)
+// ============================================
 
-// Public branding endpoint — no auth needed
 export const getBranding = async (containerName) => {
+  // Silent-failure: the login page calls this BEFORE the user is
+  // authenticated. A 5xx must not break the login screen.
+  const path = containerName ? `/branding/${containerName}` : '/branding';
   try {
-    const path = containerName ? `/branding/${containerName}` : '/branding';
-    const response = await api.get(path);
-    return response.data;
+    return await request('get', path);
   } catch {
     return { success: true, message: [] };
   }
 };
 
 export const uploadLogo = async (file, scope) => {
+  // Caller owns error handling here — uploadLogo is exclusively
+  // called from the admin Settings page, which surfaces failures
+  // via its own form-error UI. Routing this through request()
+  // (which errorLogs + throws) would double-log every failure.
   const formData = new FormData();
   formData.append('logo', file);
   const p = scope ? `/branding/logo/${scope}` : '/branding/logo';
@@ -764,60 +573,75 @@ export const uploadLogo = async (file, scope) => {
 };
 
 export const deleteLogo = async (scope) => {
+  // Same contract as uploadLogo — caller handles errors.
   const p = scope ? `/branding/logo/${scope}` : '/branding/logo';
   const response = await api.delete(p);
   return response.data;
 };
 
-
+// ============================================
 // Password reset — public endpoints (no auth)
+// ============================================
+
 export const forgotPassword = async (email) => {
+  // Always return success to prevent account-enumeration via
+  // timing or response-shape differences. This is a deliberate
+  // security contract, not a degraded-error path.
   try {
-    const response = await api.post(`/forgot-password`, { email });
-    return response.data;
-  } catch (error) {
-    // Always return success to prevent info disclosure
-    return { success: true, message: 'If that account exists, a reset link has been sent.' };
+    return await request('post', '/forgot-password', { body: { email } });
+  } catch {
+    return {
+      success: true,
+      message: 'If that account exists, a reset link has been sent.',
+    };
   }
 };
 
 export const validateResetToken = async (token) => {
+  // Silent-failure: rendered on the ResetPassword page; any
+  // network/server problem maps to "Invalid or expired token"
+  // so the user sees a single coherent error.
   try {
-    const response = await api.post(`/validate-reset-token`, { token });
-    return response.data;
-  } catch (error) {
+    return await request('post', '/validate-reset-token', { body: { token } });
+  } catch {
     return { success: false, error: 'Invalid or expired token' };
   }
 };
 
-export const resetPassword = async (token, password) => {
-  try {
-    const response = await api.post(`/reset-password`, { token, password });
-    return response.data;
-  } catch (error) {
-    errorLog(error.message);
-    throw error;
-  }
-};
+export const resetPassword = async (token, password) =>
+  request('post', '/reset-password', { body: { token, password } });
 
+// ============================================
+// DNS provider tests / pushes
+// ============================================
 
 export const testDnsProvider = async (credentials) => {
+  // Silent-failure: the UI shows the error message inline rather
+  // than throwing; prefer the server's structured error over the
+  // raw HTTP message.
   try {
-    const response = await api.post(`/dnscontrol/test`, credentials);
-    return response.data;
+    return await request('post', '/dnscontrol/test', { body: credentials });
   } catch (error) {
-    errorLog(error.message);
-    return { success: false, error: error.response?.data?.error || error.message };
+    return {
+      success: false,
+      error: error.response?.data?.error || error.message,
+    };
   }
 };
 
 export const pushDnsRecord = async (containerName, domain, record) => {
+  // Silent-failure: same UX contract as testDnsProvider.
   try {
-    const response = await api.post(`/dnscontrol/${containerName}/${domain}/records`, record);
-    return response.data;
+    return await request(
+      'post',
+      `/dnscontrol/${containerName}/${domain}/records`,
+      { body: record }
+    );
   } catch (error) {
-    errorLog(error.message);
-    return { success: false, error: error.response?.data?.error || error.message };
+    return {
+      success: false,
+      error: error.response?.data?.error || error.message,
+    };
   }
 };
 
