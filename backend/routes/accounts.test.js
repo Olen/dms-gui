@@ -242,14 +242,14 @@ describe('DELETE /api/accounts/:schema/:containerName/:mailbox', () => {
     expect(mockDeleteAccount).not.toHaveBeenCalled();
   });
 
-  it('rejects the legacy 2-segment path (regression guard for issue #38)', async () => {
+  it('rejects the legacy 2-segment path', async () => {
     // The route used to be registered as `/accounts/:containerName/:mailbox`
     // (only 2 segments after `/accounts/`). The frontend, the Swagger doc,
     // and every sibling accounts route used the 3-segment
     // `/:schema/:containerName/:mailbox` shape, so the frontend's
-    // 3-segment requests 404'd — that was the production bug. After this
-    // PR the route accepts the 3-segment shape and rejects the legacy
-    // 2-segment shape; lock that contract here.
+    // 3-segment requests 404'd. The route now accepts the 3-segment
+    // shape and rejects the legacy 2-segment shape; this test locks
+    // down that contract.
     const res = await request(app)
       .delete('/api/accounts/mailserver/user@test.com')
       .set('Cookie', [`accessToken=${adminToken}`]);
