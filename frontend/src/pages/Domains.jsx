@@ -124,6 +124,7 @@ const Domains = () => {
         });
       })
       .catch(() => {});
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- forward-declared fetchDomains/getDkimSelector/getSettings; intentional re-fire only on containerName change; tracked in #105 sweep
   }, [containerName]);
 
   const fetchDomains = async () => {

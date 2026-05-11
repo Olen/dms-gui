@@ -93,8 +93,9 @@ const Logins = () => {
   // flags textual TDZ. Suppressed per the same pattern used in
   // FormContainerAdd.jsx and Login.jsx.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability, react-hooks/exhaustive-deps -- forward-declared fetchAll; intentionally re-fires only on containerName change; tracked in #105 sweep
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; tracked in #105 sweep
   }, [containerName]);
 
   const formatLoginsForTable = async (data) => {

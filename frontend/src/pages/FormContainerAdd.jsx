@@ -76,13 +76,15 @@ function FormContainerAdd() {
   // Suppressed with a comment per the same pattern Login.jsx uses for its
   // mount-once probe.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared mount-once fetch; tracked in #105 sweep
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
     fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch; tracked in #105 sweep
   }, []);
 
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared; tracked in #105 sweep
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchContainerSettings; tracked in #105 sweep
     fetchContainerSettings(containerName); // [ {name:name, value: value}, ..]
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; tracked in #105 sweep
   }, [containerName]);
 
   useEffect(() => {
