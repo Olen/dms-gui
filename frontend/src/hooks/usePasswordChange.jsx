@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback } from 'react';
+import { errorLog } from '../../frontend.mjs';
 
 /**
  * Shared password-change machinery. Used by Accounts, Logins, Profile —
@@ -107,6 +108,9 @@ export const usePasswordChange = ({
         if (result?.success) close();
         return result;
       } catch (cause) {
+        // Log so callers don't have to — the returned `cause` is the
+        // i18n key for the user-facing toast, not enough for debugging.
+        errorLog('usePasswordChange.submit', cause);
         return { success: false, error: 'api.errors.changePassword', cause };
       }
     },
