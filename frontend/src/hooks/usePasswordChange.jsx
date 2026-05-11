@@ -13,19 +13,31 @@ import { useState, useRef, useCallback } from 'react';
  *   - Wire success/error to a flash-message hook (or wherever).
  *
  * Differences captured as options:
- *   - `allowShortPasswords`: bypass the 8-char minimum. Profile passes
- *     `!user.isAdmin === false` here so admins can set short passwords.
+ *   - `allowShortPasswords`: bypass the 8-char minimum. Truthy means
+ *     short passwords are allowed. Profile.jsx passes `user?.isAdmin`
+ *     so admins can set short passwords for other users; Accounts.jsx
+ *     and Logins.jsx leave it at the default (false) and enforce the
+ *     minimum.
  *   - `mismatchErrorKey`: i18n key for "passwords don't match". Defaults
  *     to `'logins.passwordsNotMatch'` (matches Logins.jsx + Profile.jsx).
  *     Accounts.jsx historically used `'password.passwordsNotMatch'`;
  *     pass it explicitly there to preserve the existing translation
  *     surface.
+ *
+ * @throws TypeError if `onSubmit` isn't a function — fail fast at
+ *   hook setup rather than masking the misuse as a generic
+ *   'api.errors.changePassword' on form submission.
  */
 export const usePasswordChange = ({
   onSubmit,
   allowShortPasswords = false,
   mismatchErrorKey = 'logins.passwordsNotMatch',
 } = {}) => {
+  if (typeof onSubmit !== 'function') {
+    throw new TypeError(
+      'usePasswordChange: `onSubmit(subject, formData)` option is required and must be a function'
+    );
+  }
   const [subject, setSubject] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [formData, setFormData] = useState({

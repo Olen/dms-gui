@@ -1,12 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Form from 'react-bootstrap/Form';
-import Modal from 'react-bootstrap/Modal'; // Import Modal
 import { useAuth } from '../hooks/useAuth';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
 import { debugLog, errorLog } from '../../frontend.mjs';
-import { getValueFromArrayOfObj, regexEmailStrict } from '../../../common.mjs';
+import { getValueFromArrayOfObj } from '../../../common.mjs';
 
 import { updateAccount, updateLogin, getConfigs } from '../services/api.mjs';
 
