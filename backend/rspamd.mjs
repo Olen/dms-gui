@@ -88,10 +88,15 @@ export const getRspamdConfig = async (
         /* file not found */
       }
     }
+    // Mirror the actions.conf precedence: override.d first, fall
+    // back to local.d. (Pre-#82 the bayes block had them reversed,
+    // which silently misreported the effective config whenever both
+    // files were present — rspamd loads override.d after local.d so
+    // override.d settings win at runtime, and we should match that.)
     try {
       const r = await execAction(
         'cat_rspamd_config',
-        { path: '/etc/rspamd/local.d/classifier-bayes.conf' },
+        { path: '/etc/rspamd/override.d/classifier-bayes.conf' },
         targetDict,
         { timeout: 5 }
       );
@@ -103,7 +108,7 @@ export const getRspamdConfig = async (
       try {
         const r = await execAction(
           'cat_rspamd_config',
-          { path: '/etc/rspamd/override.d/classifier-bayes.conf' },
+          { path: '/etc/rspamd/local.d/classifier-bayes.conf' },
           targetDict,
           { timeout: 5 }
         );
