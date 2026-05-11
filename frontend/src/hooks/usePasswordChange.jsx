@@ -60,20 +60,18 @@ export const usePasswordChange = ({
     setSubject(null);
   }, []);
 
-  const handleInputChange = useCallback(
-    (e) => {
-      const { name, value, type } = e.target;
-      setFormData((prev) => ({
-        ...prev,
-        [name]: type === 'number' ? Number(value) : value,
-      }));
-      // Clear the error for this field while typing
-      if (formErrors[name]) {
-        setFormErrors((prev) => ({ ...prev, [name]: null }));
-      }
-    },
-    [formErrors]
-  );
+  const handleInputChange = useCallback((e) => {
+    const { name, value, type } = e.target;
+    setFormData((prev) => ({
+      ...prev,
+      [name]: type === 'number' ? Number(value) : value,
+    }));
+    // Clear the error for this field while typing. Functional update so
+    // we don't depend on `formErrors` from closure (would force a new
+    // handler identity on every error change, and risk a stale read if
+    // the user types between setFormErrors and the re-render).
+    setFormErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
+  }, []);
 
   const validate = useCallback(() => {
     const errors = {};

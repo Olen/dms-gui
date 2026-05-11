@@ -219,7 +219,7 @@ const Profile = () => {
     <div>
       <h2 className="mb-4">{Translate('logins.profilePage')}</h2>
 
-      <flash.Messages />
+      {flash.messages}
 
       <Form onSubmit={handleLoginSave} className="form-wrapper">
         {user?.isAdmin == 1 && (

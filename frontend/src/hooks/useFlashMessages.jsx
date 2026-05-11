@@ -1,5 +1,17 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useMemo } from 'react';
 import AlertMessage from '../components/AlertMessage.jsx';
+
+// Stable module-level component. Render it via the hook's memoized
+// `messages` field so the subtree's identity doesn't change with
+// each state update (which would unmount/remount AlertMessage and
+// blow away its transition state).
+const FlashAlerts = ({ error, success, warning }) => (
+  <>
+    <AlertMessage type="danger" message={error} />
+    <AlertMessage type="success" message={success} />
+    {warning !== null && <AlertMessage type="warning" message={warning} />}
+  </>
+);
 
 /**
  * `[errorMessage, successMessage, warningMessage]` triple shared by
@@ -13,7 +25,7 @@ import AlertMessage from '../components/AlertMessage.jsx';
  *   flash.error('something broke');     // set error
  *   flash.success('saved');             // set success
  *   flash.clear();                      // clear all three
- *   <flash.Messages />                  // render the three alerts
+ *   {flash.messages}                    // render the three alerts
  *
  * Direct setters are also exposed for places that prefer
  * `setErrorMessage(…)`-style assignment to ease migration.
@@ -29,15 +41,13 @@ export const useFlashMessages = () => {
     setWarningMessage(null);
   }, []);
 
-  const Messages = useCallback(
+  const messages = useMemo(
     () => (
-      <>
-        <AlertMessage type="danger" message={errorMessage} />
-        <AlertMessage type="success" message={successMessage} />
-        {warningMessage !== null && (
-          <AlertMessage type="warning" message={warningMessage} />
-        )}
-      </>
+      <FlashAlerts
+        error={errorMessage}
+        success={successMessage}
+        warning={warningMessage}
+      />
     ),
     [errorMessage, successMessage, warningMessage]
   );
@@ -53,7 +63,7 @@ export const useFlashMessages = () => {
     success: setSuccessMessage,
     warning: setWarningMessage,
     clear,
-    Messages,
+    messages,
   };
 };
 
