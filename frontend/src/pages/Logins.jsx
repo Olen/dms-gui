@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
 import Form from 'react-bootstrap/Form';
 import Row from 'react-bootstrap/Row';
@@ -32,6 +32,7 @@ import {
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useAuth } from '../hooks/useAuth';
+import { usePasswordChange } from '../hooks/usePasswordChange';
 
 const Logins = () => {
   // const sortKeysInObject = ['email', 'username'];   // not needed as they are not objects, just rendered FormControl
@@ -44,7 +45,12 @@ const Logins = () => {
   const [isLoading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
-  const [selectedLogin, setSelectedLogin] = useState(null);
+
+  // Password-change machinery extracted to a shared hook (PR #86).
+  const passwordChange = usePasswordChange({
+    onSubmit: (login, formData) =>
+      updateLogin(login.id, { password: formData.newPassword }),
+  });
 
   // Form states --------------------------------------------------
   const [accountOptions, setAccountOptions] = useState([]);
@@ -84,15 +90,6 @@ const Logins = () => {
     roles: [],
   });
   const [newLoginFormErrors, setNewLoginFormErrors] = useState({});
-
-  // State for password change modal -------------------------------
-  const passwordFormRef = useRef(null);
-  const [showPasswordModal, setShowPasswordModal] = useState(false);
-  const [passwordFormData, setPasswordFormData] = useState({
-    newPassword: '',
-    confirmPassword: '',
-  });
-  const [passwordFormErrors, setPasswordFormErrors] = useState({});
 
   // fetchAll is declared as `const` further down. The effect callback
   // runs after the component body finishes, so the const is initialised
@@ -479,83 +476,23 @@ const Logins = () => {
     }
   };
 
-  // Open password change modal
-  const handleChangePassword = (login) => {
-    setSelectedLogin(login);
-
-    setPasswordFormData({
-      newPassword: '',
-      confirmPassword: '',
-    });
-    setPasswordFormErrors({});
-    setShowPasswordModal(true);
-  };
-
-  // Close password change modal
-  const handleClosePasswordModal = () => {
-    setShowPasswordModal(false);
-    setSelectedLogin(null);
-  };
-
-  // Handle input changes for password change form
-  const handlePasswordInputChange = (e) => {
-    const { name, value, type } = e.target;
-
-    setPasswordFormData({
-      ...passwordFormData,
-      [name]: type === 'number' ? Number(value) : value,
-    });
-
-    // Clear the error for this field while typing
-    if (passwordFormErrors[name]) {
-      setPasswordFormErrors({
-        ...passwordFormErrors,
-        [name]: null,
-      });
-    }
-  };
-
-  // Validate password change form
-  const validatePasswordForm = () => {
-    const errors = {};
-
-    if (!passwordFormData.newPassword) {
-      errors.newPassword = 'password.passwordRequired';
-    } else if (passwordFormData.newPassword.length < 8) {
-      errors.newPassword = 'password.passwordLength';
-    }
-
-    if (passwordFormData.newPassword !== passwordFormData.confirmPassword) {
-      errors.confirmPassword = 'logins.passwordsNotMatch';
-    }
-
-    setPasswordFormErrors(errors);
-    return Object.keys(errors).length === 0;
-  };
-
-  // Submit password change
+  // Submit handler: hook does validation + the updateLogin call;
+  // this wrapper wires the result into flash messages and the
+  // i18n'd success label (uses .username, not .mailbox — differs
+  // from Accounts.jsx and Profile.jsx).
   const handleSubmitPasswordChange = async (e) => {
-    e.preventDefault();
     setErrorMessage(null);
     setSuccessMessage(null);
-
-    if (!validatePasswordForm()) {
-      return;
-    }
-
-    try {
-      const result = await updateLogin(selectedLogin.id, {
-        password: passwordFormData.newPassword,
-      });
-      if (result.success) {
-        setSuccessMessage(
-          t('password.passwordUpdated', { username: selectedLogin.username })
-        );
-        handleClosePasswordModal(); // Close the modal
-      } else setErrorMessage(result?.error);
-    } catch (error) {
-      errorLog(t('api.errors.changePassword'), error);
-      setErrorMessage('api.errors.changePassword');
+    const result = await passwordChange.submit(e);
+    if (!result || result.handled) return;
+    if (result.success) {
+      setSuccessMessage(
+        t('password.passwordUpdated', {
+          username: passwordChange.subject?.username,
+        })
+      );
+    } else {
+      setErrorMessage(result.error);
     }
   };
 
@@ -741,7 +678,7 @@ const Logins = () => {
             size="sm"
             icon="key"
             title={t('password.changePassword')}
-            onClick={() => handleChangePassword(login)}
+            onClick={() => passwordChange.open(login)}
             className="me-2"
           />
           <Button
@@ -982,14 +919,8 @@ const Logins = () => {
       <Accordion tabs={loginTabs}></Accordion>
 
       <PasswordChangeModal
-        subject={selectedLogin}
-        show={showPasswordModal}
-        onClose={handleClosePasswordModal}
+        {...passwordChange.modalProps}
         onSubmit={handleSubmitPasswordChange}
-        formRef={passwordFormRef}
-        formData={passwordFormData}
-        formErrors={passwordFormErrors}
-        onChange={handlePasswordInputChange}
       />
     </div>
   );
