@@ -5,14 +5,11 @@ const exec = promisify(execCb);
 import fs from 'node:fs';
 import net from 'node:net';
 
-// const Docker = require('dockerode');
-// const docker = new Docker({ socketPath: '/var/run/docker.sock' });
-
 import {
   funcName,
   reduxPropertiesOfObj,
   regexColors,
-  regexPrintOnly,
+  regexNonPrintable,
 } from '../common.mjs';
 import { env } from './env.mjs';
 
@@ -115,70 +112,6 @@ export const infoLog = (message, ...data) => {
 export const debugLog = (message, ...data) => {
   if (env.debug) logger('debug', message, ...data);
 };
-
-/**
- * Executes a command in the docker-mailserver container through docker.sock
- * @param {string} command Command to execute
- * @return {Promise<string>} stdout from the command
- */
-/*
-async function execInContainer(command, containerName) {
- // Get container instance
- const container = getContainer(containerName);
-
- // Ensure the container is running before attempting to exec
- const containerInfo = await container.inspect();
- if (!containerInfo.State.Running) {
- throw new Error(`Container ${containerId} is not running.`);
- }
-
- const execOptions = {
- Cmd: ['sh', '-c', command],
- AttachStdout: true,
- AttachStderr: true,
- Tty: false, // Must be false to properly capture streams
- };
-
- try {
- const exec = await container.exec(execOptions);
-
- const stream = await exec.start();
-
- // Collect the streams output
- const stdoutBuffer = [];
- const stderrBuffer = [];
- let returncode;
-
- const processExit = new Promise((resolve, reject) => {
-   docker.modem.demuxStream(stream, {
-     write: chunk => stdoutBuffer.push(chunk),
-   }, {
-     write: chunk => stderrBuffer.push(chunk),
-   });
-
-   stream.on('end', async () => {
-     const execInfo = await exec.inspect();
-     returncode = execInfo.ExitCode;
-     resolve();
-   });
-
-   stream.on('error', reject);
- });
-
- await processExit;
-
- if (returncode == 0) {successLog(command);} else {warnLog(command);}
- return {
-   returncode: returncode,
-   stdout: Buffer.concat(stdoutBuffer).toString('utf8'),
-   stderr: Buffer.concat(stderrBuffer).toString('utf8'),
- };
- } catch (error) {
- console.error('Error during exec:', error);
- throw error;
- }
-}
-*/
 
 /**
  * Executes a checkPort connect to a server
@@ -447,124 +380,6 @@ export const postJsonToApi = async (
   }
 };
 
-/**
- * Generic API function get
- * @param {string} apiUrl API url like http://whatever:8888
- * @return {Promise<string>} stdout from the fetch
- */
-export const getJsonFromApi = async (apiUrl = null, Authorization = null) => {
-  try {
-    const response = await fetch(apiUrl, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        Authorization: Authorization,
-      },
-    });
-
-    // debugLog('ddebug response', response)
-    if (!response.ok) {
-      throw new Error(`HTTP GET error! status: ${response.status}`);
-    }
-
-    const responseData = await response.json(); // Parse the JSON response
-    debugLog('Received JSON data:', responseData);
-    return responseData;
-  } catch (error) {
-    errorLog(error.message);
-    throw new Error(error.message, { cause: error });
-  }
-};
-
-/**
- * // https://github.com/orgs/docker-mailserver/discussions/2908#discussioncomment-14867771
- * Executes a command in the docker-mailserver container through a named pipe
- * @param {string} command Command to execute
- * @return {Promise<string>} stdout from the command
- */
-/*
-async function execInContainerPipe(command, containerName) {
-import { fetch, Agent } from 'undici'
-
-const url = "http://localhost/setup";
-const cli_args = ["email", "add", "jane.doe@example.test", "secret password"];
-
-const uds = new Agent({ connect: { socketPath: '/var/run/dms-api/api.sock' } })
-const fetch_config = {
-  dispatcher: uds,
-  method: "POST",
-  headers: {
-    "Content-Type": "application/json",
-  },
-  body: JSON.stringify(cli_args),
-};
-
-try {
-  const response = await fetch(url, fetch_config);
-  const cli_output = await response.text();
-  console.log(cli_output);
-} finally {
-  await uds.close()
-}
-}
-*/
-
-/**
- * Executes a command in the docker-mailserver container
- * @param {string} command Command to execute
- * @return {Promise<string>} stdout from the command
- */
-/*
-async function execInContainerOLD(command, containerName) {
-try {
-  debugLog(`Executing command in container ${containerName}: ${command}`);
-
-  // Get container instance
-  const container = getContainer(containerName);
-
-  // Create exec instance
-  const exec = await container.exec({
-    Cmd: ['sh', '-c', command],
-    AttachStdout: true,
-    AttachStderr: true,
-  });
-
-  // Start exec instance
-  const stream = await exec.start();
-
-  // Collect output
-  return new Promise((resolve, reject) => {
-    let stdoutData = '';
-    let stderrData = '';
-
-    stream.on('data', (chunk) => {
-      // Docker multiplexes stdout/stderr in the same stream
-      // First 8 bytes contain header, actual data starts at 8th byte
-      stdoutData += String(chunk.slice(8));
-    });
-
-    stream.on('end', () => {
-      // debugLog(`Command completed. Output:`, stdoutData);
-      if (stdoutData.match(/ERROR/))
-        reject(stdoutData);
-      else
-        resolve(stdoutData);
-    });
-
-    stream.on('error', (error) => {
-      debugLog(`Command error:`, error);
-      reject(error);
-    });
-  });
-} catch (error) {
-  let backendError = 'Execution error for '+command ;
-  let ErrorMsg = await formatDMSError(backendError, error);
-  errorLog(`${backendError}:`, ErrorMsg);
-  throw new Error(ErrorMsg);
-}
-}
-*/
-
 export const writeFile = async (file = null, content = '') => {
   try {
     // fs.writeFileSync(file, content, 'utf8');
@@ -607,50 +422,10 @@ export const formatDMSError = async (errorMsg = null, error = null) => {
     const splitError = split.length > 1 ? split[1] : split[0];
     splitErrorClean = splitError
       .replace(regexColors, '')
-      .replace(regexPrintOnly, '')
+      .replace(regexNonPrintable, '')
       .replace(regexCleanup, '');
   }
 
   errorMsg = `${errorMsg}: ${splitErrorClean}`;
   return errorMsg;
 };
-
-/*
-// foolproof future where we can deal with multiple containers
-export const getContainer = containerName => {
-  containerName = (containerName) ? containerName : live.DMS_CONTAINER;
-  if (!live.[containerName]) live.containers[containerName] = docker.getContainer(containerName);
-  return live.containers[containerName];
-};
-*/
-
-// module.exports = {
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
-//   color,
-//   ICON,
-//   debugLog,
-//   infoLog,
-//   warnLog,
-//   errorLog,
-//   successLog,
-//   docker,
-//   formatDMSError,
-//   readJson,
-//   writeJson,
-//   writeFile,
-//   getContainer,
-//   processTopData,
-// };

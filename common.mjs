@@ -1,18 +1,20 @@
-// not const so they are exported and we don't have to mention them
-// eslint-disable-next-line no-control-regex -- intentional: ANSI ESC stripper
+// ANSI ESC stripper
+// eslint-disable-next-line no-control-regex -- intentional: matches ESC byte
 export const regexColors = /\x1b\[[0-9;]*[mGKHF]/g;
-// regexPrintOnly = /[\x00-\x1F\x7F-\x9F\x20-\x7E]/;
-export const regexPrintOnly = /[^\S]/;
 
-export const regexFindEmailRegex = /\/[\S]+@[\S]+\//;
-export const regexFindEmailStrict = /([\w.\-_]+)@([\w.\-_]+)/;
-export const regexFindEmailLax = /([\S]+)@([\S]+)/;
-export const regexEmailRegex = /^\/[\S]+@[\S]+\/$/;
+// Strip non-printable control chars (NUL through US, plus DEL and C1)
+// from text we render in logs and error messages. Tab/LF/CR are preserved
+// so multi-line content survives intact.
+// eslint-disable-next-line no-control-regex -- intentional: matches control chars
+export const regexNonPrintable = /[\x00-\x08\x0B-\x1F\x7F-\x9F]/g;
+
 export const regexEmailStrict = /^([\w.\-_]+)@([\w.\-_]+)$/;
-export const regexEmailLax = /^([\S]+)@([\S]+)$/;
-
-export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w.\-_]+@[\w.\-_]+)/;
+// Match a /pattern/-wrapped email regex literal — used in the aliases UI
+// where a "source" can be a Postfix virtual-aliases regex.
+export const regexEmailRegex = /^\/[\S]+@[\S]+\/$/;
+// Non-whitespace token (login usernames must not contain spaces).
 export const regexUsername = /^[^\s]+$/;
+export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w.\-_]+@[\w.\-_]+)/;
 
 // safeUrl returns the input URL only if its scheme is in the allowlist
 // (default: http/https). Returns null otherwise.
@@ -71,57 +73,24 @@ export const redactSensitiveSettings = (rows) => {
   );
 };
 
-// import {
-//   regexColors,
-//   regexPrintOnly,
-//   regexFindEmailRegex,
-//   regexFindEmailStrict,
-//   regexFindEmailLax,
-//   regexEmailRegex,
-//   regexEmailStrict,
-//   regexEmailLax,
-//   regexMatchPostfix,
-//   regexUsername,
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
-// } from '../common.mjs'
-
+// Walk the current call stack and return the caller's function name
+// (with surrounding indentation when `parent` traversal includes more
+// than one frame). Used by the logger to label each log line.
+//
+// Captures the token between "at " and the next whitespace or "(":
+// handles "at funcName (file:…)", "at Server.<anonymous> (file:…)",
+// "at Object.<anonymous> (file:…)", "at <anonymous>".
 export const funcName = (parent = 4, onlyParent = false) => {
   const error = new Error();
   let match, funcName;
 
-  // The stack trace is formatted differently depending on the Node.js version.
-  // We grab the line with the caller's function name.
   const errorLines = error.stack.split('\n');
   for (let i = parent; i <= errorLines.length; i++) {
-    // This regular expression works well for many Node.js stack formats.
-    // It looks for "at <functionName>".
-    // match = /at\s+([^ ]+)\s+/.exec(errorLines[i]);
-    // Capture the token between "at " and the next whitespace or "(".
-    // Handles "at funcName (file:...)", "at Server.<anonymous> (file:...)",
-    // "at Object.<anonymous> (file:...)", "at <anonymous>". The previous
-    // /\w+/ form failed on the dotted/bracketed cases and fell through to
-    // dumping the raw stack line into the log.
     match = /at\s+([^\s(]+)/.exec(errorLines[i]);
 
-    // append indentation to parent function until we reach
     if (match) {
       funcName = funcName ? '  ' + funcName : match[1];
       if (onlyParent) break;
-
-      // either we reached the end or it was anonymous == root from the main script
     } else {
       funcName = funcName ? funcName : '<anonymous>';
       break;
@@ -130,17 +99,6 @@ export const funcName = (parent = 4, onlyParent = false) => {
 
   return funcName;
 };
-// error Error
-//     at funcName (file:///app/common.mjs:44:17)
-//     at logger (file:///app/backend/backend.mjs:86:134)
-//     at debugLog (file:///app/backend/backend.mjs:93:70)
-//     at dbGet (file:///app/backend/db.mjs:783:7)
-//     at dbUpgrade (file:///app/backend/db.mjs:877:16)
-//     at dbInit (file:///app/backend/db.mjs:854:5)
-//     at Server.<anonymous> (file:///app/backend/index.js:1809:3)
-//     at Server.f (/app/backend/node_modules/once/once.js:25:25)
-//     at Object.onceWrapper (node:events:622:28)
-//     at Server.emit (node:events:520:35)
 
 // Parse a JWT-style expiry string (e.g. "15m", "1h", "7d", "30s") to
 // milliseconds. Accepts an integer prefix and a unit char from {s,m,h,d}.
@@ -167,23 +125,25 @@ export const fixStringType = (string) => {
   return string !== '' && string != null && !Number.isNaN(n) ? n : string;
 };
 
+// Parse JSON that may contain trailing commas before ] or }. Returns the
+// re-stringified JSON by default; pass returnJson=true for the parsed object.
 export const jsonFixTrailingCommas = (jsonString, returnJson = false) => {
-  // Strip trailing commas before ] or } (with optional whitespace)
   const cleaned = jsonString.replace(/,\s*([}\]])/g, '$1');
   const jsonObj = JSON.parse(cleaned);
   if (returnJson) return jsonObj;
   else return JSON.stringify(jsonObj);
 };
 
+// Transform ["a=1", "b=2", ...] => {a: 1, b: 2, ...}. Accepts a raw
+// newline-separated string in place of the array. Returns {} (never [])
+// for empty input so callers can always treat the result as a dict.
 export const arrayOfStringToDict = (array = [], separator = ',') => {
-  // transform ["a=1", "b=2", ..] => {a:1, b:2, ..}
-
-  if (!array.length) return [];
   let dict = {};
 
   if (typeof array == 'string') {
     array = array.split(/\r?\n/);
   }
+  if (!array.length) return dict;
 
   array.map((item) => {
     let split = item.split(separator);
@@ -192,12 +152,6 @@ export const arrayOfStringToDict = (array = [], separator = ',') => {
     }
   });
   return dict;
-
-  // dict = array.map((item) => ({ [item.split('=')[0]]: item.split('=')[1] }));
-  // dict = [{ ENABLE_RSPAMD: "1" },{ ENABLE_XAPIAN: "1" },{ ENABLE_MTA_STS: "0" },{ PERMIT_DOCKER: "none" },{ DOVECOT_MAILBOX_FORMAT: "mailbox" }]
-
-  // array.map((item) => (dict[item.split('=')[0]] = item.split('=')[1] ));
-  // dict = { ENABLE_RSPAMD: "1", ENABLE_XAPIAN: "1", ENABLE_MTA_STS: "0", PERMIT_DOCKER: "none", DOVECOT_MAILBOX_FORMAT: "mailbox" }
 };
 
 export const obj2ArrayOfObj = (
@@ -214,71 +168,17 @@ export const obj2ArrayOfObj = (
         [props[0]]: key,
         [props[1]]: obj[key],
       }));
-
-  // transform this: { a:1, b:2, .. }
-  // to this:        [ {name:"a",value:1}, {name:"b",value:2}, .. ]
 };
 
-export const reduxArrayOfObjByKey = (array = [], keys2Keep = []) => {
-  // this will reduce:
-  // data = [
-  // {name: 'John', city: 'London', age: 42},
-  // {name: 'Mike', city: 'Warsaw', age: 18},
-  // ]
-  // keeping:
-  // keys2Keep = ['name']
-  // to:
-  // data = [
-  // {name: 'John'},
-  // {name: 'Mike'},
-  // ]
-
-  if (!array.length) return [];
-  if (typeof keys2Keep == 'string') keys2Keep = [keys2Keep];
-  const redux = (array) =>
-    array.map((o) =>
-      keys2Keep.reduce((acc, curr) => {
-        acc[curr] = o[curr];
-        return acc;
-      }, {})
-    );
-
-  return redux(array);
-};
-
+// Filter an array of objects to rows whose `key` value is in `values2Keep`.
 export const reduxArrayOfObjByValue = (array = [], key, values2Keep = []) => {
-  // this will reduce:
-  // data = [
-  // {name: 'John', city: 'London', age: 42},
-  // {name: 'Mike', city: 'Warsaw', age: 18},
-  // ]
-  // keeping:
-  // key = "city"
-  // values2Keep = ['London']
-  // to:
-  // data = [
-  // {name: 'John', city: 'London', age: 42},
-  // ]
-
   if (!array.length) return [];
   if (typeof values2Keep == 'string') values2Keep = [values2Keep];
   return array.filter((item) => values2Keep.includes(item[key]));
 };
 
+// Project an object to only the keys listed in `keys2Keep`.
 export const reduxPropertiesOfObj = (obj = {}, keys2Keep = []) => {
-  // this will reduce:
-  // const person = {
-  // firstName: 'firstName',
-  // lastName:  'lastName',
-  // email:     'fake@email.tld',
-  // }
-  // keeping:
-  // keys2Keep = ['firstName']
-  // to:
-  // person = {
-  // firstName: 'firstName',
-  // }
-
   if (typeof keys2Keep == 'string') keys2Keep = [keys2Keep];
   const allKeys = Object.keys(obj);
   return allKeys.reduce((next, key) => {
@@ -290,30 +190,9 @@ export const reduxPropertiesOfObj = (obj = {}, keys2Keep = []) => {
   }, {});
 };
 
-/*
-// ES5 using Array.filter and Array.find
-function mergeArrayOfObj(a, b, prop) {
-// this will merge:
-  // a = [{name: 1,value: "odd"}]
-  // b = [{name: 1,value: "wrong"},{name: 2,value: "xyz"}]
-// into:
-  // output = [{name: 1,value: "wrong"},{name: 2,value: "xyz"}]
-
-var reduced = a.filter(function(aitem) {
-  return !b.find(function(bitem) {
-    return aitem[prop] === bitem[prop];
-  });
-});
-return reduced.concat(b);}
-*/
-
-// ES6 arrow functions
+// Merge two arrays of objects, replacing items in `a` whose `prop`
+// matches the same `prop` in `b`. The merged array preserves `b`'s order.
 export const mergeArrayOfObj = (a = [], b = [], prop = 'name') => {
-  // this will merge:
-  // a =      [{name: 1,value: "orig"}]
-  // b =      [{name: 1,value: "new"}, {name: 2,value: "new"}]
-  // into:
-  // output = [{name: 1,value: "new"}, {name: 2,value: "new"}]
   if (!a || !b) return [];
 
   if (!Array.isArray(a)) a = [a];
@@ -324,8 +203,8 @@ export const mergeArrayOfObj = (a = [], b = [], prop = 'name') => {
   return reduced.concat(b);
 };
 
-// this will return the FIRST value found in a list of props, from an array of objects like:
-// array = [ {name: propValue, value: value1}, {name: prop2, value: value2}, .. ] => "value1"
+// Return the FIRST value found in a list of props, from an array of objects like
+// [{name: propValue, value: value1}, ...] => "value1"
 export const getValueFromArrayOfObj = (
   array,
   propValues,
@@ -334,31 +213,12 @@ export const getValueFromArrayOfObj = (
 ) => {
   if (!Array.isArray(array)) return null;
   if (!Array.isArray(propValues)) propValues = [propValues];
-  return array.find((item) => propValues.includes(item[keyName]))
-    ? array.find((item) => propValues.includes(item[keyName]))[keyValue]
-    : null;
+  const found = array.find((item) => propValues.includes(item[keyName]));
+  return found ? found[keyValue] : null;
 };
 
-// this will return ALL the value found in a list of props, from an array of objects like:
-// array = [ {name: propValue, value: value1}, {name: prop2, value: value2}, .. ] => ["value1"]
-export const getValuesFromArrayOfObj = (
-  array,
-  propValues,
-  keyName = 'name',
-  keyValue = 'value'
-) => {
-  let output = [];
-  if (!Array.isArray(array)) return output;
-  if (!Array.isArray(propValues)) propValues = [propValues];
-  for (const item of array.filter((item) =>
-    propValues.includes(item[keyName])
-  )) {
-    output.push(item[keyValue]);
-  }
-  return output;
-};
-
-// this will return the (uniq) and/or (sorted) values from an array of objects like [ {keyName: propName, keyValue: value1}, .. ] => [value1, ..]
+// Return the (uniq) and/or (sorted) values from an array of objects like
+// [{keyName: propName, keyValue: value1}, ...] => [value1, ...]
 export const pluck = (
   array,
   keyValue = 'value',
@@ -371,15 +231,7 @@ export const pluck = (
   return sorted ? uniqValues.sort() : uniqValues;
 };
 
-export const byteSize2HumanSize = (bytes) => {
-  if (bytes === 0) return '0B';
-
-  const sizes = ['B', 'KB', 'MB', 'GB', 'TB', 'PB'];
-  const i = Math.floor(Math.log(bytes) / Math.log(1024));
-
-  return parseFloat((bytes / Math.pow(1024, i)).toFixed()) + sizes[i];
-};
-
+// Parse a human-readable byte size ("128MB", "1.5G", "200K") to a byte count.
 export const humanSize2ByteSize = (humanBytes) => {
   const sizes = [
     /(\S+)B/i,
@@ -390,46 +242,8 @@ export const humanSize2ByteSize = (humanBytes) => {
     /(\S+)PB?/i,
   ];
   for (const [power, regex] of Object.entries(sizes).reverse()) {
-    // cannot use split as sometimes the B is missing
-    // let split = humanBytes.split(regex);
-    // if (split.length > 1) return parseFloat(split[0]) * Math.pow(1024, power);
     let match = humanBytes.match(regex);
     if (match) return (match[1] * Math.pow(1024, power)).toFixed();
   }
   return 0;
 };
-
-// Escape a string for safe use as a shell argument by wrapping in single quotes
-// and escaping any embedded single quotes. Handles empty strings too.
-export const escapeShellArg = (arg) => {
-  if (arg === undefined || arg === null) return "''";
-  const str = String(arg);
-  return "'" + str.replace(/'/g, "'\\''") + "'";
-};
-
-export const moveKeyToLast = (obj, keyToMove) => {
-  // Check if the key exists in the object
-  if (Object.prototype.hasOwnProperty.call(obj, keyToMove)) {
-    const valueToMove = obj[keyToMove]; // Store the value
-    delete obj[keyToMove]; // Delete the key
-    obj[keyToMove] = valueToMove; // Re-add the key, placing it last
-  }
-  return obj;
-};
-
-// module.exports = {
-//   funcName,
-//   fixStringType,
-//   arrayOfStringToDict,
-//   obj2ArrayOfObj,
-//   reduxArrayOfObjByKey,
-//   reduxArrayOfObjByValue,
-//   reduxPropertiesOfObj,
-//   mergeArrayOfObj,
-//   getValueFromArrayOfObj,
-//   getValuesFromArrayOfObj,
-//   pluck,
-//   byteSize2HumanSize,
-//   humanSize2ByteSize,
-//   moveKeyToLast,
-// };
