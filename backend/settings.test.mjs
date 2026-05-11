@@ -4,6 +4,20 @@
 // this test surface deliberately covers only the classification logic.
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 
+// Mutable references so individual tests can stub env.DMSGUI_VERSION
+// and mailserverRESTAPI without re-mocking the module per test.
+const { mockEnv, mockRESTAPI, mockWriteFile } = vi.hoisted(() => ({
+  mockEnv: {
+    isMutable: 1,
+    isImmutable: 0,
+    DKIM_KEYTYPE_DEFAULT: 'rsa',
+    DMS_CONFIG_PATH: '/tmp/docker-mailserver',
+    DMSGUI_VERSION: 'test',
+  },
+  mockRESTAPI: {},
+  mockWriteFile: vi.fn(),
+}));
+
 vi.mock('./backend.mjs', () => ({
   debugLog: vi.fn(),
   errorLog: vi.fn(),
@@ -13,18 +27,13 @@ vi.mock('./backend.mjs', () => ({
   execAction: vi.fn(),
   execCommand: vi.fn(), // documents the contract; prevents silent breakage if future tests exercise killContainer path
   ping: vi.fn(),
-  writeFile: vi.fn(),
+  writeFile: (...args) => mockWriteFile(...args),
 }));
 
 vi.mock('./env.mjs', () => ({
-  env: {
-    isMutable: 1,
-    isImmutable: 0,
-    DKIM_KEYTYPE_DEFAULT: 'rsa',
-    DMS_CONFIG_PATH: '/tmp/docker-mailserver',
-  },
+  env: mockEnv,
   command: {},
-  mailserverRESTAPI: {},
+  mailserverRESTAPI: mockRESTAPI,
 }));
 
 vi.mock('./db.mjs', () => ({
@@ -52,7 +61,11 @@ vi.mock('./demoMode.mjs', () => ({
 }));
 vi.mock('./demoData.mjs', () => ({ demoData: {} }));
 
-import { classifyMissingAuthTargetDict, generateDkim } from './settings.mjs';
+import {
+  classifyMissingAuthTargetDict,
+  createAPIfiles,
+  generateDkim,
+} from './settings.mjs';
 import { execAction } from './backend.mjs';
 import { getTargetDict } from './db.mjs';
 
@@ -245,5 +258,59 @@ describe('generateDkim dispatch', () => {
     );
     expect(result).toEqual({ success: false, error: 'Invalid keytype' });
     expect(execAction).not.toHaveBeenCalled();
+  });
+});
+
+describe('createAPIfiles', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    // Reset the mailserverRESTAPI mock between tests.
+    for (const k of Object.keys(mockRESTAPI)) delete mockRESTAPI[k];
+    mockWriteFile.mockResolvedValue({ success: true });
+    mockEnv.DMSGUI_VERSION = '2.4.0';
+  });
+
+  it('substitutes EVERY {DMSGUI_VERSION} occurrence (not just the first)', async () => {
+    // Regression for the substitution bug: rest-api.py.in carries the
+    // placeholder in TWO sites (the header comment and the
+    // REST_API_VERSION constant that drives the X-Rest-Api-Version
+    // response header). A plain String#replace would leave the second
+    // one as the literal string, and drift detection on the dms-gui
+    // side would always see "rest-api.py at {DMSGUI_VERSION}" and
+    // surface a false mismatch on every request.
+    mockRESTAPI.dms = {
+      api: {
+        path: '/tmp/rest-api.py',
+        content:
+          '#!/usr/bin/python3\n' +
+          '# version={DMSGUI_VERSION}\n' +
+          "REST_API_VERSION = '{DMSGUI_VERSION}'\n",
+      },
+    };
+
+    const result = await createAPIfiles('dms');
+
+    expect(result.success).toBe(true);
+    const [, written] = mockWriteFile.mock.calls[0];
+    expect(written).not.toContain('{DMSGUI_VERSION}');
+    expect(written).toContain('# version=2.4.0');
+    expect(written).toContain("REST_API_VERSION = '2.4.0'");
+  });
+
+  it('does not touch {DMSGUI_VERSION} inside .json manifest content', async () => {
+    // A future action whose argv template literally contains
+    // '{DMSGUI_VERSION}' must not be silently rewritten — the
+    // manifest is data, not a template.
+    mockRESTAPI.dms = {
+      manifest: {
+        path: '/tmp/rest-api-manifest.json',
+        content: '[{"id":"foo","argv":["echo","{DMSGUI_VERSION}"]}]',
+      },
+    };
+
+    await createAPIfiles('dms');
+
+    const [, written] = mockWriteFile.mock.calls[0];
+    expect(written).toBe('[{"id":"foo","argv":["echo","{DMSGUI_VERSION}"]}]');
   });
 });
