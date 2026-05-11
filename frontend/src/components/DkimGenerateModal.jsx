@@ -55,10 +55,15 @@ const DkimGenerateModal = ({
 }) => {
   const { t } = useTranslation();
   const hasCurrent = currentKeytype && currentKeysize;
+  // Coerce currentKeysize via String() — SQLite is loosely typed and
+  // the `keysize TEXT` column will return values as numbers when they
+  // were inserted as numbers. Without the coercion `2048 !== '2048'`
+  // is true and the "current key differs from recommended" notice
+  // would fire even when the key is already at the recommended size.
   const differs =
     hasCurrent &&
     (currentKeytype !== RECOMMENDED_KEYTYPE ||
-      currentKeysize !== RECOMMENDED_KEYSIZE);
+      String(currentKeysize) !== RECOMMENDED_KEYSIZE);
 
   return (
     <Modal show={show} onHide={onHide} size="lg">

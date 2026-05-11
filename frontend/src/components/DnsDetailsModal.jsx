@@ -8,6 +8,8 @@ import { DnsBadge, OptionalBadge } from './DnsBadge.jsx';
 import {
   spfGrade,
   dmarcGrade,
+  computeSpfRecord,
+  computeDmarcRecord,
   TLSA_USAGE,
   TLSA_SELECTOR,
   TLSA_MATCH,
@@ -19,37 +21,6 @@ const i18nHtmlComponents = {
   br: <br />,
   a: <a />,
   pre: <pre />,
-};
-
-// Build the SPF record that the inline editor will publish: keeps the
-// existing mechanisms (mx/a/include:...) if the domain already has an
-// SPF, otherwise infers reasonable defaults from the MX records.
-const computeSpfRecord = (dns, domain, spfAllMode) => {
-  const currentSpf = dns?.spf;
-  if (currentSpf) {
-    return currentSpf.replace(/[~\-?+]all\s*$/, spfAllMode);
-  }
-  const mechanisms = ['mx', 'a'];
-  if (dns?.mx?.length) {
-    for (const mx of dns.mx) {
-      const host = mx.exchange?.replace(/\.$/, '');
-      if (host && host !== domain) {
-        mechanisms.push(`include:${host}`);
-      }
-    }
-  }
-  return `v=spf1 ${mechanisms.join(' ')} ${spfAllMode}`;
-};
-
-// Build the DMARC record from the editor state. Always includes the
-// policy; rua/ruf are optional. Output shape mirrors the original
-// inline implementation (no trailing semicolon) to avoid pushing a
-// gratuitously different record to DNS on each edit.
-const computeDmarcRecord = (policy, rua, ruf) => {
-  let record = `v=DMARC1; p=${policy}`;
-  if (rua?.trim()) record += `; rua=mailto:${rua.trim()}`;
-  if (ruf?.trim()) record += `; ruf=mailto:${ruf.trim()}`;
-  return record;
 };
 
 // "DNS Details" modal — the centerpiece of the domains page.

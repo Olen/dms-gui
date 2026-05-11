@@ -52,3 +52,37 @@ export const keysizeBadge = (size) => {
   if (n >= 1024) return 'warning';
   return 'danger';
 };
+
+// Build the SPF record that the inline editor publishes: keep the
+// existing mechanisms (mx/a/include:...) if the domain already has
+// an SPF, otherwise infer reasonable defaults from the MX records.
+// `dns` is the result shape returned by getDnsLookup (object with
+// `spf` string and `mx` array of `{priority, exchange}`).
+export const computeSpfRecord = (dns, domain, spfAllMode) => {
+  const currentSpf = dns?.spf;
+  if (currentSpf) {
+    return currentSpf.replace(/[~\-?+]all\s*$/, spfAllMode);
+  }
+  const mechanisms = ['mx', 'a'];
+  if (dns?.mx?.length) {
+    for (const mx of dns.mx) {
+      const host = mx.exchange?.replace(/\.$/, '');
+      if (host && host !== domain) {
+        mechanisms.push(`include:${host}`);
+      }
+    }
+  }
+  return `v=spf1 ${mechanisms.join(' ')} ${spfAllMode}`;
+};
+
+// Build the DMARC record from the editor state. Always includes the
+// policy; rua/ruf are optional and only appended when non-empty.
+// No trailing semicolon — matches the original inline implementation
+// so the pushed record byte-matches what was there before the
+// inline editor was added.
+export const computeDmarcRecord = (policy, rua, ruf) => {
+  let record = `v=DMARC1; p=${policy}`;
+  if (rua?.trim()) record += `; rua=mailto:${rua.trim()}`;
+  if (ruf?.trim()) record += `; ruf=mailto:${ruf.trim()}`;
+  return record;
+};
