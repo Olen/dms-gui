@@ -325,7 +325,11 @@ export const addAccount = async (
 
 export const deleteAccount = async (schema, containerName, mailbox) =>
   request('delete', `/accounts/${schema}/${containerName}/${mailbox}`, {
-    requires: { schema, containerName },
+    // mailbox is a URL segment — without this check a missing value
+    // would produce a request to `/accounts/.../undefined`. All other
+    // account endpoints already require mailbox; this aligns
+    // deleteAccount with the pattern.
+    requires: { schema, containerName, mailbox },
   });
 
 export const doveadm = async (
@@ -537,7 +541,10 @@ export const rspamdLearnMessage = async (
 
 export const getCount = async (table, containerName) =>
   request('get', `/getCount/${table}/${containerName}`, {
-    requires: { table },
+    // Both segments interpolate into the URL; require both so a
+    // missing arg short-circuits instead of producing
+    // `/getCount/<table>/undefined`.
+    requires: { table, containerName },
   });
 
 // TBD — not currently referenced by any page; kept until the
@@ -648,11 +655,14 @@ export const testDnsProvider = async (credentials) => {
 
 export const pushDnsRecord = async (containerName, domain, record) => {
   // Silent-failure: same UX contract as testDnsProvider.
+  // containerName and domain interpolate into the URL — require both
+  // so a missing arg short-circuits to a {success:false,error:...}
+  // shape from request() instead of POSTing to /dnscontrol/undefined/...
   try {
     return await request(
       'post',
       `/dnscontrol/${containerName}/${domain}/records`,
-      { body: record }
+      { requires: { containerName, domain }, body: record }
     );
   } catch (error) {
     return {
