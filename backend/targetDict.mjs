@@ -220,7 +220,29 @@ export const getTargetDict = (
         return targetDict;
       }
     }
-    throw new Error(result?.error);
+    // Fall-through diagnostics: distinguish "getSettings failed" from
+    // "succeeded but the plugin/schema row isn't configured". Throwing
+    // `new Error(result?.error)` here used to swallow the latter into
+    // an "undefined" error message because result.error is undefined
+    // on a successful-but-empty result.
+    if (!result?.success) {
+      throw new Error(result?.error || 'getSettings failed (no error message)');
+    }
+    if (!schema) {
+      throw new Error(
+        `schema setting missing for ${plugin}/${containerName} — DB may be uninitialised`
+      );
+    }
+    if (!plugins[plugin]?.[schema]?.keys) {
+      throw new Error(
+        `no plugin descriptor for ${plugin}/${schema} (check env.mjs plugins{})`
+      );
+    }
+    // messageOK + pluginKeys present, but length comparison failed —
+    // settings table has fewer rows than the descriptor expects.
+    throw new Error(
+      `incomplete settings for ${plugin}/${containerName} — got ${result.message.length} rows, expected at least ${Object.keys(plugins[plugin][schema].keys).length}`
+    );
   } catch (error) {
     errorLog(error.message);
     dbOpen();
