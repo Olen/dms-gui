@@ -337,29 +337,36 @@ export const postJsonToApi = async (
     // Version-drift detection. rest-api.py exposes its dms-gui-generation
     // version in the X-Rest-Api-Version header (added in 2.4.0). When
     // dms-gui upgrades but supervisor inside the mailserver container
-    // hasn't reloaded the file, the on-disk rest-api.py may be from an
-    // older dms-gui — leading to opaque 500s on protocol mismatch (the
-    // pre-Sprint-E `{command:}` path is the canonical example).
+    // hasn't reloaded the file, the RUNNING rest-api.py process may be
+    // from an older dms-gui — leading to opaque 500s on protocol
+    // mismatch (the pre-Sprint-E `{command:}` path is the canonical
+    // example).
+    //
+    // The header reflects the *running* process, NOT the on-disk file:
+    // start.sh auto-regens the file at every boot, so on-disk is
+    // already the new version while supervisor's in-memory copy is
+    // still the old one. The remediation is `supervisorctl restart
+    // rest-api`, which reloads the file from disk into memory.
     //
     // Compare and surface a distinct error when they don't match. Missing
     // header is treated as "very old rest-api.py" (pre-2.4.0).
-    const restApiVersion = response.headers.get('x-rest-api-version');
+    const runningVersion = response.headers.get('x-rest-api-version');
     const expectedVersion = env.DMSGUI_VERSION;
     const versionMismatch =
-      restApiVersion && expectedVersion && restApiVersion !== expectedVersion;
-    const versionMissing = !restApiVersion && expectedVersion;
+      runningVersion && expectedVersion && runningVersion !== expectedVersion;
+    const versionMissing = !runningVersion && expectedVersion;
 
     if (!response.ok) {
       const hint = versionMismatch
-        ? ` (rest-api.py is at ${restApiVersion}, dms-gui at ${expectedVersion} — click "Inject API" then 'docker exec mailserver supervisorctl restart rest-api')`
+        ? ` (running rest-api.py is ${runningVersion}, dms-gui is ${expectedVersion} — 'docker exec mailserver supervisorctl restart rest-api' to reload)`
         : versionMissing
-          ? ` (rest-api.py is from a pre-2.4.0 dms-gui — click "Inject API" then 'docker exec mailserver supervisorctl restart rest-api')`
+          ? ` (running rest-api.py is pre-2.4.0 — 'docker exec mailserver supervisorctl restart rest-api' to reload the newer on-disk file)`
           : '';
       throw new Error(`HTTP POST error! status: ${response.status}${hint}`);
     }
     if (versionMismatch) {
       warnLog(
-        `rest-api.py version drift: on-disk=${restApiVersion}, dms-gui=${expectedVersion} — restart mailserver supervisor to reload`
+        `rest-api.py version drift: running=${runningVersion}, dms-gui=${expectedVersion} — restart mailserver supervisor to reload`
       );
     }
 

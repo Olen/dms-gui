@@ -23,7 +23,7 @@ MANIFEST_PATH = os.environ.get(
 )
 
 def logger(message):
-  # 2025-11-05T15:05:49.710284+00:00 mx dms-gui-api:
+  # 2025-11-05T15:05:49.710284+0000 mx dms-gui-api:
   print(f'{datetime.datetime.now().astimezone().strftime("%Y-%m-%dT%H:%M:%S.%f%z")} {os.uname().nodename.split(".")[0]} dms-gui-api: {message}')
 
 def debugg(message):

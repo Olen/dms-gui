@@ -226,11 +226,13 @@ describe('execAction', () => {
     const result = await execAction('setup_email_list', {}, validTarget);
 
     // execAction wraps postJsonToApi's throw into a returncode-99 shape.
-    // The drift hint must reach the operator via stderr.
+    // The drift hint must reach the operator via stderr. "Running" not
+    // "on-disk" — start.sh auto-regens the file every boot, so on-disk
+    // is fresh; supervisor's in-memory copy is what's stale.
     expect(result.returncode).toBe(99);
-    expect(result.stderr).toMatch(/rest-api\.py is at 2\.2\.0/);
-    expect(result.stderr).toMatch(/dms-gui at test/);
-    expect(result.stderr).toMatch(/Inject API/);
+    expect(result.stderr).toMatch(/running rest-api\.py is 2\.2\.0/);
+    expect(result.stderr).toMatch(/dms-gui is test/);
+    expect(result.stderr).toMatch(/supervisorctl restart rest-api/);
   });
 
   it('includes a pre-2.4.0 hint when X-Rest-Api-Version is missing on failure', async () => {
@@ -245,6 +247,6 @@ describe('execAction', () => {
 
     expect(result.returncode).toBe(99);
     expect(result.stderr).toMatch(/pre-2\.4\.0/);
-    expect(result.stderr).toMatch(/Inject API/);
+    expect(result.stderr).toMatch(/supervisorctl restart rest-api/);
   });
 });
