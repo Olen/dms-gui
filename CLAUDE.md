@@ -187,7 +187,8 @@ Backend is split into modular route files + business-logic modules:
 - `backend/routes/domains.js` — Domains, DNS lookup, DKIM, DNSBL, DNS control
 - `backend/routes/server.js` — Status, infos, envs, logs, count, initAPI, killContainer. The `/status/:plugin/:containerName` route applies the SSRF gates: admin-only `settings` body, containerName must be in caller's accessible config set.
 - `backend/routes/mail.js` — Autoconfig, mobileconfig, password gen, rspamd, dovecot
-- `backend/env.mjs` — Environment config + embedded rest-api.py template (~640 lines of Python in a JS template literal — see issue #81 for the planned extraction)
+- `backend/env.mjs` — Environment config + reference to the rest-api.py template (loaded from `backend/rest-api.py.in` at module load)
+- `backend/rest-api.py.in` — Python source of the rest-api.py interpreter that runs inside the DMS mailserver container. Templated with `{DMSGUI_VERSION}` (substituted at write time by `createAPIfiles`). Auto-written to `<dms-config>/dms-gui/rest-api.py` on every dms-gui container start so the on-disk artefact stays in lockstep with the image.
 - `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup. `getConfigs(plugin, roles)`: empty `roles` is the admin path, callers must guard non-admin code accordingly (see security notes).
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (action protocol)

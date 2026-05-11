@@ -7,6 +7,7 @@ const { mockEnv, socketSetTimeoutSpy } = vi.hoisted(() => {
     timeout: 4,
     debug: false,
     LOG_COLORS: false,
+    DMSGUI_VERSION: 'test',
   };
   // Captures the ms argument passed to socket.setTimeout in checkPort,
   // so the test can verify checkPort and the request body see the same
@@ -53,8 +54,12 @@ describe('execAction', () => {
     mockEnv.timeout = 4;
 
     // Spy on globalThis.fetch so we can capture what postJsonToApi sends.
+    // Default response advertises a matching X-Rest-Api-Version header so
+    // the postJsonToApi version-drift check (added with #95) doesn't trip
+    // a warning in the happy path; mockEnv.DMSGUI_VERSION is 'test'.
     fetchSpy = vi.spyOn(globalThis, 'fetch').mockResolvedValue({
       ok: true,
+      headers: new Headers({ 'X-Rest-Api-Version': 'test' }),
       json: async () => ({ returncode: 0, stdout: 'ok', stderr: '' }),
     });
   });
@@ -87,6 +92,7 @@ describe('execAction', () => {
   it('returns {returncode, stdout, stderr} shape matching the legacy helpers', async () => {
     fetchSpy.mockResolvedValue({
       ok: true,
+      headers: new Headers({ 'X-Rest-Api-Version': 'test' }),
       json: async () => ({
         returncode: 0,
         stdout: 'user@example.com\n',
@@ -207,5 +213,38 @@ describe('execAction', () => {
       args: null,
       timeout: 4,
     });
+  });
+
+  it('includes a version-drift hint in the error when X-Rest-Api-Version mismatches on failure', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers({ 'X-Rest-Api-Version': '2.2.0' }),
+      json: async () => ({ error: 'no command was passed' }),
+    });
+
+    const result = await execAction('setup_email_list', {}, validTarget);
+
+    // execAction wraps postJsonToApi's throw into a returncode-99 shape.
+    // The drift hint must reach the operator via stderr.
+    expect(result.returncode).toBe(99);
+    expect(result.stderr).toMatch(/rest-api\.py is at 2\.2\.0/);
+    expect(result.stderr).toMatch(/dms-gui at test/);
+    expect(result.stderr).toMatch(/Inject API/);
+  });
+
+  it('includes a pre-2.4.0 hint when X-Rest-Api-Version is missing on failure', async () => {
+    fetchSpy.mockResolvedValue({
+      ok: false,
+      status: 500,
+      headers: new Headers({}),
+      json: async () => ({ error: 'no command was passed' }),
+    });
+
+    const result = await execAction('setup_email_list', {}, validTarget);
+
+    expect(result.returncode).toBe(99);
+    expect(result.stderr).toMatch(/pre-2\.4\.0/);
+    expect(result.stderr).toMatch(/Inject API/);
   });
 });

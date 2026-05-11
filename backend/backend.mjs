@@ -333,42 +333,34 @@ export const postJsonToApi = async (
     });
 
     debugLog('ddebug response', response);
-    // valid API key:
-    // Response {
-    //   status: 200,
-    //   statusText: 'OK',
-    //   headers: Headers {
-    //     server: 'BaseHTTP/0.6 Python/3.11.2',
-    //     date: 'Sun, 21 Dec 2025 05:35:39 GMT',
-    //     'content-type': 'application/json'
-    //   },
-    //   body: ReadableStream { locked: false, state: 'readable', supportsBYOB: true },
-    //   bodyUsed: false,
-    //   ok: true,
-    //   redirected: false,
-    //   type: 'basic',
-    //   url: 'http://dms:8888/'
-    // }
 
-    // exception:
-    // Response {
-    //   status: 500,
-    //   statusText: 'Internal Server Error',
-    //   headers: Headers {
-    //     server: 'BaseHTTP/0.6 Python/3.11.2',
-    //     date: 'Sun, 21 Dec 2025 05:36:53 GMT',
-    //     'content-type': 'application/json'
-    //   },
-    //   body: ReadableStream { locked: false, state: 'readable', supportsBYOB: true },
-    //   bodyUsed: false,
-    //   ok: false,
-    //   redirected: false,
-    //   type: 'basic',
-    //   url: 'http://dms:8888/'
-    // }
+    // Version-drift detection. rest-api.py exposes its dms-gui-generation
+    // version in the X-Rest-Api-Version header (added in 2.4.0). When
+    // dms-gui upgrades but supervisor inside the mailserver container
+    // hasn't reloaded the file, the on-disk rest-api.py may be from an
+    // older dms-gui — leading to opaque 500s on protocol mismatch (the
+    // pre-Sprint-E `{command:}` path is the canonical example).
+    //
+    // Compare and surface a distinct error when they don't match. Missing
+    // header is treated as "very old rest-api.py" (pre-2.4.0).
+    const restApiVersion = response.headers.get('x-rest-api-version');
+    const expectedVersion = env.DMSGUI_VERSION;
+    const versionMismatch =
+      restApiVersion && expectedVersion && restApiVersion !== expectedVersion;
+    const versionMissing = !restApiVersion && expectedVersion;
 
     if (!response.ok) {
-      throw new Error(`HTTP POST error! status: ${response.status}`);
+      const hint = versionMismatch
+        ? ` (rest-api.py is at ${restApiVersion}, dms-gui at ${expectedVersion} — click "Inject API" then 'docker exec mailserver supervisorctl restart rest-api')`
+        : versionMissing
+          ? ` (rest-api.py is from a pre-2.4.0 dms-gui — click "Inject API" then 'docker exec mailserver supervisorctl restart rest-api')`
+          : '';
+      throw new Error(`HTTP POST error! status: ${response.status}${hint}`);
+    }
+    if (versionMismatch) {
+      warnLog(
+        `rest-api.py version drift: on-disk=${restApiVersion}, dms-gui=${expectedVersion} — restart mailserver supervisor to reload`
+      );
     }
 
     const responseData = await response.json(); // Parse the JSON response

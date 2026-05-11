@@ -381,6 +381,15 @@ def execute_action(action, args, action_timeout):
 
 class APIHandler(http.server.BaseHTTPRequestHandler):
 
+  # Advertise the dms-gui version that generated this rest-api.py so
+  # the dms-gui backend can detect protocol drift after an upgrade and
+  # surface a clear "restart mailserver" message instead of opaque 500s.
+  REST_API_VERSION = '{DMSGUI_VERSION}'
+
+  def end_headers(self):
+    self.send_header('X-Rest-Api-Version', self.REST_API_VERSION)
+    super().end_headers()
+
   def do_POST(self):
     # Defence in depth: even though the server runs HTTP/1.0 (no
     # keep-alive by default), explicitly close the connection after
