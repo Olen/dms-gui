@@ -249,4 +249,43 @@ describe('execAction', () => {
     expect(result.stderr).toMatch(/pre-2\.4\.0/);
     expect(result.stderr).toMatch(/supervisorctl restart rest-api/);
   });
+
+  it('warnLogs ONCE when a 200 response is missing X-Rest-Api-Version (silent drift)', async () => {
+    // Pre-2.4.0 rest-api.py can happily return 200 for unchanged
+    // endpoints. Without an HTTP failure, the drift would stay silent
+    // until the first protocol-broken request — so we surface it via
+    // warnLog at the first observation per target.
+    fetchSpy.mockResolvedValue({
+      ok: true,
+      headers: new Headers({}), // no X-Rest-Api-Version
+      json: async () => ({ returncode: 0, stdout: 'ok', stderr: '' }),
+    });
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {});
+
+    // First call → warning emitted.
+    const r1 = await execAction(
+      'setup_email_list',
+      {},
+      { ...validTarget, port: 9001 } // unique target so dedupe state is fresh
+    );
+    expect(r1.returncode).toBe(0); // success path, not error
+    const warnCall = logSpy.mock.calls.find((call) =>
+      String(call.join(' ')).includes('pre-2.4.0')
+    );
+    expect(warnCall).toBeDefined();
+
+    // Second call to the SAME target → rate-limited, no new warning.
+    logSpy.mockClear();
+    await execAction(
+      'setup_email_list',
+      {},
+      { ...validTarget, port: 9001 } // same target
+    );
+    const repeatWarn = logSpy.mock.calls.find((call) =>
+      String(call.join(' ')).includes('pre-2.4.0')
+    );
+    expect(repeatWarn).toBeUndefined();
+
+    logSpy.mockRestore();
+  });
 });

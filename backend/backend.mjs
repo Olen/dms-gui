@@ -308,6 +308,13 @@ export const execAction = async (
   }
 };
 
+// Targets we've already emitted a version-drift warning for, keyed by
+// `${protocol}://${host}:${port}|${runningVersion}`. Persisted at module
+// scope so warnings emit at most once per (target, observed-version)
+// pair per dms-gui process. Cleared on process restart, which is
+// intentional — operators want the hint re-surfaced after a reboot.
+const versionDriftWarned = new Set();
+
 /**
  * Generic API function post
  * @param {string} apiUrl API url like http://whatever:8888
@@ -348,8 +355,22 @@ export const postJsonToApi = async (
     // still the old one. The remediation is `supervisorctl restart
     // rest-api`, which reloads the file from disk into memory.
     //
-    // Compare and surface a distinct error when they don't match. Missing
-    // header is treated as "very old rest-api.py" (pre-2.4.0).
+    // Behavioural matrix:
+    //
+    //   !response.ok               → throw with a drift hint appended
+    //                                to the existing HTTP error.
+    //   response.ok + mismatch     → warnLog (once per target per process).
+    //   response.ok + missing      → warnLog (once per target per process).
+    //                                A pre-2.4.0 rest-api.py can happily
+    //                                return 200 for unchanged endpoints,
+    //                                so silent drift would otherwise hide
+    //                                until the first protocol-different
+    //                                request happens to break.
+    //
+    // The per-target dedupe prevents a busy backend from flooding logs
+    // (every request would otherwise emit the same warning). The Set is
+    // reset on process restart, which is intentional — a fresh boot is
+    // exactly when an operator wants the hint resurfaced.
     const runningVersion = response.headers.get('x-rest-api-version');
     const expectedVersion = env.DMSGUI_VERSION;
     const versionMismatch =
@@ -364,10 +385,20 @@ export const postJsonToApi = async (
           : '';
       throw new Error(`HTTP POST error! status: ${response.status}${hint}`);
     }
-    if (versionMismatch) {
-      warnLog(
-        `rest-api.py version drift: running=${runningVersion}, dms-gui=${expectedVersion} — restart mailserver supervisor to reload`
-      );
+    if (versionMismatch || versionMissing) {
+      const targetKey = `${apiUrl}|${runningVersion || 'pre-2.4.0'}`;
+      if (!versionDriftWarned.has(targetKey)) {
+        versionDriftWarned.add(targetKey);
+        if (versionMismatch) {
+          warnLog(
+            `rest-api.py version drift: running=${runningVersion}, dms-gui=${expectedVersion} — 'docker exec mailserver supervisorctl restart rest-api' to reload`
+          );
+        } else {
+          warnLog(
+            `rest-api.py is pre-2.4.0 (no X-Rest-Api-Version header) while dms-gui is ${expectedVersion} — 'docker exec mailserver supervisorctl restart rest-api' to reload the newer on-disk file`
+          );
+        }
+      }
     }
 
     const responseData = await response.json(); // Parse the JSON response
