@@ -189,7 +189,12 @@ Backend is split into modular route files + business-logic modules:
 - `backend/routes/mail.js` — Autoconfig, mobileconfig, password gen, rspamd, dovecot
 - `backend/env.mjs` — Environment config + reference to the rest-api.py template (loaded from `backend/rest-api.py.in` at module load)
 - `backend/rest-api.py.in` — Python source of the rest-api.py interpreter that runs inside the DMS mailserver container. Templated with `{DMSGUI_VERSION}` (substituted at write time by `createAPIfiles`). `docker/start.sh` *attempts* to regenerate `<dms-config>/dms-gui/rest-api.py` on every dms-gui container start (fail-open: a `[STARTUP WARNING]` to stderr if it can't, then continue with whatever's on disk). Drift between the running Python process and the on-disk file is surfaced via the `X-Rest-Api-Version` response header — `postJsonToApi` warnLogs once per (target, version) pair when it sees a mismatch or missing header.
-- `backend/settings.mjs` — DMS status/dashboard data, DKIM generation, DNS lookup. `getConfigs(plugin, roles)`: empty `roles` is the admin path, callers must guard non-admin code accordingly (see security notes).
+- `backend/settings.mjs` — Settings CRUD, dashboard composition (`getServerStatus`/`getNodeInfos`/`getServerEnvs`), domains/configs (`getDomain`/`getDomains`/`getConfigs`/`saveSettings`), conf-file parsers (`readDovecotConfFile`/`readDkimFile`/`pull*`), DMS-API bootstrap (`initAPI`/`createAPIfiles`/`killContainer`). Re-exports the per-domain sibling modules below via barrel for backward-compat (issue #82 split). `getConfigs(plugin, roles)`: empty `roles` is the admin path, callers must guard non-admin code accordingly (see security notes).
+- `backend/dnsTools.mjs` — `dnsLookup` (A/MX/SPF/DKIM/DMARC/TLSA/SRV) + `dnsblCheck` against OPEN/KEY/DOMAIN RBLs. Owns `isPrivateIp`/`getPublicIp` and the RBL tables.
+- `backend/dkim.mjs` — `getDkimSelector` (parses rspamd signing config) + `generateDkim` (four-way dispatch on `keytype`/`force` to manifest action ids, copies keys into the `keys/$domain/$selector.private` layout rspamd expects, updates the domain DB row).
+- `backend/rspamd.mjs` — Stats, config, Bayes user breakdown, top-symbol counters, message history with Bayes-learned overlay, per-user history summary, and `rspamdLearnMessage` (the doveadm-search → unlearn-if-flipped → learn → DB-record pipeline).
+- `backend/mailLogs.mjs` — `getMailLogs` (tail postfix/rspamd logs via `tail_log`) + `getMailBounces` (parse postfix smtp bounce/defer lines; current regex captures ISO 8601 timestamps only — modern DMS emits ISO via journald, BSD-syslog support tracked as #109).
+- `backend/dovecot.mjs` — `getDovecotSessions` (parses `doveadm who` output).
 - `backend/dnsProviders.mjs` — DNS provider abstraction (Domeneshop + Cloudflare), upsert TXT records
 - `backend/accounts.mjs` — Account management (action protocol)
 - `backend/aliases.mjs` — Alias management (action protocol)
@@ -250,7 +255,7 @@ Code-quality / reusability / dependency-reduction backlog from the 2026-05-10 fu
 - **#79** Replace `dotenv` with Node 20 `--env-file`
 - **#80** Migrate frontend webpack → Vite (CLAUDE.md's previously-claimed bundler)
 - **#81** Extract embedded `rest-api.py` from `env.mjs` (~640-line Python string literal)
-- **#82** Split god-modules: `settings.mjs` (2766 lines) and `db.mjs` (2015 lines)
+- **#82** Split god-modules: ~~`settings.mjs` (2766 lines)~~ → split into `dnsTools`/`dkim`/`rspamd`/`mailLogs`/`dovecot` siblings; `db.mjs` (2015 lines) still to do
 - **#83** Consolidate `services/api.mjs` (52 try/catch wrappers → `request()` + per-domain split)
 - **#84** Move SQL out of `routes/*.js` into business modules
 - **#85** Standardize error response shapes across routes
