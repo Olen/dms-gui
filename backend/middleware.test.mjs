@@ -283,14 +283,19 @@ describe('validateContainerName', () => {
     }
   });
 
-  it('calls next() for empty/null value (pass-through)', () => {
+  it('rejects empty/null value with 400 (replaces ~38 in-handler guards)', () => {
     const req = mockReq();
     const res = mockRes();
     const next = mockNext();
 
     validateContainerName(req, res, next, null);
 
-    expect(next).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'containerName is required',
+    });
   });
 });
 
@@ -299,7 +304,7 @@ describe('serverError', () => {
     vi.clearAllMocks();
   });
 
-  it('logs error message and returns 500 with generic message', () => {
+  it('logs error message and returns 500 with the canonical {success:false,error,code} shape', () => {
     const res = mockRes();
     const error = new Error('database connection failed');
 
@@ -309,7 +314,11 @@ describe('serverError', () => {
       'test context: database connection failed'
     );
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Internal server error',
+      code: 'SERVER_ERROR',
+    });
   });
 
   it('does not leak error details in response body', () => {
@@ -576,5 +585,29 @@ describe('rate limiters', () => {
     // legitimate users below the dashboard's auto-refresh rate.
     expect(API_LIMITER_MAX).toBe(600);
     expect(API_LIMITER_WINDOW_MS).toBe(15 * 60 * 1000);
+  });
+
+  it('429 bodies match the canonical {success,error,code} shape', async () => {
+    // Lock the limiter's response body so it can't drift back to the
+    // old {error:...} shape — the rest of the API uses
+    // {success:false, error, code} and the frontend interceptor keys
+    // off `code` to render the right toast (RATE_LIMITED here).
+    const express = (await import('express')).default;
+    const request = (await import('supertest')).default;
+    const app = express();
+    app.use(authLimiter);
+    app.get('/ping', (_req, res) => res.json({ ok: true }));
+
+    // Fire AUTH_LIMITER_MAX + 1 requests; the last one trips the limiter.
+    for (let i = 0; i < AUTH_LIMITER_MAX; i += 1) {
+      // eslint-disable-next-line no-await-in-loop -- sequential by design
+      await request(app).get('/ping').expect(200);
+    }
+    const res = await request(app).get('/ping').expect(429);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Too many authentication attempts, please try again later',
+      code: 'RATE_LIMITED',
+    });
   });
 });

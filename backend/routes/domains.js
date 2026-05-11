@@ -1,6 +1,20 @@
 import { Router } from 'express';
-import { authenticateToken, requireActive, requireAdmin, isValidDomain, serverError, validateContainerName } from '../middleware.js';
-import { dnsLookup, dnsblCheck, generateDkim, getDkimSelector, getDomains } from '../settings.mjs';
+import {
+  authenticateToken,
+  clientError,
+  requireActive,
+  requireAdmin,
+  isValidDomain,
+  serverError,
+  validateContainerName,
+} from '../middleware.js';
+import {
+  dnsLookup,
+  dnsblCheck,
+  generateDkim,
+  getDkimSelector,
+  getDomains,
+} from '../settings.mjs';
 import { updateDB, dbRun } from '../db.mjs';
 import { upsertDnsRecord } from '../dnsProviders.mjs';
 
@@ -11,7 +25,7 @@ const ensureDomainRow = (domain, containerName) => {
   dbRun(
     `INSERT OR IGNORE INTO domains (domain, configID) VALUES (@domain, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
     { domain },
-    containerName,
+    containerName
   );
 };
 import { demoWriteResponse } from '../demoMode.mjs';
@@ -20,118 +34,157 @@ const router = Router();
 router.param('containerName', validateContainerName);
 
 // Endpoint for testing DNS provider credentials
-router.post('/dnscontrol/test',
+router.post(
+  '/dnscontrol/test',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const demo = demoWriteResponse('DNS provider test OK');
-    if (demo) return res.json(demo);
+  async (req, res) => {
+    try {
+      const demo = demoWriteResponse('DNS provider test OK');
+      if (demo) return res.json(demo);
 
-    const { type, ...creds } = req.body;
-    if (!type) return res.status(400).json({ success: false, error: 'Provider type is required' });
+      const { type, ...creds } = req.body;
+      if (!type) return clientError(res, 400, 'Provider type is required');
 
-    const key = type.toLowerCase();
-    let testResult;
+      const key = type.toLowerCase();
+      let testResult;
 
-    if (key === 'domeneshop') {
-      const response = await fetch('https://api.domeneshop.no/v0/domains', {
-        headers: { 'Authorization': 'Basic ' + Buffer.from(`${creds.token}:${creds.secret}`).toString('base64') },
-      });
-      if (response.ok) {
-        const domains = await response.json();
-        testResult = { success: true, message: `OK — ${domains.length} domain(s) found` };
-      } else {
-        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
-      }
-
-    } else if (key === 'cloudflare') {
-      const response = await fetch('https://api.cloudflare.com/client/v4/user/tokens/verify', {
-        headers: { 'Authorization': `Bearer ${creds.apitoken}` },
-      });
-      const data = await response.json();
-      if (data.success) {
-        testResult = { success: true, message: `OK — token status: ${data.result?.status || 'active'}` };
-      } else {
-        testResult = { success: false, error: data.errors?.[0]?.message || `HTTP ${response.status}` };
-      }
-
-    } else if (key === 'digitalocean') {
-      const response = await fetch('https://api.digitalocean.com/v2/account', {
-        headers: { 'Authorization': `Bearer ${creds.apitoken}` },
-      });
-      if (response.ok) {
-        testResult = { success: true, message: 'OK — authentication successful' };
-      } else {
-        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
-      }
-
-    } else if (key === 'hetzner') {
-      const response = await fetch('https://dns.hetzner.com/api/v1/zones', {
-        headers: { 'Auth-API-Token': creds.apitoken },
-      });
-      if (response.ok) {
+      if (key === 'domeneshop') {
+        const response = await fetch('https://api.domeneshop.no/v0/domains', {
+          headers: {
+            Authorization:
+              'Basic ' +
+              Buffer.from(`${creds.token}:${creds.secret}`).toString('base64'),
+          },
+        });
+        if (response.ok) {
+          const domains = await response.json();
+          testResult = {
+            success: true,
+            message: `OK — ${domains.length} domain(s) found`,
+          };
+        } else {
+          testResult = {
+            success: false,
+            error: `HTTP ${response.status}: ${response.statusText}`,
+          };
+        }
+      } else if (key === 'cloudflare') {
+        const response = await fetch(
+          'https://api.cloudflare.com/client/v4/user/tokens/verify',
+          {
+            headers: { Authorization: `Bearer ${creds.apitoken}` },
+          }
+        );
         const data = await response.json();
-        const count = data.zones?.length || 0;
-        testResult = { success: true, message: `OK — ${count} zone(s) found` };
+        if (data.success) {
+          testResult = {
+            success: true,
+            message: `OK — token status: ${data.result?.status || 'active'}`,
+          };
+        } else {
+          testResult = {
+            success: false,
+            error: data.errors?.[0]?.message || `HTTP ${response.status}`,
+          };
+        }
+      } else if (key === 'digitalocean') {
+        const response = await fetch(
+          'https://api.digitalocean.com/v2/account',
+          {
+            headers: { Authorization: `Bearer ${creds.apitoken}` },
+          }
+        );
+        if (response.ok) {
+          testResult = {
+            success: true,
+            message: 'OK — authentication successful',
+          };
+        } else {
+          testResult = {
+            success: false,
+            error: `HTTP ${response.status}: ${response.statusText}`,
+          };
+        }
+      } else if (key === 'hetzner') {
+        const response = await fetch('https://dns.hetzner.com/api/v1/zones', {
+          headers: { 'Auth-API-Token': creds.apitoken },
+        });
+        if (response.ok) {
+          const data = await response.json();
+          const count = data.zones?.length || 0;
+          testResult = {
+            success: true,
+            message: `OK — ${count} zone(s) found`,
+          };
+        } else {
+          testResult = {
+            success: false,
+            error: `HTTP ${response.status}: ${response.statusText}`,
+          };
+        }
       } else {
-        testResult = { success: false, error: `HTTP ${response.status}: ${response.statusText}` };
+        testResult = {
+          success: false,
+          error: `Test not implemented for provider: ${type}`,
+        };
       }
 
-    } else {
-      testResult = { success: false, error: `Test not implemented for provider: ${type}` };
+      res.json(testResult);
+    } catch (error) {
+      serverError(res, 'POST /api/dnscontrol/test', error);
     }
-
-    res.json(testResult);
-
-  } catch (error) {
-    serverError(res, 'POST /api/dnscontrol/test', error);
   }
-});
-
+);
 
 // Endpoint for pushing DNS records to a domain's assigned DNS provider
-router.post('/dnscontrol/:containerName/:domain/records',
+router.post(
+  '/dnscontrol/:containerName/:domain/records',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ success: false, error: 'containerName is required' });
-    if (!domain) return res.status(400).json({ success: false, error: 'domain is required' });
-    if (!isValidDomain(domain)) return res.status(400).json({ success: false, error: 'Invalid domain format' });
+  async (req, res) => {
+    try {
+      const { containerName, domain } = req.params;
+      if (!domain) return clientError(res, 400, 'domain is required');
+      if (!isValidDomain(domain))
+        return clientError(res, 400, 'Invalid domain format');
 
-    const demo = demoWriteResponse('DNS record updated');
-    if (demo) return res.json(demo);
+      const demo = demoWriteResponse('DNS record updated');
+      if (demo) return res.json(demo);
 
-    const { name, type, data } = req.body;
-    if (!name || !type || !data) return res.status(400).json({ success: false, error: 'name, type, and data are required' });
+      const { name, type, data } = req.body;
+      if (!name || !type || !data)
+        return clientError(res, 400, 'name, type, and data are required');
 
-    const result = await upsertDnsRecord(containerName, domain, { name, type, data });
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'POST /api/dnscontrol/records', error);
+      const result = await upsertDnsRecord(containerName, domain, {
+        name,
+        type,
+        data,
+      });
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'POST /api/dnscontrol/records', error);
+    }
   }
-});
-
+);
 
 // Get DKIM selector from rspamd signing config
-router.get('/domains/:containerName/dkim-selector',
+router.get(
+  '/domains/:containerName/dkim-selector',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { containerName } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    const result = await getDkimSelector('mailserver', containerName);
-    res.json(result);
-  } catch (error) {
-    serverError(res, 'GET /api/domains/dkim-selector', error);
+  async (req, res) => {
+    try {
+      const { containerName } = req.params;
+      const result = await getDkimSelector('mailserver', containerName);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/domains/dkim-selector', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -161,22 +214,26 @@ async (req, res) => {
  *       500:
  *         description: Unable to retrieve domains
  */
-router.get('/domains/:containerName{/:domain}',
+router.get(
+  '/domains/:containerName{/:domain}',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
+  async (req, res) => {
+    try {
+      const { containerName, domain } = req.params;
 
-    const domains = await getDomains(containerName, domain);
-    res.json(domains);
-
-  } catch (error) {
-    serverError(res, `index GET /api/domains/${req.params.domain}/${req.params.containerName}`, error);
+      const domains = await getDomains(containerName, domain);
+      res.json(domains);
+    } catch (error) {
+      serverError(
+        res,
+        `index GET /api/domains/${req.params.domain}/${req.params.containerName}`,
+        error
+      );
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -212,28 +269,29 @@ async (req, res) => {
  *       500:
  *         description: Unable to update domain
  */
-router.patch('/domains/:containerName/:domain',
+router.patch(
+  '/domains/:containerName/:domain',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!domain) return res.status(400).json({ error: 'domain is required' });
-    if (!isValidDomain(domain)) return res.status(400).json({ error: 'invalid domain' });
+  async (req, res) => {
+    try {
+      const { containerName, domain } = req.params;
+      if (!domain) return clientError(res, 400, 'domain is required');
+      if (!isValidDomain(domain))
+        return clientError(res, 400, 'invalid domain');
 
-    // Ensure domain row exists — new domains only exist via postfix aliases,
-    // not in the domains table, so UPDATE would match 0 rows.
-    ensureDomainRow(domain, containerName);
+      // Ensure domain row exists — new domains only exist via postfix aliases,
+      // not in the domains table, so UPDATE would match 0 rows.
+      ensureDomainRow(domain, containerName);
 
-    const result = await updateDB('domains', domain, req.body, containerName);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PATCH /api/domains', error);
+      const result = await updateDB('domains', domain, req.body, containerName);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PATCH /api/domains', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -262,32 +320,36 @@ async (req, res) => {
  *       500:
  *         description: Unable to perform DNS lookup
  */
-router.get('/dns/:containerName/:domain',
+router.get(
+  '/dns/:containerName/:domain',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!domain) return res.status(400).json({ error: 'domain is required' });
-    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
-
-    // Try to get DKIM selector from domain DB entry
-    let dkimSelector = 'dkim';
+  async (req, res) => {
     try {
-      const domainInfo = await getDomains(containerName, domain);
-      const dkim = domainInfo?.message?.message?.dkim || domainInfo?.message?.dkim;
-      if (dkim) dkimSelector = dkim;
-    } catch (e) { /* fall back to default selector */ }
+      const { containerName, domain } = req.params;
+      if (!domain) return clientError(res, 400, 'domain is required');
+      if (!isValidDomain(domain))
+        return clientError(res, 400, 'Invalid domain format');
 
-    const result = await dnsLookup(domain, dkimSelector);
-    res.json(result);
+      // Try to get DKIM selector from domain DB entry
+      let dkimSelector = 'dkim';
+      try {
+        const domainInfo = await getDomains(containerName, domain);
+        const dkim =
+          domainInfo?.message?.message?.dkim || domainInfo?.message?.dkim;
+        if (dkim) dkimSelector = dkim;
+      } catch (e) {
+        /* fall back to default selector */
+      }
 
-  } catch (error) {
-    serverError(res, 'GET /api/dns', error);
+      const result = await dnsLookup(domain, dkimSelector);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/dns', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -335,25 +397,34 @@ async (req, res) => {
  *       500:
  *         description: Unable to generate DKIM key
  */
-router.post('/domains/:containerName/:domain/dkim',
+router.post(
+  '/domains/:containerName/:domain/dkim',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!domain) return res.status(400).json({ error: 'domain is required' });
-    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
+  async (req, res) => {
+    try {
+      const { containerName, domain } = req.params;
+      if (!domain) return clientError(res, 400, 'domain is required');
+      if (!isValidDomain(domain))
+        return clientError(res, 400, 'Invalid domain format');
 
-    const { keytype, keysize, selector, force } = req.body;
-    const result = await generateDkim('mailserver', containerName, domain, keytype, keysize, selector, force);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'POST /api/domains/dkim', error);
+      const { keytype, keysize, selector, force } = req.body;
+      const result = await generateDkim(
+        'mailserver',
+        containerName,
+        domain,
+        keytype,
+        keysize,
+        selector,
+        force
+      );
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'POST /api/domains/dkim', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -382,23 +453,24 @@ async (req, res) => {
  *       500:
  *         description: Unable to check blacklists
  */
-router.get('/dnsbl/:containerName/:domain',
+router.get(
+  '/dnsbl/:containerName/:domain',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { containerName, domain } = req.params;
-    if (!containerName) return res.status(400).json({ error: 'containerName is required' });
-    if (!domain) return res.status(400).json({ error: 'domain is required' });
-    if (!isValidDomain(domain)) return res.status(400).json({ error: 'Invalid domain format' });
+  async (req, res) => {
+    try {
+      const { containerName, domain } = req.params;
+      if (!domain) return clientError(res, 400, 'domain is required');
+      if (!isValidDomain(domain))
+        return clientError(res, 400, 'Invalid domain format');
 
-    const result = await dnsblCheck(containerName, domain);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'GET /api/dnsbl', error);
+      const result = await dnsblCheck(containerName, domain);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'GET /api/dnsbl', error);
+    }
   }
-});
+);
 
 export default router;

@@ -1,5 +1,12 @@
 import { Router } from 'express';
-import { authenticateToken, denyPermission, requireActive, requireAdmin, serverError } from '../middleware.js';
+import {
+  authenticateToken,
+  clientError,
+  denyPermission,
+  requireActive,
+  requireAdmin,
+  serverError,
+} from '../middleware.js';
 import { addLogin, getLogins, getRoles } from '../logins.mjs';
 import { deleteEntry, updateDB } from '../db.mjs';
 import { debugLog, errorLog } from '../backend.mjs';
@@ -26,31 +33,30 @@ const router = Router();
  *       500:
  *         description: Unable to retrieve roles
  */
-router.get('/roles/:credential',
+router.get(
+  '/roles/:credential',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { credential } = req.params;
-    if (!credential) return res.status(400).json({ error: 'credential is required' });
+  async (req, res) => {
+    try {
+      const { credential } = req.params;
+      if (!credential) return clientError(res, 400, 'credential is required');
 
-    // Users can only act on their own mailboxes or those in their roles (unless admin)
-    let result;
-    if (req.user.isAdmin) {
-      result = await getRoles(credential);
-
-    } else {
-      if (credential !== req.user.mailbox) return denyPermission(res);
-      result = await getRoles(credential);
+      // Users can only act on their own mailboxes or those in their roles (unless admin)
+      let result;
+      if (req.user.isAdmin) {
+        result = await getRoles(credential);
+      } else {
+        if (credential !== req.user.mailbox) return denyPermission(res);
+        result = await getRoles(credential);
+      }
+      res.json(result);
+    } catch (error) {
+      errorLog(`index GET /api/roles: ${error.message}`);
+      clientError(res, 500, 'Unable to retrieve roles');
     }
-    res.json(result);
-
-  } catch (error) {
-    errorLog(`index GET /api/roles: ${error.message}`);
-    res.status(500).json({ error: 'Unable to retrieve roles' });
   }
-});
-
+);
 
 /**
  * @swagger
@@ -74,22 +80,22 @@ async (req, res) => {
  *       500:
  *         description: Unable to retrieve logins
  */
-router.post('/getLogins',
+router.post(
+  '/getLogins',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { ids } = req.body;
+  async (req, res) => {
+    try {
+      const { ids } = req.body;
 
-    const logins = await getLogins(ids);
-    res.json(logins);
-
-  } catch (error) {
-    serverError(res, 'POST /api/getLogins', error);
+      const logins = await getLogins(ids);
+      res.json(logins);
+    } catch (error) {
+      serverError(res, 'POST /api/getLogins', error);
+    }
   }
-});
-
+);
 
 /**
  * @swagger
@@ -144,24 +150,45 @@ async (req, res) => {
  *       500:
  *         description: Unable to save Login
  */
-router.put('/logins',
+router.put(
+  '/logins',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { mailbox, username, password, email, isAdmin, isAccount, isActive, mailserver, roles } = req.body;
-    if (!mailbox)     return res.status(400).json({ error: 'mailbox is missing' });
-    if (!username)  return res.status(400).json({ error: 'username is missing' });
-    if (!password)  return res.status(400).json({ error: 'password is missing' });
+  async (req, res) => {
+    try {
+      const {
+        mailbox,
+        username,
+        password,
+        email,
+        isAdmin,
+        isAccount,
+        isActive,
+        mailserver,
+        roles,
+      } = req.body;
+      if (!mailbox) return clientError(res, 400, 'mailbox is missing');
+      if (!username) return clientError(res, 400, 'username is missing');
+      if (!password) return clientError(res, 400, 'password is missing');
 
-    const result = await addLogin(mailbox, username, password, email, isAdmin, isAccount, isActive, mailserver, roles);
-    res.status(201).json(result);
-
-  } catch (error) {
-    serverError(res, 'PUT /api/logins', error);
+      const result = await addLogin(
+        mailbox,
+        username,
+        password,
+        email,
+        isAdmin,
+        isAccount,
+        isActive,
+        mailserver,
+        roles
+      );
+      res.status(201).json(result);
+    } catch (error) {
+      serverError(res, 'PUT /api/logins', error);
+    }
   }
-});
+);
 
 /**
  * @swagger
@@ -211,38 +238,37 @@ async (req, res) => {
  *       500:
  *         description: Unable to update login
  */
-router.patch('/logins/:id',
+router.patch(
+  '/logins/:id',
   authenticateToken,
   requireActive,
-async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'id is required' });
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return clientError(res, 400, 'id is required');
+      }
+
+      const demo = demoWriteResponse('Login updated');
+      if (demo) return res.json(demo);
+
+      // Users can only act on their own mailboxes or those in their roles (unless admin)
+      let result;
+      if (req.user.isAdmin) {
+        result = await updateDB('logins', id, req.body);
+      } else {
+        if (Number(id) !== req.user.id) return denyPermission(res);
+        // Non-admins: strip privilege fields to prevent escalation
+        const { isAdmin, isActive, roles, ...safeBody } = req.body;
+        result = await updateDB('logins', id, safeBody);
+      }
+      debugLog(`PATCH /api/logins/${id}`, result);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'PATCH /api/logins', error);
     }
-
-    const demo = demoWriteResponse('Login updated');
-    if (demo) return res.json(demo);
-
-    // Users can only act on their own mailboxes or those in their roles (unless admin)
-    let result;
-    if (req.user.isAdmin) {
-      result = await updateDB('logins', id, req.body);
-
-    } else {
-      if (Number(id) !== req.user.id) return denyPermission(res);
-      // Non-admins: strip privilege fields to prevent escalation
-      const { isAdmin, isActive, roles, ...safeBody } = req.body;
-      result = await updateDB('logins', id, safeBody);
-    }
-    debugLog(`PATCH /api/logins/${id}`, result)
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'PATCH /api/logins', error);
   }
-});
-
+);
 
 /**
  * @swagger
@@ -265,26 +291,27 @@ async (req, res) => {
  *       500:
  *         description: Unable to delete login
  */
-router.delete('/logins/:id',
+router.delete(
+  '/logins/:id',
   authenticateToken,
   requireActive,
   requireAdmin,
-async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!id) {
-      return res.status(400).json({ error: 'id is required' });
+  async (req, res) => {
+    try {
+      const { id } = req.params;
+      if (!id) {
+        return clientError(res, 400, 'id is required');
+      }
+
+      const demo = demoWriteResponse('Login deleted');
+      if (demo) return res.json(demo);
+
+      const result = await deleteEntry('logins', id);
+      res.json(result);
+    } catch (error) {
+      serverError(res, 'DELETE /api/logins', error);
     }
-
-    const demo = demoWriteResponse('Login deleted');
-    if (demo) return res.json(demo);
-
-    const result = await deleteEntry('logins', id);
-    res.json(result);
-
-  } catch (error) {
-    serverError(res, 'DELETE /api/logins', error);
   }
-});
+);
 
 export default router;

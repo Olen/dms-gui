@@ -220,7 +220,16 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
       .send({});
 
     expect(res.status).toBe(500);
-    expect(res.body.error).toMatch(/getConfigs failed.*database is locked/);
+    expect(res.body).toEqual({
+      success: false,
+      error: 'Internal server error',
+      code: 'SERVER_ERROR',
+    });
+    // The raw DB error must NOT leak in the response body — it's a
+    // server-internal detail. It is still logged server-side via
+    // serverError's errorLog call, which the test asserts separately
+    // via the mocked errorLog spy in unit-level coverage.
+    expect(JSON.stringify(res.body)).not.toContain('database is locked');
     expect(mockGetServerStatus).not.toHaveBeenCalled();
   });
 

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import {
   authenticateToken,
+  clientError,
   denyPermission,
   requireActive,
   requireAdmin,
@@ -55,8 +56,6 @@ router.get(
   async (req, res) => {
     try {
       const { containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       // Robust to both the production query parser (booleans) and any
       // caller / test that uses Express's default parser (strings).
       // `?refresh=false` must NOT trigger a refresh.
@@ -131,23 +130,17 @@ router.post(
   async (req, res) => {
     try {
       const { schema, containerName } = req.params;
-      if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!schema) return clientError(res, 400, 'schema is required');
       if (!SUPPORTED_SCHEMAS.has(schema)) {
         // Same allowlist guard as DELETE — addAccount() also branches
         // on schema==='dms' and would crash with `results undefined`
         // for any other value.
-        return res
-          .status(400)
-          .json({ error: `unsupported schema '${schema}'` });
+        return clientError(res, 400, `unsupported schema '${schema}'`);
       }
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       const { mailbox, password, createLogin } = req.body;
       if (!mailbox || !password) {
-        return res
-          .status(400)
-          .json({ error: 'Mailbox and password are required' });
+        return clientError(res, 400, 'Mailbox and password are required');
       }
       const result = await addAccount(
         schema,
@@ -209,12 +202,8 @@ router.put(
   async (req, res) => {
     try {
       const { schema, containerName, command, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       if (!command || !mailbox)
-        return res
-          .status(400)
-          .json({ error: 'Command and Mailbox are required' });
+        return clientError(res, 400, 'Command and Mailbox are required');
 
       // Users can only act on their own mailboxes or those in their roles (unless admin)
       let result;
@@ -284,19 +273,15 @@ router.delete(
   async (req, res) => {
     try {
       const { schema, containerName, mailbox } = req.params;
-      if (!schema) return res.status(400).json({ error: 'schema is required' });
+      if (!schema) return clientError(res, 400, 'schema is required');
       if (!SUPPORTED_SCHEMAS.has(schema)) {
         // Validate against the allowlist so unknown schemas don't slip
         // into deleteAccount() — it only initializes its `results` for
         // schema==='dms' and would crash on any other value.
-        return res
-          .status(400)
-          .json({ error: `unsupported schema '${schema}'` });
+        return clientError(res, 400, `unsupported schema '${schema}'`);
       }
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       if (!mailbox) {
-        return res.status(400).json({ error: 'Mailbox is required' });
+        return clientError(res, 400, 'Mailbox is required');
       }
       const result = await deleteAccount(schema, containerName, mailbox);
       res.json(result);
@@ -349,10 +334,7 @@ router.put(
   async (req, res) => {
     try {
       const { containerName, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
-      if (!mailbox)
-        return res.status(400).json({ error: 'mailbox is required' });
+      if (!mailbox) return clientError(res, 400, 'mailbox is required');
 
       const { quota } = req.body;
       const result = await setQuota(containerName, mailbox, quota);
@@ -420,10 +402,7 @@ router.patch(
   async (req, res) => {
     try {
       const { schema, containerName, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
-      if (!mailbox)
-        return res.status(400).json({ error: 'Mailbox is required' });
+      if (!mailbox) return clientError(res, 400, 'Mailbox is required');
 
       // Users can only act on their own mailboxes or those in their roles (unless admin)
       let result, jsonDict;
@@ -480,13 +459,10 @@ router.get(
   async (req, res) => {
     try {
       const { containerName, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
-      if (!mailbox)
-        return res.status(400).json({ error: 'mailbox is required' });
+      if (!mailbox) return clientError(res, 400, 'mailbox is required');
 
       if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-        return res.status(403).json({ error: 'Permission denied' });
+        return denyPermission(res);
       }
 
       const result = await getSieveRules(containerName, mailbox);
@@ -535,17 +511,14 @@ router.put(
   async (req, res) => {
     try {
       const { containerName, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
-      if (!mailbox)
-        return res.status(400).json({ error: 'mailbox is required' });
+      if (!mailbox) return clientError(res, 400, 'mailbox is required');
 
       if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-        return res.status(403).json({ error: 'Permission denied' });
+        return denyPermission(res);
       }
 
       const { rules } = req.body;
-      if (!rules) return res.status(400).json({ error: 'rules are required' });
+      if (!rules) return clientError(res, 400, 'rules are required');
 
       const result = await saveSieveRules(containerName, mailbox, rules);
       res.json(result);
@@ -584,13 +557,10 @@ router.delete(
   async (req, res) => {
     try {
       const { containerName, mailbox } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
-      if (!mailbox)
-        return res.status(400).json({ error: 'mailbox is required' });
+      if (!mailbox) return clientError(res, 400, 'mailbox is required');
 
       if (!req.user.isAdmin && !req.user.roles.includes(mailbox)) {
-        return res.status(403).json({ error: 'Permission denied' });
+        return denyPermission(res);
       }
 
       const result = await deleteSieveRules(containerName, mailbox);

@@ -4,6 +4,7 @@ import path from 'node:path';
 import multer from 'multer';
 import {
   authenticateToken,
+  clientError,
   denyPermission,
   requireActive,
   requireAdmin,
@@ -115,11 +116,10 @@ router.post(
   logoUpload.single('logo'),
   async (req, res) => {
     try {
-      if (!req.file) return res.status(400).json({ error: 'No file uploaded' });
+      if (!req.file) return clientError(res, 400, 'No file uploaded');
 
       const scope = req.params.scope || '_global';
-      if (!SCOPE_RE.test(scope))
-        return res.status(400).json({ error: 'Invalid scope' });
+      if (!SCOPE_RE.test(scope)) return clientError(res, 400, 'Invalid scope');
 
       // Delete old logo file if one exists
       const existing = getSettings('dms-gui', scope);
@@ -154,8 +154,7 @@ router.delete(
   async (req, res) => {
     try {
       const scope = req.params.scope || '_global';
-      if (!SCOPE_RE.test(scope))
-        return res.status(400).json({ error: 'Invalid scope' });
+      if (!SCOPE_RE.test(scope)) return clientError(res, 400, 'Invalid scope');
 
       // Find and delete the logo file
       const existing = getSettings('dms-gui', scope);
@@ -225,8 +224,6 @@ router.get(
   async (req, res) => {
     try {
       const { plugin, containerName, scope } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       const name = 'name' in req.query ? req.query.name : null;
       // Query strings always arrive as strings. Coerce to boolean so
       // `?encrypted=false` doesn't read as truthy in the downstream
@@ -254,8 +251,6 @@ router.get(
   async (req, res) => {
     try {
       const { containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       const demo = demoResponse('userSettings');
       if (demo) return res.json(demo);
@@ -459,8 +454,6 @@ router.post(
   async (req, res) => {
     try {
       const { plugin, schema, scope, containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       // Query strings always arrive as strings. Coerce to boolean so
       // `?encrypted=false` doesn't read as truthy downstream.
