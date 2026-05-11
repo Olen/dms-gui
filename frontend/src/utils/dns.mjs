@@ -58,10 +58,20 @@ export const keysizeBadge = (size) => {
 // an SPF, otherwise infer reasonable defaults from the MX records.
 // `dns` is the result shape returned by getDnsLookup (object with
 // `spf` string and `mx` array of `{priority, exchange}`).
+const SPF_ALL_RE = /[~\-?+]all\s*$/;
+
 export const computeSpfRecord = (dns, domain, spfAllMode) => {
   const currentSpf = dns?.spf;
   if (currentSpf) {
-    return currentSpf.replace(/[~\-?+]all\s*$/, spfAllMode);
+    // If the record already ends with a qualified `all` mechanism,
+    // swap just the qualifier. Otherwise append the chosen `all` —
+    // a string.replace() with no match would silently return the
+    // record unchanged, and the editor would never be able to fix
+    // an SPF that omits `all` entirely (e.g. "v=spf1 mx a").
+    if (SPF_ALL_RE.test(currentSpf)) {
+      return currentSpf.replace(SPF_ALL_RE, spfAllMode);
+    }
+    return `${currentSpf.trimEnd()} ${spfAllMode}`;
   }
   const mechanisms = ['mx', 'a'];
   if (dns?.mx?.length) {

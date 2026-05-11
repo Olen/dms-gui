@@ -100,6 +100,24 @@ describe('computeSpfRecord', () => {
     expect(computeSpfRecord(dns, 'example.com', '-all')).toBe('v=spf1 mx -all');
   });
 
+  it('appends the all qualifier when the existing SPF has none', () => {
+    // The editor's main job: fix a misconfigured SPF that just lists
+    // mechanisms without a closing `all`. Previously this returned
+    // the record unchanged (replace() with no match) — the editor
+    // couldn't actually rescue these records.
+    const dns = { spf: 'v=spf1 mx a' };
+    expect(computeSpfRecord(dns, 'example.com', '~all')).toBe(
+      'v=spf1 mx a ~all'
+    );
+  });
+
+  it('appends the all qualifier and collapses any trailing whitespace', () => {
+    const dns = { spf: 'v=spf1 mx a   ' };
+    expect(computeSpfRecord(dns, 'example.com', '-all')).toBe(
+      'v=spf1 mx a -all'
+    );
+  });
+
   it('synthesises a default record from MX hints when no SPF present', () => {
     const dns = {
       spf: null,
