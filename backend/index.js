@@ -25,13 +25,7 @@ import domainRoutes from './routes/domains.js';
 import serverRoutes from './routes/server.js';
 import mailRoutes from './routes/mail.js';
 
-import {
-  apiLimiter,
-  authenticateToken,
-  requireActive,
-  requireAdmin,
-  requireCsrf,
-} from './middleware.js';
+import { apiLimiter, requireCsrf } from './middleware.js';
 
 const app = express();
 
@@ -107,49 +101,11 @@ app.use(express.json());
 // Swagger UI: gated behind ENABLE_SWAGGER + auth chain. When
 // disabled, there is no /docs route at all — anonymous probes get
 // 404 from Express's default catch-all rather than the index page.
-//
-// The swagger packages (swagger-jsdoc, swagger-ui-express, and the
-// ~11 MB swagger-ui-dist they transitively pull) are devDependencies.
-// Operators wanting /docs in production must either run `npm install
-// swagger-jsdoc swagger-ui-express` before container start, or
-// customise the Dockerfile's `npm ci --omit=dev` step. The dynamic
-// imports below let the production runtime skip swagger entirely
-// without touching the import-resolution phase.
+// See backend/swagger.mjs for the setup logic and the install-hint
+// vs. setup-error discrimination.
 if (env.ENABLE_SWAGGER) {
-  try {
-    const [{ default: swaggerJsdoc }, { default: swaggerUi }] =
-      await Promise.all([
-        import('swagger-jsdoc'),
-        import('swagger-ui-express'),
-      ]);
-    const oasDefinition = swaggerJsdoc({
-      swaggerDefinition: {
-        openapi: '3.0.0',
-        info: {
-          version: env.DMSGUI_VERSION,
-          title: 'dms-gui-backend',
-          description: env.DMSGUI_DESCRIPTION,
-        },
-      },
-      apis: ['./*.js', './routes/*.js'],
-    });
-    app.use(
-      '/docs',
-      apiLimiter,
-      authenticateToken,
-      requireActive,
-      requireAdmin,
-      swaggerUi.serve,
-      swaggerUi.setup(oasDefinition)
-    );
-    infoLog('Swagger docs enabled at /docs (admin-only)');
-  } catch (error) {
-    errorLog(
-      'ENABLE_SWAGGER=true but swagger packages are not installed. ' +
-        'Install with: npm install swagger-jsdoc swagger-ui-express. ' +
-        `Original error: ${error.message}`
-    );
-  }
+  const { setupSwaggerDocs } = await import('./swagger.mjs');
+  await setupSwaggerDocs(app, env);
 }
 
 // Use Express's default query parser (extended/qs). Values arrive as
