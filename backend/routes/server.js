@@ -1,6 +1,8 @@
 import { Router } from 'express';
 import {
   authenticateToken,
+  clientError,
+  denyPermission,
   requireActive,
   requireAdmin,
   serverError,
@@ -73,8 +75,6 @@ router.post(
   async (req, res) => {
     try {
       const { plugin, containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       const test = 'test' in req.query ? req.query.test : null;
       // The `settings` body is the user-supplied target dict (host,
       // port, protocol, API key) used by FormContainerAdd to ping a
@@ -127,9 +127,7 @@ router.post(
           plugin === 'mailserver' &&
           (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
         ) {
-          return res
-            .status(403)
-            .json({ success: false, error: 'Permission denied' });
+          return denyPermission(res);
         }
         const configsScope = req.user.isAdmin
           ? []
@@ -143,16 +141,15 @@ router.post(
         // would make every status poll fail with "Permission denied"
         // during a database hiccup.
         if (!configs.success) {
-          return res.status(500).json({
-            success: false,
-            error: `getConfigs failed: ${configs.error || 'unknown error'}`,
-          });
+          return clientError(
+            res,
+            500,
+            `getConfigs failed: ${configs.error || 'unknown error'}`
+          );
         }
         const validContainers = (configs.message || []).map((c) => c.value);
         if (!validContainers.includes(containerName)) {
-          return res
-            .status(403)
-            .json({ success: false, error: 'Permission denied' });
+          return denyPermission(res);
         }
       }
 
@@ -245,8 +242,6 @@ router.get(
   async (req, res) => {
     try {
       const { plugin, containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       // Robust to both the production query parser (booleans) and any
       // caller / test that uses Express's default parser (strings).
@@ -305,8 +300,6 @@ router.get(
   async (req, res) => {
     try {
       const { containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       const source = req.query.source || 'mail';
       const lines = req.query.lines ?? 100;
@@ -352,8 +345,6 @@ router.get(
   async (req, res) => {
     try {
       const { containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
 
       const hours = req.query.hours ?? 48;
 
@@ -406,11 +397,11 @@ router.get(
   async (req, res) => {
     try {
       const { table, containerName, schema } = req.params;
-      if (!table) return res.status(400).json({ error: 'table is required' });
+      if (!table) return clientError(res, 400, 'table is required');
 
       const ALLOWED_TABLES = ['logins', 'accounts', 'aliases', 'domains'];
       if (!ALLOWED_TABLES.includes(table))
-        return res.status(400).json({ error: 'invalid table name' });
+        return clientError(res, 400, 'invalid table name');
 
       const count = dbCount(table, containerName, schema);
       res.json(count);
@@ -471,8 +462,6 @@ router.post(
   async (req, res) => {
     try {
       const { plugin, schema, containerName } = req.params;
-      if (!containerName)
-        return res.status(400).json({ error: 'containerName is required' });
       const { dms_api_key_param } = req.body;
 
       const dms_api_key_response = await initAPI(

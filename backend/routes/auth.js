@@ -3,6 +3,7 @@ import {
   apiLimiter,
   authenticateToken,
   authLimiter,
+  clientError,
   generateAccessToken,
   generateCsrfToken,
   generateRefreshToken,
@@ -114,10 +115,7 @@ router.post('/reset-password', authLimiter, async (req, res) => {
   try {
     const { token, password } = req.body;
     if (!password || password.length < 8) {
-      return res.status(400).json({
-        success: false,
-        error: 'Password must be at least 8 characters',
-      });
+      return clientError(res, 400, 'Password must be at least 8 characters');
     }
     const result = await executePasswordReset(token, password);
     res.json(result);
@@ -162,10 +160,8 @@ router.post('/reset-password', authLimiter, async (req, res) => {
 router.post('/loginUser', authLimiter, async (req, res, next) => {
   try {
     const { credential, password, test } = req.body;
-    if (!credential)
-      return res.status(400).json({ error: 'credential is missing' });
-    if (!password)
-      return res.status(400).json({ error: 'password is missing' });
+    if (!credential) return clientError(res, 400, 'credential is missing');
+    if (!password) return clientError(res, 400, 'password is missing');
 
     const user = await loginUser(credential, password);
     if (env.isDEMO) user.isDEMO = true;
@@ -217,7 +213,7 @@ router.post('/loginUser', authLimiter, async (req, res, next) => {
         res.json(user);
       }
     } else {
-      res.status(401).json({ error: 'Invalid credentials' });
+      clientError(res, 401, 'Invalid credentials');
     }
   } catch (error) {
     serverError(res, 'POST /api/loginUser', error);
@@ -243,10 +239,12 @@ router.post('/refresh', authLimiter, async (req, res) => {
     const refreshToken = req.cookies.refreshToken;
 
     if (!refreshToken) {
-      return res.status(401).json({
-        error: 'Refresh token required',
-        code: 'NO_REFRESH_TOKEN',
-      });
+      return clientError(
+        res,
+        401,
+        'Refresh token required',
+        'NO_REFRESH_TOKEN'
+      );
     }
 
     // Verify refresh token
@@ -259,10 +257,12 @@ router.post('/refresh', authLimiter, async (req, res) => {
     const user = result.success ? result.message : null;
 
     if (!user) {
-      return res.status(403).json({
-        error: 'Invalid refresh token',
-        code: 'INVALID_REFRESH_TOKEN',
-      });
+      return clientError(
+        res,
+        403,
+        'Invalid refresh token',
+        'INVALID_REFRESH_TOKEN'
+      );
     }
 
     // Generate new access token
@@ -293,16 +293,15 @@ router.post('/refresh', authLimiter, async (req, res) => {
     });
   } catch (error) {
     if (error.name === 'TokenExpiredError') {
-      return res.status(401).json({
-        error: 'Refresh token expired. Please login again.',
-        code: 'REFRESH_TOKEN_EXPIRED',
-      });
+      return clientError(
+        res,
+        401,
+        'Refresh token expired. Please login again.',
+        'REFRESH_TOKEN_EXPIRED'
+      );
     }
     errorLog(`POST /api/refresh: ${error.message}`);
-    res.status(403).json({
-      error: 'Failed to refresh token',
-      code: 'REFRESH_ERROR',
-    });
+    clientError(res, 403, 'Failed to refresh token', 'REFRESH_ERROR');
   }
 });
 
@@ -356,10 +355,7 @@ router.post(
       });
     } catch (error) {
       errorLog(`POST /api/logout: ${error.message}`);
-      res.status(500).json({
-        error: 'Logout failed',
-        code: 'LOGOUT_ERROR',
-      });
+      clientError(res, 500, 'Logout failed', 'LOGOUT_ERROR');
     }
   }
 );

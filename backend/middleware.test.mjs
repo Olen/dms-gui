@@ -283,14 +283,19 @@ describe('validateContainerName', () => {
     }
   });
 
-  it('calls next() for empty/null value (pass-through)', () => {
+  it('rejects empty/null value with 400 (replaces ~38 in-handler guards)', () => {
     const req = mockReq();
     const res = mockRes();
     const next = mockNext();
 
     validateContainerName(req, res, next, null);
 
-    expect(next).toHaveBeenCalled();
+    expect(next).not.toHaveBeenCalled();
+    expect(res.status).toHaveBeenCalledWith(400);
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'containerName is required',
+    });
   });
 });
 
@@ -299,7 +304,7 @@ describe('serverError', () => {
     vi.clearAllMocks();
   });
 
-  it('logs error message and returns 500 with generic message', () => {
+  it('logs error message and returns 500 with the canonical {success:false,error,code} shape', () => {
     const res = mockRes();
     const error = new Error('database connection failed');
 
@@ -309,7 +314,11 @@ describe('serverError', () => {
       'test context: database connection failed'
     );
     expect(res.status).toHaveBeenCalledWith(500);
-    expect(res.json).toHaveBeenCalledWith({ error: 'Internal server error' });
+    expect(res.json).toHaveBeenCalledWith({
+      success: false,
+      error: 'Internal server error',
+      code: 'SERVER_ERROR',
+    });
   });
 
   it('does not leak error details in response body', () => {

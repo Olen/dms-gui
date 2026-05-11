@@ -25,7 +25,7 @@ import domainRoutes from './routes/domains.js';
 import serverRoutes from './routes/server.js';
 import mailRoutes from './routes/mail.js';
 
-import { apiLimiter, requireCsrf } from './middleware.js';
+import { apiLimiter, clientError, requireCsrf } from './middleware.js';
 
 const app = express();
 
@@ -146,14 +146,12 @@ app.use('/api', apiLimiter, requireCsrf, mailRoutes);
 app.use((err, req, res, next) => {
   if (err instanceof multer.MulterError) {
     if (err.code === 'LIMIT_FILE_SIZE') {
-      return res
-        .status(413)
-        .json({ error: 'File too large. Maximum size is 2 MB.' });
+      return clientError(res, 413, 'File too large. Maximum size is 2 MB.');
     }
-    return res.status(400).json({ error: err.message });
+    return clientError(res, 400, err.message);
   }
   if (err.message && err.message.includes('Only image files are allowed')) {
-    return res.status(415).json({ error: err.message });
+    return clientError(res, 415, err.message);
   }
   next(err);
 });
@@ -168,6 +166,7 @@ app.use((err, req, res, next) => {
   const isDevelopment = env.NODE_ENV === 'development';
 
   res.status(err.status || 500).json({
+    success: false,
     error: 'Internal server error',
     code: err.code || 'INTERNAL_ERROR',
     ...(isDevelopment && { message: err.message, stack: err.stack }),
