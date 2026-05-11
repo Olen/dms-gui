@@ -206,13 +206,15 @@ try:
 except FileNotFoundError:
   logger(
     f"WARNING: manifest file not found at {MANIFEST_PATH}; "
-    f"action protocol disabled, only legacy {{command:}} path will work"
+    f"action protocol unavailable — every request will return 503 "
+    f"until the manifest is generated (click 'Inject API' in dms-gui Settings)"
   )
   ACTIONS = types.MappingProxyType({})
 except (json.JSONDecodeError, ValueError, OSError) as e:
   logger(
     f"ERROR: failed to load manifest from {MANIFEST_PATH}: {type(e).__name__}: {e}; "
-    f"action protocol disabled, only legacy {{command:}} path will work"
+    f"action protocol unavailable — every request will return 503 "
+    f"until the manifest path/content is fixed"
   )
   ACTIONS = types.MappingProxyType({})
 

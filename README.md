@@ -337,9 +337,9 @@ Browser
 
 The Python REST API runs inside DMS as a supervisor service. It accepts authenticated POST requests, executes system commands (`setup`, `doveadm`, etc.), and returns JSON results. The API key is verified on every request, and the port is only exposed on the Docker network.
 
-Both `rest-api.py` and `rest-api.conf` are written to disk every time the dms-gui container starts (and also when an admin clicks "Inject API" in Settings). The Python source lives in `backend/rest-api.py.in`.
+The dms-gui container *attempts* to regenerate `rest-api.py` and `rest-api.conf` on every startup (and an admin can also force a regeneration via the "Inject API" button in Settings). The Python source lives in `backend/rest-api.py.in`. If the startup regeneration fails (e.g. permission issue on `/app/config/`, missing volume), `docker/start.sh` is fail-open: it logs a `[STARTUP WARNING]` to stderr and continues with whatever is already on disk — operator can `docker logs dms-gui --tail 20` to see the warning.
 
-Each response from rest-api.py advertises the dms-gui version that generated it (`X-Rest-Api-Version` header). The dms-gui backend compares this against its own `DMSGUI_VERSION` and surfaces a clear "click Inject API + restart mailserver supervisor" hint when they drift — useful after a dms-gui upgrade, because the on-disk file is rewritten automatically but the running Python process inside the mailserver container keeps the old code in memory until `docker exec mailserver supervisorctl restart rest-api` is run.
+Each response from rest-api.py advertises the dms-gui version that generated it (`X-Rest-Api-Version` header). The dms-gui backend compares this against its own `DMSGUI_VERSION` and surfaces a clear "restart mailserver supervisor" hint when they drift — useful after a dms-gui upgrade, because the on-disk file is rewritten automatically but the running Python process inside the mailserver container keeps the old code in memory until `docker exec mailserver supervisorctl restart rest-api` is run.
 
 ---
 
