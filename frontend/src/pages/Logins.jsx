@@ -1,9 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { useTranslation } from 'react-i18next';
-import Form from 'react-bootstrap/Form';
-import Row from 'react-bootstrap/Row';
-import Col from 'react-bootstrap/Col';
-import Modal from 'react-bootstrap/Modal'; // Import Modal
 
 import Select from 'react-select';
 
@@ -25,9 +21,9 @@ import {
   Button,
   DataTable,
   FormField,
-  PasswordChangeModal,
-  SelectField,
   LoadingSpinner,
+  NewLoginForm,
+  PasswordChangeModal,
   Translate,
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -97,7 +93,7 @@ const Logins = () => {
   // flags textual TDZ. Suppressed per the same pattern used in
   // FormContainerAdd.jsx and Login.jsx.
   useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability, react-hooks/exhaustive-deps -- forward-declared fetchAll, intentional
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
     fetchAll();
   }, [containerName]);
 
@@ -716,167 +712,20 @@ const Logins = () => {
   ];
 
   const FormNewLogin = (
-    <Form onSubmit={handleSubmitNewLogin} className="form-wrapper">
-      <FormField
-        type="checkbox"
-        id="isAdmin"
-        name="isAdmin"
-        label="logins.isAdmin"
-        onChange={handleNewLoginCheckboxChange}
-        error={newLoginFormErrors.isAdmin}
-        isChecked={newLoginformData.isAdmin}
-      />
-
-      <FormField
-        type="checkbox"
-        id="isAccount"
-        name="isAccount"
-        label="logins.isAccountChoice"
-        onChange={handleNewLoginCheckboxChange}
-        error={newLoginFormErrors.isAccount}
-        isChecked={newLoginformData.isAccount && !newLoginformData.isAdmin}
-        disabled={newLoginformData.isAdmin}
-      />
-
-      <SelectField
-        id="mailserver"
-        name="mailserver"
-        label="logins.mailserver"
-        value={containerName}
-        onChange={handleNewLoginInputChange}
-        options={mailservers}
-        placeholder="logins.mailserverRequired"
-        error={newLoginFormErrors.mailserver}
-        helpText="logins.mailserverRequired"
-        required
-      />
-
-      {(newLoginformData.isAccount && (
-        <SelectField
-          id="mailbox"
-          name="mailbox"
-          label="accounts.mailbox"
-          value={
-            pluck(accountOptions, 'value').includes(newLoginformData.mailbox)
-              ? newLoginformData.mailbox
-              : ''
-          }
-          onChange={handleNewLoginInputChange}
-          options={accountOptions}
-          placeholder="accounts.mailboxRequired"
-          error={newLoginFormErrors.mailbox}
-          helpText="accounts.mailboxHelp"
-          required
-        />
-      )) || (
-        <FormField
-          type="mailbox"
-          id="mailbox"
-          name="mailbox"
-          label="logins.mailbox"
-          value={newLoginformData.mailbox}
-          onChange={handleNewLoginInputChange}
-          placeholder="user@domain.com"
-          error={newLoginFormErrors.mailbox}
-          helpText="logins.mailboxHelp"
-          required
-        />
-      )}
-
-      <Select
-        isMulti
-        inputId="roles-new"
-        aria-label={t('logins.roles')}
-        options={rolesGroupedOptions}
-        hideSelectedOptions
-        isDisabled={newLoginformData.isAccount}
-        placeholder={t('logins.roles')}
-        value={toRoleOptions(newLoginformData.roles)}
-        onChange={(selected) =>
-          handleNewLoginRolesChange(
-            null,
-            (selected || []).map((o) => o.value)
-          )
-        }
-        formatOptionLabel={(option, { context }) =>
-          context === 'menu' ? (
-            <span
-              className={highlightClassByDomain(
-                option.value,
-                newLoginformData?.mailbox
-              )}
-            >
-              {option.label}
-            </span>
-          ) : (
-            option.label
-          )
-        }
-      />
-
-      <FormField
-        type="text"
-        id="username"
-        name="username"
-        label="logins.username"
-        value={newLoginformData.username}
-        onChange={handleNewLoginInputChange}
-        placeholder="admin"
-        error={newLoginFormErrors.username}
-        helpText="logins.usernameHelp"
-        required
-      />
-
-      <FormField
-        type="email"
-        id="email"
-        name="email"
-        label="logins.email"
-        value={newLoginformData.email}
-        onChange={handleNewLoginInputChange}
-        placeholder="user@domain.com"
-        error={newLoginFormErrors.email}
-        helpText="logins.emailHelp"
-      />
-
-      <Row className="mb-3">
-        <FormField
-          as={Col}
-          type="password"
-          id="password"
-          name="password"
-          label="password.password"
-          value={newLoginformData.password}
-          onChange={handleNewLoginInputChange}
-          error={newLoginFormErrors.password}
-          required
-        />
-
-        <FormField
-          as={Col}
-          type="password"
-          id="confirmPassword"
-          name="confirmPassword"
-          label="password.confirmPassword"
-          value={newLoginformData.confirmPassword}
-          onChange={handleNewLoginInputChange}
-          error={newLoginFormErrors.confirmPassword}
-          required
-        />
-      </Row>
-
-      <FormField
-        type="checkbox"
-        id="isActive"
-        name="isActive"
-        label="logins.isActive"
-        onChange={handleNewLoginCheckboxChange}
-        error={newLoginFormErrors.isActive}
-        isChecked={newLoginformData.isActive}
-      />
-
-      <Button type="submit" variant="primary" text="logins.addLogin" />
-    </Form>
+    <NewLoginForm
+      data={newLoginformData}
+      errors={newLoginFormErrors}
+      containerName={containerName}
+      mailservers={mailservers}
+      accountOptions={accountOptions}
+      rolesGroupedOptions={rolesGroupedOptions}
+      highlightClassByDomain={highlightClassByDomain}
+      toRoleOptions={toRoleOptions}
+      onInputChange={handleNewLoginInputChange}
+      onCheckboxChange={handleNewLoginCheckboxChange}
+      onRolesChange={handleNewLoginRolesChange}
+      onSubmit={handleSubmitNewLogin}
+    />
   );
 
   const DataTableLogins = (

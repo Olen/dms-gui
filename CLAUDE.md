@@ -206,10 +206,18 @@ Backend is split into modular route files + business-logic modules:
 - `backend/targetDict.mjs` — `getTargetDict(plugin, containerName, settings)` with the SSRF host validators: protocol allowlist (http/https), host regex (alphanumeric + `._-`, no IP literals, URL-canonical check rejecting WHATWG shorthand like `127.1`), port range 1..65535. Validators are kept as boolean-AND expressions so CodeQL recognises them as sanitisers for `js/request-forgery` — the rationale is documented in the file's header comment. Splitting the chain into imperative early returns regresses the CodeQL alert (verified during PR #75).
 
 ## Key frontend files
-- `frontend/src/pages/Domains.jsx` — Domain list, DNS Details modal, click-to-edit SPF/DMARC, DKIM generation + push
+- `frontend/src/pages/Domains.jsx` — Domain list orchestrator. DNS check/DNSBL state, columns, fetch logic. Three modals (DNS details, DKIM generate, DNSBL results) are extracted into `components/Dns*Modal.jsx`; the DNS helpers (`spfGrade`, `dmarcGrade`, keytype/keysize badges, TLSA constants) live in `utils/dns.mjs`.
+- `frontend/src/pages/Logins.jsx` — Logins management page. New-login form extracted into `components/NewLoginForm.jsx`; password change uses the shared `usePasswordChange` hook.
+- `frontend/src/pages/FormContainerAdd.jsx` — Container settings page (orchestration + API ping/inject/test handlers). The settings-form JSX is extracted into `components/ContainerSettingsForm.jsx` which also owns the `PROTOCOLS`/`SCHEMAS` option constants.
 - `frontend/src/pages/DnsProviderConfig.jsx` — DNS provider profile CRUD (encrypted credentials)
 - `frontend/src/pages/Settings.jsx` — Settings accordion tabs
 - `frontend/src/components/DataTable.jsx` — Reusable table component
+- `frontend/src/components/DnsDetailsModal.jsx` — DNS records modal with inline SPF/DMARC editor (state lives in `Domains.jsx`, modal computes the record from props).
+- `frontend/src/components/DkimGenerateModal.jsx` — DKIM key generation form + result + one-click push to DNS.
+- `frontend/src/components/DnsblResultModal.jsx` — DNSBL lookup result table.
+- `frontend/src/components/DnsBadge.jsx` — `DnsBadge` and `OptionalBadge` (status pills for the domain list).
+- `frontend/src/components/NewLoginForm.jsx` — Add-a-login form. Pure JSX shell; state lives in the parent.
+- `frontend/src/components/ContainerSettingsForm.jsx` — Schema/containerName/protocol/port/key/timeout/setupPath form + ping/inject/test/save buttons. Pure JSX shell; state lives in the parent.
 
 ## Security notes
 - **Action protocol**: rest-api.py runs no shell. Token-level substitution into `argv` from manifest, `subprocess.Popen(shell=False)`. See "REST API" above.
