@@ -4,16 +4,19 @@ import rateLimit from 'express-rate-limit';
 import { env } from './env.mjs';
 import { errorLog } from './backend.mjs';
 
-// Canonical client-error reply: HTTP 4xx with the canonical
-// {success:false, error, code?} body shape. Use this from route
-// handlers and middleware for any 4xx response that isn't a
-// permission denial (use denyPermission for 403).
+// Canonical error reply for both 4xx (client) and 5xx (server)
+// responses, with the {success:false, error, code?} body shape.
+// Use this from route handlers and middleware for any error that
+// isn't a permission denial (use denyPermission for 403) or an
+// unhandled server error (use serverError, which itself delegates
+// through here for the 500 case).
 //
 // The optional code is a stable machine-readable identifier the
 // frontend axios interceptor can pattern-match (see frontend
 // services/api.mjs's error switch — codes like TOKEN_EXPIRED,
-// CSRF_INVALID, etc. land there). For most validation 400s the
-// message alone is sufficient and code can be omitted.
+// CSRF_INVALID, RATE_LIMITED, SERVER_ERROR, etc. land there). For
+// most validation 400s the message alone is sufficient and code
+// can be omitted.
 export const clientError = (res, status, message, code) => {
   const body = { success: false, error: message };
   if (code) body.code = code;
@@ -183,7 +186,9 @@ export const authLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   message: {
+    success: false,
     error: 'Too many authentication attempts, please try again later',
+    code: 'RATE_LIMITED',
   },
 });
 
@@ -202,5 +207,9 @@ export const apiLimiter = rateLimit({
   max: API_LIMITER_MAX,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { error: 'Too many requests, please slow down' },
+  message: {
+    success: false,
+    error: 'Too many requests, please slow down',
+    code: 'RATE_LIMITED',
+  },
 });
