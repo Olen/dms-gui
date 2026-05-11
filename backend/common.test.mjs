@@ -13,6 +13,8 @@ import {
   pluck,
   humanSize2ByteSize,
   regexEmailStrict,
+  regexEmailRegex,
+  regexUsername,
   safeUrl,
   redactKey,
   redactSensitiveSettings,
@@ -306,6 +308,16 @@ describe('regex patterns', () => {
   it('regexEmailStrict matches valid email', () => {
     expect(regexEmailStrict.test('user@example.com')).toBe(true);
     expect(regexEmailStrict.test('not-an-email')).toBe(false);
+  });
+
+  it('regexEmailRegex matches regex-wrapped email pattern', () => {
+    expect(regexEmailRegex.test('/user@domain/')).toBe(true);
+    expect(regexEmailRegex.test('user@domain')).toBe(false);
+  });
+
+  it('regexUsername matches non-whitespace strings', () => {
+    expect(regexUsername.test('validuser')).toBe(true);
+    expect(regexUsername.test('user name')).toBe(false);
   });
 });
 

@@ -9,6 +9,11 @@ export const regexColors = /\x1b\[[0-9;]*[mGKHF]/g;
 export const regexNonPrintable = /[\x00-\x08\x0B-\x1F\x7F-\x9F]/g;
 
 export const regexEmailStrict = /^([\w.\-_]+)@([\w.\-_]+)$/;
+// Match a /pattern/-wrapped email regex literal — used in the aliases UI
+// where a "source" can be a Postfix virtual-aliases regex.
+export const regexEmailRegex = /^\/[\S]+@[\S]+\/$/;
+// Non-whitespace token (login usernames must not contain spaces).
+export const regexUsername = /^[^\s]+$/;
 export const regexMatchPostfix = /(\/[\S]+@[\S]+\/)[\s]+([\w.\-_]+@[\w.\-_]+)/;
 
 // safeUrl returns the input URL only if its scheme is in the allowlist
