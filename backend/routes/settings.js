@@ -347,6 +347,22 @@ router.get(
   async (req, res) => {
     try {
       const { plugin, name } = req.params;
+
+      // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
+      // always serve the static templates — DB rows are container configs,
+      // not templates. Handle this first so template-backed plugins skip
+      // the getConfigs DB query entirely.
+      if (plugin !== 'mailserver' && plugins[plugin]) {
+        const templateEntries = Object.entries(plugins[plugin]).map(
+          ([key, val]) => ({ name: key, value: val })
+        );
+        if (name) {
+          const filtered = templateEntries.filter((e) => e.name === name);
+          return res.json({ success: true, message: filtered });
+        }
+        return res.json({ success: true, message: templateEntries });
+      }
+
       // getConfigs treats an empty `roles` array as the admin path
       // (no scope filter → all configs). A non-admin with no mailbox
       // roles on the mailserver plugin would otherwise be granted
@@ -358,9 +374,7 @@ router.get(
         plugin === 'mailserver' &&
         (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
       ) {
-        return res
-          .status(403)
-          .json({ success: false, error: 'Permission denied' });
+        return denyPermission(res);
       }
       const configsScope = req.user.isAdmin
         ? []
@@ -369,19 +383,6 @@ router.get(
           : [req.user.id];
       debugLog(`getConfigs(${plugin}, ${configsScope}, ${name})`);
       const configs = await getConfigs(plugin, configsScope, name);
-
-      // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
-      // always serve the static templates — DB rows are container configs, not templates
-      if (plugin !== 'mailserver' && plugins[plugin]) {
-        const templateEntries = Object.entries(plugins[plugin]).map(
-          ([key, val]) => ({ name: key, value: val })
-        );
-        if (name) {
-          const filtered = templateEntries.filter((e) => e.name === name);
-          return res.json({ success: true, message: filtered });
-        }
-        return res.json({ success: true, message: templateEntries });
-      }
 
       res.json(configs);
     } catch (error) {
