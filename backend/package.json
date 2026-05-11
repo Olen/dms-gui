@@ -22,11 +22,9 @@
   "license": "ISC",
   "description": "Backend API for dms-gui",
   "dependencies": {
-    "async-mutex": "^0.5.0",
     "better-sqlite3": "^12.9.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dockerode": "^4.0.9",
     "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.0",
