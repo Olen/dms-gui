@@ -165,7 +165,7 @@ export const getTargetDict = (
       const messageOK = result.success && Array.isArray(result.message);
       if (messageOK && pluginKeys) {
         debugLog(
-          `ddebug result.message.length >= Object.keys(plugins[${plugin}][${schema}].keys: ${result.message.length} >= ${Object.keys(pluginKeys).length}`
+          `result.message.length >= Object.keys(plugins[${plugin}][${schema}].keys).length: ${result.message.length} >= ${Object.keys(pluginKeys).length}`
         );
       }
       if (
