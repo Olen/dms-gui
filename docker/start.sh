@@ -8,9 +8,12 @@ export JWT_SECRET_REFRESH=$(node -e "console.log(require('crypto').randomBytes(3
 [ "$isDEMO" = "true" ] && cp /app/config/dms-gui-example.sqlite3 /app/config/dms-gui-demo.sqlite3
 [ "$isDEMO" = "true" ] && touch /app/config/isDemo || rm -f /app/config/isDemo
 
-# Start the backend server in the background
+# Start the backend server in the background. --env-file-if-exists
+# loads /app/config/.dms-gui.env before any module sees process.env,
+# replacing the dotenv module dependency. The -if-exists variant lets
+# the file be optional (matches dotenv's silent no-op when absent).
 cd /app/backend
-node index.js &
+node --env-file-if-exists=/app/config/.dms-gui.env index.js &
 
 # this only detects changes in /backend and does not recompile the frontend. useless
 # https://www.metered.ca/blog/how-to-restart-your-node-js-apps-automatically-with-nodemon/

@@ -48,7 +48,12 @@ vi.mock('../demoMode.mjs', () => ({
   demoResponse: vi.fn(() => null),
 }));
 
-import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import {
+  createTestApp,
+  adminToken,
+  userToken,
+  inactiveToken,
+} from '../test/routeHelper.mjs';
 import settingsRoutes from './settings.js';
 
 const app = createTestApp(settingsRoutes);
@@ -89,8 +94,14 @@ describe('GET /api/branding (public)', () => {
     // First call (container-specific) returns non-branding settings
     // Second call (_global) returns branding
     mockGetSettings
-      .mockReturnValueOnce({ success: true, message: [{ name: 'DMS_API_KEY', value: 'key' }] })
-      .mockReturnValueOnce({ success: true, message: [{ name: 'brandName', value: 'Global' }] });
+      .mockReturnValueOnce({
+        success: true,
+        message: [{ name: 'DMS_API_KEY', value: 'key' }],
+      })
+      .mockReturnValueOnce({
+        success: true,
+        message: [{ name: 'brandName', value: 'Global' }],
+      });
 
     const res = await request(app).get('/api/branding/mailserver');
 
@@ -100,18 +111,23 @@ describe('GET /api/branding (public)', () => {
   });
 
   it('includes webmailUrl when configured', async () => {
-    mockDbGet.mockReturnValue({ success: true, message: { value: 'https://webmail.example.com' } });
+    mockDbGet.mockReturnValue({
+      success: true,
+      message: { value: 'https://webmail.example.com' },
+    });
 
     const res = await request(app).get('/api/branding');
 
     expect(res.status).toBe(200);
-    const webmail = res.body.message.find(m => m.name === 'webmailUrl');
+    const webmail = res.body.message.find((m) => m.name === 'webmailUrl');
     expect(webmail).toBeDefined();
     expect(webmail.value).toBe('https://webmail.example.com');
   });
 
   it('returns empty message array gracefully when settings fail', async () => {
-    mockGetSettings.mockImplementation(() => { throw new Error('DB down'); });
+    mockGetSettings.mockImplementation(() => {
+      throw new Error('DB down');
+    });
 
     const res = await request(app).get('/api/branding');
 
@@ -149,7 +165,12 @@ describe('GET /api/settings/:plugin/:containerName/:scope', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetSettings).toHaveBeenCalledWith('dms-gui', 'mailserver', null, false);
+    expect(mockGetSettings).toHaveBeenCalledWith(
+      'dms-gui',
+      'mailserver',
+      null,
+      false
+    );
   });
 
   it('non-admin can get their own settings (scope matches user id)', async () => {
@@ -178,7 +199,12 @@ describe('GET /api/settings/:plugin/:containerName/:scope', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetSettings).toHaveBeenCalledWith('dms-gui', 'mailserver', 'DMS_API_KEY', false);
+    expect(mockGetSettings).toHaveBeenCalledWith(
+      'dms-gui',
+      'mailserver',
+      'DMS_API_KEY',
+      false
+    );
   });
 });
 
@@ -229,7 +255,7 @@ describe('GET /api/user-settings/:containerName', () => {
       .mockReturnValueOnce({
         success: true,
         message: [
-          { name: 'DMS_API_KEY', value: 'secret' },   // should NOT be returned
+          { name: 'DMS_API_KEY', value: 'secret' }, // should NOT be returned
           { name: 'WEBMAIL_URL', value: 'https://webmail.test.com' }, // public
         ],
       })
@@ -275,7 +301,11 @@ describe('GET /api/configs/:plugin', () => {
 
     expect(res.status).toBe(200);
     // userPayload.roles = ['user@test.com']
-    expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', ['user@test.com'], undefined);
+    expect(mockGetConfigs).toHaveBeenCalledWith(
+      'mailserver',
+      ['user@test.com'],
+      undefined
+    );
   });
 
   it('non-mailserver plugin returns template entries from plugins', async () => {
@@ -287,9 +317,7 @@ describe('GET /api/configs/:plugin', () => {
     // Should return template entries from plugins.dnscontrol
     expect(res.body.success).toBe(true);
     expect(res.body.message).toEqual(
-      expect.arrayContaining([
-        expect.objectContaining({ name: 'cloudflare' }),
-      ])
+      expect.arrayContaining([expect.objectContaining({ name: 'cloudflare' })])
     );
   });
 
@@ -317,7 +345,10 @@ describe('GET /api/configs/:plugin', () => {
 describe('POST /api/settings/:plugin/:schema/:scope/:containerName', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockSaveSettings.mockResolvedValue({ success: true, message: 'Settings saved' });
+    mockSaveSettings.mockResolvedValue({
+      success: true,
+      message: 'Settings saved',
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -359,7 +390,9 @@ describe('POST /api/settings/:plugin/:schema/:scope/:containerName', () => {
     const body = [{ name: 'secret', value: 'value' }];
 
     const res = await request(app)
-      .post('/api/settings/dnscontrol/cloudflare/dms-gui/mailserver?encrypted=true')
+      .post(
+        '/api/settings/dnscontrol/cloudflare/dms-gui/mailserver?encrypted=true'
+      )
       .set('Cookie', [`accessToken=${adminToken}`])
       .send(body);
 
@@ -370,7 +403,7 @@ describe('POST /api/settings/:plugin/:schema/:scope/:containerName', () => {
       'dms-gui',
       'mailserver',
       body,
-      'true'
+      true
     );
   });
 

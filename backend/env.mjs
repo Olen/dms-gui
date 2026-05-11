@@ -1,4 +1,3 @@
-import './envBootstrap.mjs';
 import { REST_API_MANIFEST } from './restApiManifest.mjs';
 import crypto from 'node:crypto';
 

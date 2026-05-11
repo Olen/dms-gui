@@ -4,8 +4,8 @@
   "main": "index.js",
   "type": "module",
   "scripts": {
-    "start": "node index.js",
-    "dev": "nodemon index.js",
+    "start": "node --env-file-if-exists=.env --env-file-if-exists=../config/.dms-gui.env index.js",
+    "dev": "nodemon --exec 'node --env-file-if-exists=.env --env-file-if-exists=../config/.dms-gui.env' index.js",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage",
@@ -25,7 +25,6 @@
     "better-sqlite3": "^12.9.0",
     "cookie-parser": "^1.4.7",
     "cors": "^2.8.5",
-    "dotenv": "^17.2.3",
     "express": "^5.2.1",
     "express-rate-limit": "^7.5.0",
     "jsonwebtoken": "^9.0.3",
