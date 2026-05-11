@@ -18,7 +18,7 @@ vi.mock('./demoMode.mjs', () => ({
   demoResponse: vi.fn(() => null),
 }));
 
-import { getMailBounces } from './mailLogs.mjs';
+import { getMailBounces, parseBsdTimestamp } from './mailLogs.mjs';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -204,5 +204,97 @@ describe('getMailBounces — BSD-syslog timestamp parsing (#109)', () => {
 
     expect(r.success).toBe(true);
     expect(r.message.bounces).toHaveLength(0);
+  });
+});
+
+describe('parseBsdTimestamp — round-trip validation + year rollover', () => {
+  // BSD syslog has no year, no native invalid-date guard. JS's
+  // `new Date(year, month, day, h, m, s)` happily normalises Apr 31
+  // to May 1 and 99:99:99 to the next day — silent misparsing that
+  // would skew the bounce report if not caught.
+
+  // Fixed reference time so the year-rollover branches are deterministic.
+  const REF = new Date(2026, 5, 15, 12, 0, 0); // 2026-06-15 12:00 local
+
+  it('parses a well-formed timestamp in the current year', () => {
+    const ts = parseBsdTimestamp('Mar  6 09:24:34', REF);
+    expect(ts).not.toBeNull();
+    expect(ts.getFullYear()).toBe(2026);
+    expect(ts.getMonth()).toBe(2); // March
+    expect(ts.getDate()).toBe(6);
+    expect(ts.getHours()).toBe(9);
+  });
+
+  it('rolls a future date back to previous year', () => {
+    // Dec 31 of "this year" lies > 12h in the future from REF (June).
+    // Without the rollover branch the entry would land 6 months ahead.
+    const ts = parseBsdTimestamp('Dec 31 23:00:00', REF);
+    expect(ts).not.toBeNull();
+    expect(ts.getFullYear()).toBe(2025);
+    expect(ts.getMonth()).toBe(11);
+    expect(ts.getDate()).toBe(31);
+  });
+
+  it('keeps an entry inside the 12h future buffer in the current year', () => {
+    // 6 hours ahead of REF — still "today", not last year.
+    const sixHoursAhead = new Date(REF.getTime() + 6 * 3600 * 1000);
+    const month = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ][sixHoursAhead.getMonth()];
+    const tsStr = `${month} ${String(sixHoursAhead.getDate()).padStart(2, ' ')} ${String(sixHoursAhead.getHours()).padStart(2, '0')}:00:00`;
+    const ts = parseBsdTimestamp(tsStr, REF);
+    expect(ts).not.toBeNull();
+    expect(ts.getFullYear()).toBe(2026);
+  });
+
+  it('rejects Apr 31 (JS would silently roll it to May 1)', () => {
+    expect(parseBsdTimestamp('Apr 31 12:00:00', REF)).toBeNull();
+  });
+
+  it('rejects Feb 30 in a leap year (still invalid)', () => {
+    // 2024 is a leap year, so REF.year - 2 with Feb 30 must still reject.
+    const leapRef = new Date(2024, 5, 15, 12, 0, 0);
+    expect(parseBsdTimestamp('Feb 30 12:00:00', leapRef)).toBeNull();
+  });
+
+  it('rejects out-of-range hour (24)', () => {
+    expect(parseBsdTimestamp('Mar  6 24:00:00', REF)).toBeNull();
+  });
+
+  it('rejects out-of-range minutes (60)', () => {
+    expect(parseBsdTimestamp('Mar  6 23:60:00', REF)).toBeNull();
+  });
+
+  it('rejects out-of-range seconds (60)', () => {
+    expect(parseBsdTimestamp('Mar  6 23:00:60', REF)).toBeNull();
+  });
+
+  it('rejects unknown month name', () => {
+    expect(parseBsdTimestamp('Foo  6 09:24:34', REF)).toBeNull();
+  });
+
+  it('rejects non-numeric time components', () => {
+    expect(parseBsdTimestamp('Mar  6 ab:cd:ef', REF)).toBeNull();
+  });
+
+  it('rejects wrong number of whitespace-separated tokens', () => {
+    expect(parseBsdTimestamp('Mar 6', REF)).toBeNull();
+    expect(parseBsdTimestamp('Mar  6 12:00:00 extra', REF)).toBeNull();
+  });
+
+  it('rejects wrong number of colon-separated time components', () => {
+    expect(parseBsdTimestamp('Mar  6 12:00', REF)).toBeNull();
+    expect(parseBsdTimestamp('Mar  6 12:00:00:00', REF)).toBeNull();
   });
 });

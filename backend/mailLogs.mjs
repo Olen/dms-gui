@@ -31,24 +31,53 @@ const MONTHS = {
 // skew between the log source and dms-gui without re-classifying
 // genuinely-future entries as last-year.
 //
-// `now` is injected so tests can pin a stable reference time.
-const parseBsdTimestamp = (tsStr, now = new Date()) => {
+// `now` is a parameter so tests can pin a stable reference time
+// against this exported helper; getMailBounces below always passes
+// a fresh `new Date()` from its own scope.
+//
+// Range validation: JS's `new Date(year, month, day, h, m, s)`
+// silently normalises out-of-range values (Apr 31 → May 1,
+// 99:99:99 → next day). Reject obviously-malformed lines up front,
+// then verify the constructed Date round-trips back to the parsed
+// components — that catches the harder Apr-31 case.
+export const parseBsdTimestamp = (tsStr, now = new Date()) => {
   const parts = tsStr.trim().split(/\s+/);
   if (parts.length !== 3) return null;
   const [mon, day, time] = parts;
   const monthIdx = MONTHS[mon];
   if (monthIdx === undefined) return null;
-  const [h, m, s] = time.split(':').map(Number);
+  const timeParts = time.split(':');
+  if (timeParts.length !== 3) return null;
+  const [h, m, s] = timeParts.map(Number);
   if ([h, m, s].some((n) => Number.isNaN(n))) return null;
+  if (h < 0 || h > 23 || m < 0 || m > 59 || s < 0 || s > 59) return null;
   const dayNum = Number(day);
   if (!Number.isInteger(dayNum) || dayNum < 1 || dayNum > 31) return null;
 
-  let dt = new Date(now.getFullYear(), monthIdx, dayNum, h, m, s);
-  if (isNaN(dt.getTime())) return null;
-  if (dt.getTime() > now.getTime() + 12 * 3600 * 1000) {
-    dt = new Date(now.getFullYear() - 1, monthIdx, dayNum, h, m, s);
+  const build = (year) => {
+    const dt = new Date(year, monthIdx, dayNum, h, m, s);
+    if (isNaN(dt.getTime())) return null;
+    // Round-trip verify against silent normalisation (Apr 31 → May 1
+    // gives dt.getMonth() === 4 instead of the parsed 3, etc.).
+    if (
+      dt.getFullYear() !== year ||
+      dt.getMonth() !== monthIdx ||
+      dt.getDate() !== dayNum ||
+      dt.getHours() !== h ||
+      dt.getMinutes() !== m ||
+      dt.getSeconds() !== s
+    ) {
+      return null;
+    }
+    return dt;
+  };
+
+  const thisYear = build(now.getFullYear());
+  if (!thisYear) return null;
+  if (thisYear.getTime() > now.getTime() + 12 * 3600 * 1000) {
+    return build(now.getFullYear() - 1);
   }
-  return dt;
+  return thisYear;
 };
 
 export const getMailLogs = async (
