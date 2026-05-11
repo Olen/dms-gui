@@ -135,6 +135,17 @@ api.interceptors.response.use(
 // wrap their request() call in try/catch to substitute a fallback
 // shape — the silence is intentional (UX / info-disclosure
 // prevention) and is now explicit at each silent-failure site.
+// Reduce a full request path to its route family (first non-empty
+// segment) for logging. Avoids leaking user identifiers embedded in
+// the URL — `/accounts/dms/mailserver/user@test.com` → `/accounts`,
+// `/roles/admin@example.com` → `/roles`. Path-shape detail beyond
+// the first segment is rarely useful for debugging from the browser
+// console (the network tab already shows full URLs).
+const routeFamily = (path) => {
+  const m = path.match(/^\/?([^/]+)/);
+  return m ? `/${m[1]}` : path;
+};
+
 const request = async (method, path, options = {}) => {
   const { body, params, requires, headers } = options;
   if (requires) {
@@ -143,7 +154,7 @@ const request = async (method, path, options = {}) => {
     }
   }
   try {
-    debugLog(`api ${method.toUpperCase()} ${path}`);
+    debugLog(`api ${method.toUpperCase()} ${routeFamily(path)}`);
     const config = { method, url: path };
     if (body !== undefined) config.data = body;
     if (params) config.params = params;
@@ -151,7 +162,9 @@ const request = async (method, path, options = {}) => {
     const response = await api(config);
     return response.data;
   } catch (error) {
-    errorLog(`api ${method.toUpperCase()} ${path}: ${error.message}`);
+    errorLog(
+      `api ${method.toUpperCase()} ${routeFamily(path)}: ${error.message}`
+    );
     throw error;
   }
 };
@@ -456,7 +469,11 @@ export const getDkimSelector = async (containerName) => {
   // Silent-failure: this is read on the Domains page for every
   // domain row; a network blip shouldn't blank the UI. Fall back
   // to the project default selector so the page still renders.
-  if (!containerName) return { success: false, selector: 'mail' };
+  // Both fallback branches return success:true so callers can rely
+  // on `result.selector` unconditionally — the success flag is a
+  // promise that a usable selector came back, not a claim about
+  // whether the DB had one.
+  if (!containerName) return { success: true, selector: 'mail' };
   try {
     return await request('get', `/domains/${containerName}/dkim-selector`);
   } catch {
