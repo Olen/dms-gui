@@ -228,7 +228,13 @@ router.get(
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
       const name = 'name' in req.query ? req.query.name : null;
-      const encrypted = 'encrypted' in req.query ? req.query.encrypted : false;
+      // Query strings always arrive as strings. Coerce to boolean so
+      // `?encrypted=false` doesn't read as truthy in the downstream
+      // `if (encrypted) encrypt(...)` branch.
+      const encrypted =
+        req.query.encrypted === true ||
+        req.query.encrypted === 'true' ||
+        req.query.encrypted === '1';
 
       if (!req.user.isAdmin && String(req.user.id) !== scope)
         return denyPermission(res);
@@ -456,7 +462,12 @@ router.post(
       if (!containerName)
         return res.status(400).json({ error: 'containerName is required' });
 
-      const encrypted = 'encrypted' in req.query ? req.query.encrypted : false;
+      // Query strings always arrive as strings. Coerce to boolean so
+      // `?encrypted=false` doesn't read as truthy downstream.
+      const encrypted =
+        req.query.encrypted === true ||
+        req.query.encrypted === 'true' ||
+        req.query.encrypted === '1';
 
       debugLog('ddebug containerName', containerName);
       debugLog('ddebug req.body', req.body);
