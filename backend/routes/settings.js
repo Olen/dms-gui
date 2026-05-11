@@ -347,19 +347,28 @@ router.get(
   async (req, res) => {
     try {
       const { plugin, name } = req.params;
-      // for non-admins:  for mailserver plugin we send scope=roles, for anything else we send scope=userID
-      debugLog(
-        `getConfigs(${plugin}, ${req.user.isAdmin ? [] : plugin === 'mailserver' ? req.user.roles : [req.user.id]}, ${name})`
-      );
-      const configs = await getConfigs(
-        plugin,
-        req.user.isAdmin
-          ? []
-          : plugin === 'mailserver'
-            ? req.user.roles
-            : [req.user.id],
-        name
-      );
+      // getConfigs treats an empty `roles` array as the admin path
+      // (no scope filter → all configs). A non-admin with no mailbox
+      // roles on the mailserver plugin would otherwise be granted
+      // access to every container's configs. Reject upfront rather
+      // than calling getConfigs with `[]`. Non-mailserver plugins
+      // always pass `[req.user.id]` so this is mailserver-specific.
+      if (
+        !req.user.isAdmin &&
+        plugin === 'mailserver' &&
+        (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
+      ) {
+        return res
+          .status(403)
+          .json({ success: false, error: 'Permission denied' });
+      }
+      const configsScope = req.user.isAdmin
+        ? []
+        : plugin === 'mailserver'
+          ? req.user.roles
+          : [req.user.id];
+      debugLog(`getConfigs(${plugin}, ${configsScope}, ${name})`);
+      const configs = await getConfigs(plugin, configsScope, name);
 
       // For non-mailserver plugins with templates in env.mjs (e.g. dnscontrol),
       // always serve the static templates — DB rows are container configs, not templates
