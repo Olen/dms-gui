@@ -200,7 +200,10 @@ Backend is split into modular route files + business-logic modules:
 - `backend/aliases.mjs` — Alias management (action protocol)
 - `backend/sieve.mjs` — Sieve script management (action protocol)
 - `backend/logins.mjs` — dms-gui login user management (action protocol)
-- `backend/db.mjs` — SQLite database layer (better-sqlite3), encrypt/decrypt, AES key migration. `getTargetDict(plugin, containerName, settings)` is the SSRF host validator: protocol allowlist (http/https), host regex (alphanumeric + `._-`, no IP literals, URL-canonical check), port range (1..65535).
+- `backend/db.mjs` — SQLite database layer (better-sqlite3). Owns `dbOpen`/`dbRun`/`dbGet`/`dbAll`/`dbCount`/`dbInit`/`dbUpgrade`, the `migrateEncryption*` boot-time migrations (raw `DB.prepare(...)` access), `updateDB`/`deleteEntry` with redaction helpers, `verifyPassword`/`changePassword`, and `refreshTokens`. Re-exports the per-domain sibling modules below via barrel for backward-compat (issue #82 split).
+- `backend/sql.mjs` — `sql` (the big SQL statement bundle, ~650 lines) and `sqlMatch` (regex pairs used by `dbUpgrade` to detect already-applied ADD/DROP COLUMN migrations from SQLite's error text). Templates interpolate `env.DMSGUI_VERSION` / `env.isImmutable` once at module load.
+- `backend/crypto.mjs` — Pure encryption + password-hashing primitives: `encrypt`/`decrypt` (AES-256-GCM with `g1:` prefix + legacy CBC read path), `generateIv`, `hashPassword` (scrypt), and the `GCM_FORMAT_PREFIX` marker. No DB coupling — `verifyPassword` / `changePassword` / the migrate helpers stay in `db.mjs` because they read/write rows.
+- `backend/targetDict.mjs` — `getTargetDict(plugin, containerName, settings)` with the SSRF host validators: protocol allowlist (http/https), host regex (alphanumeric + `._-`, no IP literals, URL-canonical check rejecting WHATWG shorthand like `127.1`), port range 1..65535. Validators are kept as boolean-AND expressions so CodeQL recognises them as sanitisers for `js/request-forgery` — the rationale is documented in the file's header comment. Splitting the chain into imperative early returns regresses the CodeQL alert (verified during PR #75).
 
 ## Key frontend files
 - `frontend/src/pages/Domains.jsx` — Domain list, DNS Details modal, click-to-edit SPF/DMARC, DKIM generation + push
@@ -255,7 +258,7 @@ Code-quality / reusability / dependency-reduction backlog from the 2026-05-10 fu
 - **#79** Replace `dotenv` with Node 20 `--env-file`
 - **#80** Migrate frontend webpack → Vite (CLAUDE.md's previously-claimed bundler)
 - **#81** Extract embedded `rest-api.py` from `env.mjs` (~640-line Python string literal)
-- **#82** Split god-modules: ~~`settings.mjs` (2766 lines)~~ → split into `dnsTools`/`dkim`/`rspamd`/`mailLogs`/`dovecot` siblings; `db.mjs` (2015 lines) still to do
+- **#82** Split god-modules: ~~`settings.mjs` (2766 lines)~~ → `dnsTools`/`dkim`/`rspamd`/`mailLogs`/`dovecot` (#107) and `db.mjs` (2015 lines → `sql.mjs` / `crypto.mjs` / `targetDict.mjs`, this PR)
 - **#83** Consolidate `services/api.mjs` (52 try/catch wrappers → `request()` + per-domain split)
 - **#84** Move SQL out of `routes/*.js` into business modules
 - **#85** Standardize error response shapes across routes
