@@ -24,7 +24,6 @@ function UserConfig() {
   const { t } = useTranslation();
   const [containerName] = useLocalStorage('containerName', '');
 
-  const [isLoading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
@@ -53,12 +52,8 @@ function UserConfig() {
   ];
 
   const loadSettings = async () => {
-    if (!containerName) {
-      setLoading(false);
-      return;
-    }
+    if (!containerName) return;
     try {
-      setLoading(true);
       setErrorMessage(null);
 
       // Load existing settings from DB via user-settings endpoint (bypasses broken getSetting SQL)
@@ -117,12 +112,10 @@ function UserConfig() {
     } catch (error) {
       errorLog('UserConfig loadSettings error:', error);
       setErrorMessage('api.errors.fetchSettings');
-    } finally {
-      setLoading(false);
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- loadSettings synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getUserSettings/getServerEnvs. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
+  /* eslint-disable react-hooks/set-state-in-effect -- loadSettings clears errors at entry then awaits getUserSettings/getServerEnvs and writes the result via setFormData. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a stable per-render helper above; intentional re-fire only on containerName change

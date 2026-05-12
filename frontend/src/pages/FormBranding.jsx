@@ -18,7 +18,6 @@ import { useBranding } from '../hooks/useBranding';
 
 function FormBranding() {
   const { t } = useTranslation();
-  const [containerName] = useLocalStorage('containerName', '');
   const [mailservers] = useLocalStorage('mailservers', []);
   const { refreshBranding } = useBranding();
 

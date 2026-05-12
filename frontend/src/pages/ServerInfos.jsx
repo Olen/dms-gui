@@ -20,7 +20,6 @@ const ServerInfos = () => {
   const { user } = useAuth();
 
   const [isLoading, setLoading] = useState(true);
-  const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
   const [infos, setInfos] = useState([]);
@@ -113,7 +112,6 @@ const ServerInfos = () => {
   return (
     <>
       <AlertMessage type="danger" message={errorMessage} />
-      <AlertMessage type="success" message={successMessage} />
 
       <div className="float-end">
         <Button
