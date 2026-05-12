@@ -11,8 +11,14 @@ import {
   serverError,
   validateContainerName,
 } from '../middleware.js';
-import { getConfigs, getSettings, saveSettings } from '../settings.mjs';
-import { dbAll, dbGet } from '../db.mjs';
+import {
+  getConfigs,
+  getSettings,
+  getUserConfigDict,
+  getWebmailUrl,
+  saveSettings,
+} from '../settings.mjs';
+import { findAliasesForMailbox } from '../aliases.mjs';
 import { debugLog } from '../backend.mjs';
 import { env, plugins } from '../env.mjs';
 import { demoResponse } from '../demoMode.mjs';
@@ -87,18 +93,9 @@ router.get('/branding{/:containerName}', async (req, res) => {
     const msg = result.success && result.message ? [...result.message] : [];
 
     // Also include webmailUrl if configured (public — shown on login page)
-    try {
-      const webmail = dbGet(
-        'SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND s.name = ? LIMIT 1',
-        {},
-        'userconfig',
-        'WEBMAIL_URL'
-      );
-      if (webmail.success && webmail.message?.value) {
-        msg.push({ name: 'webmailUrl', value: webmail.message.value });
-      }
-    } catch {
-      /* ignore */
+    const webmailUrl = getWebmailUrl();
+    if (webmailUrl) {
+      msg.push({ name: 'webmailUrl', value: webmailUrl });
     }
 
     res.json({ success: true, message: msg });
@@ -266,45 +263,22 @@ router.get(
         'ALLOW_USER_ALIASES',
         'RSPAMD_URL',
       ];
+      const fullDict = getUserConfigDict(containerName);
       const settings = {};
-
-      // Read directly from DB — getSetting's SQL has a correlated subquery bug
-      // that fails when multiple configs share the same plugin name
-      const allSettings = dbAll(
-        `SELECT s.name, s.value FROM settings s
-       JOIN configs c ON s.configID = c.id
-       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
-        {},
-        'userconfig',
-        containerName
-      );
-      if (allSettings.success && allSettings.message) {
-        for (const row of allSettings.message) {
-          if (publicKeys.includes(row.name)) {
-            settings[row.name] = row.value;
-          }
-        }
+      for (const key of publicKeys) {
+        if (fullDict[key] !== undefined) settings[key] = fullDict[key];
       }
 
       // Count aliases for this user (exact or comma-delimited match, not LIKE substring)
       const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
       if (mailbox) {
-        try {
-          const mb = mailbox.replace(/[%_\\]/g, '\\$&');
-          const aliasRows = dbAll(
-            `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
-            {},
-            mailbox,
-            `${mb},%`,
-            `%,${mb},%`,
-            `%,${mb}`
-          );
-          if (aliasRows.success && aliasRows.message?.[0]) {
-            settings.USER_ALIAS_COUNT = aliasRows.message[0].count;
-          }
-        } catch (e) {
-          /* non-critical */
-        }
+        const { count } = findAliasesForMailbox(containerName, mailbox, {
+          count: true,
+        });
+        // Omit USER_ALIAS_COUNT when the lookup failed (helper signals
+        // failure with count === null) so the UI doesn't render a
+        // misleading "0" in place of the real-but-unknown value.
+        if (count !== null) settings.USER_ALIAS_COUNT = count;
       }
 
       res.json({ success: true, message: settings });

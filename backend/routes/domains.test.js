@@ -33,20 +33,21 @@ const mockGenerateDkim = vi.fn();
 const mockGetDkimSelector = vi.fn();
 const mockGetDomains = vi.fn();
 
+const mockEnsureDomainRow = vi.fn();
+
 vi.mock('../settings.mjs', () => ({
   dnsLookup: (...args) => mockDnsLookup(...args),
   dnsblCheck: (...args) => mockDnsblCheck(...args),
+  ensureDomainRow: (...args) => mockEnsureDomainRow(...args),
   generateDkim: (...args) => mockGenerateDkim(...args),
   getDkimSelector: (...args) => mockGetDkimSelector(...args),
   getDomains: (...args) => mockGetDomains(...args),
 }));
 
 const mockUpdateDB = vi.fn();
-const mockDbRun = vi.fn();
 
 vi.mock('../db.mjs', () => ({
   updateDB: (...args) => mockUpdateDB(...args),
-  dbRun: (...args) => mockDbRun(...args),
 }));
 
 const mockUpsertDnsRecord = vi.fn();
@@ -58,7 +59,12 @@ vi.mock('../demoMode.mjs', () => ({
   demoWriteResponse: vi.fn(() => null),
 }));
 
-import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import {
+  createTestApp,
+  adminToken,
+  userToken,
+  inactiveToken,
+} from '../test/routeHelper.mjs';
 import domainsRoutes from './domains.js';
 
 const app = createTestApp(domainsRoutes);
@@ -108,7 +114,10 @@ describe('POST /api/dnscontrol/test', () => {
 describe('POST /api/dnscontrol/:containerName/:domain/records', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockUpsertDnsRecord.mockResolvedValue({ success: true, message: 'Created TXT record' });
+    mockUpsertDnsRecord.mockResolvedValue({
+      success: true,
+      message: 'Created TXT record',
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -150,7 +159,11 @@ describe('POST /api/dnscontrol/:containerName/:domain/records', () => {
     const res = await request(app)
       .post('/api/dnscontrol/mailserver/example.com/records')
       .set('Cookie', [`accessToken=${adminToken}`])
-      .send({ name: '_dmarc.example.com', type: 'TXT', data: 'v=DMARC1; p=none' });
+      .send({
+        name: '_dmarc.example.com',
+        type: 'TXT',
+        data: 'v=DMARC1; p=none',
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
@@ -190,7 +203,10 @@ describe('GET /api/domains/:containerName/dkim-selector', () => {
       .set('Cookie', [`accessToken=${userToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetDkimSelector).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetDkimSelector).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 
   it('returns 500 when getDkimSelector throws', async () => {
@@ -235,7 +251,10 @@ describe('GET /api/domains/:containerName', () => {
   });
 
   it('admin can get a specific domain', async () => {
-    mockGetDomains.mockResolvedValue({ success: true, message: { domain: 'example.com' } });
+    mockGetDomains.mockResolvedValue({
+      success: true,
+      message: { domain: 'example.com' },
+    });
 
     const res = await request(app)
       .get('/api/domains/mailserver/example.com')
@@ -260,7 +279,6 @@ describe('PATCH /api/domains/:containerName/:domain', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockUpdateDB.mockResolvedValue({ success: true, message: 'Updated' });
-    mockDbRun.mockReturnValue({ changes: 1 });
   });
 
   it('returns 401 without auth', async () => {
@@ -309,7 +327,10 @@ describe('GET /api/dns/:containerName/:domain', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mockDnsLookup.mockResolvedValue({ success: true, message: { MX: [] } });
-    mockGetDomains.mockResolvedValue({ success: true, message: { dkim: 'mail' } });
+    mockGetDomains.mockResolvedValue({
+      success: true,
+      message: { dkim: 'mail' },
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -357,7 +378,10 @@ describe('GET /api/dns/:containerName/:domain', () => {
 describe('POST /api/domains/:containerName/:domain/dkim', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGenerateDkim.mockResolvedValue({ success: true, message: 'DKIM key generated' });
+    mockGenerateDkim.mockResolvedValue({
+      success: true,
+      message: 'DKIM key generated',
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -389,12 +413,23 @@ describe('POST /api/domains/:containerName/:domain/dkim', () => {
     const res = await request(app)
       .post('/api/domains/mailserver/example.com/dkim')
       .set('Cookie', [`accessToken=${adminToken}`])
-      .send({ keytype: 'rsa', keysize: '2048', selector: 'mail', force: false });
+      .send({
+        keytype: 'rsa',
+        keysize: '2048',
+        selector: 'mail',
+        force: false,
+      });
 
     expect(res.status).toBe(200);
     expect(res.body.success).toBe(true);
     expect(mockGenerateDkim).toHaveBeenCalledWith(
-      'mailserver', 'mailserver', 'example.com', 'rsa', '2048', 'mail', false
+      'mailserver',
+      'mailserver',
+      'example.com',
+      'rsa',
+      '2048',
+      'mail',
+      false
     );
   });
 });

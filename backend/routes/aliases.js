@@ -8,23 +8,16 @@ import {
   serverError,
   validateContainerName,
 } from '../middleware.js';
-import { addAlias, deleteAlias, getAliases, updateAlias } from '../aliases.mjs';
-import { dbGet } from '../db.mjs';
+import {
+  addAlias,
+  deleteAlias,
+  getAliases,
+  isUserAliasingAllowed,
+  updateAlias,
+} from '../aliases.mjs';
 
 const router = Router();
 router.param('containerName', validateContainerName);
-
-// Check if non-admin alias management is allowed for the given container
-const isUserAliasAllowed = (containerName) => {
-  const result = dbGet(
-    `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = ? AND c.name = ? AND s.name = ? AND s.isMutable = 1`,
-    {},
-    'userconfig',
-    containerName,
-    'ALLOW_USER_ALIASES'
-  );
-  return result.success && result.message?.value === 'true';
-};
 
 /**
  * @swagger
@@ -158,7 +151,7 @@ router.post(
       if (req.user.isAdmin) {
         result = await addAlias(containerName, source, destination);
       } else {
-        if (!isUserAliasAllowed(containerName)) {
+        if (!isUserAliasingAllowed(containerName)) {
           return clientError(
             res,
             403,
@@ -245,7 +238,7 @@ router.delete(
       if (req.user.isAdmin) {
         result = await deleteAlias(containerName, source, destination);
       } else {
-        if (!isUserAliasAllowed(containerName)) {
+        if (!isUserAliasingAllowed(containerName)) {
           return clientError(
             res,
             403,
@@ -321,7 +314,7 @@ router.put(
       if (req.user.isAdmin) {
         result = await updateAlias(containerName, source, destination);
       } else {
-        if (!isUserAliasAllowed(containerName)) {
+        if (!isUserAliasingAllowed(containerName)) {
           return clientError(
             res,
             403,

@@ -11,23 +11,13 @@ import {
 import {
   dnsLookup,
   dnsblCheck,
+  ensureDomainRow,
   generateDkim,
   getDkimSelector,
   getDomains,
 } from '../settings.mjs';
-import { updateDB, dbRun } from '../db.mjs';
+import { updateDB } from '../db.mjs';
 import { upsertDnsRecord } from '../dnsProviders.mjs';
-
-// Ensure a domain row exists in the domains table before updating it.
-// New domains only exist via postfix aliases (the allDomains UNION query),
-// so UPDATE would match 0 rows without this.
-const ensureDomainRow = (domain, containerName) => {
-  dbRun(
-    `INSERT OR IGNORE INTO domains (domain, configID) VALUES (@domain, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
-    { domain },
-    containerName
-  );
-};
 import { demoWriteResponse } from '../demoMode.mjs';
 
 const router = Router();

@@ -17,8 +17,84 @@ import {
 } from './backend.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
-import { dbAll, dbRun, deleteEntry, getTargetDict, sql } from './db.mjs';
+import { dbAll, dbGet, dbRun, deleteEntry, getTargetDict, sql } from './db.mjs';
 import { getConfigs } from './settings.mjs';
+
+// Whether non-admin users are allowed to manage aliases for the given
+// container. Reads the per-container `ALLOW_USER_ALIASES` userconfig
+// setting. Synchronous (dbGet is sync) so route handlers can guard a
+// request without async machinery.
+export const isUserAliasingAllowed = (containerName) => {
+  if (!containerName) return false;
+  try {
+    const result = dbGet(
+      sql.configs.select.setting,
+      { plugin: 'userconfig' },
+      containerName,
+      'ALLOW_USER_ALIASES'
+    );
+    return result.success && result.message?.value === 'true';
+  } catch (error) {
+    errorLog('isUserAliasingAllowed', error.message);
+    return false;
+  }
+};
+
+// Find aliases whose destination contains `mailbox`, either as the
+// sole value or as part of a comma-delimited list. Returns the array
+// of distinct `source` addresses by default, or `{ count }` when
+// called with `{ count: true }`. Scoped to a single mailserver
+// container — aliases live in a per-config table, so a missing
+// containerName would risk matching rows on other containers and
+// leaking USER_ALIAS_COUNT/sources across tenants.
+//
+// Returns `{ count: null }` / `{ sources: null }` on DB error so
+// callers can distinguish "no matches" from "lookup failed" — the
+// public /user-settings endpoint omits USER_ALIAS_COUNT in the
+// failure case rather than reporting a misleading 0 to the UI.
+// Used by per-user rspamd summary (routes/mail.js) and the public
+// user-settings endpoint (routes/settings.js).
+export const findAliasesForMailbox = (
+  containerName,
+  mailbox,
+  { count = false } = {}
+) => {
+  // Missing required input → empty result, not an error condition.
+  if (!containerName || !mailbox) return count ? { count: 0 } : { sources: [] };
+  // Escape LIKE metacharacters in the mailbox before wrapping it in
+  // the three CSV patterns — otherwise `_` and `%` in a mailbox name
+  // would match unintended destinations.
+  const mb = mailbox.replace(/[%_\\]/g, '\\$&');
+  const patternParams = [mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`];
+  try {
+    if (count) {
+      const result = dbAll(
+        sql.aliases.select.countByDestinationMailbox,
+        { name: containerName },
+        ...patternParams
+      );
+      if (!result.success) return { count: null };
+      return { count: result.message?.[0]?.count ?? 0 };
+    }
+    const result = dbAll(
+      sql.aliases.select.sourcesByDestinationMailbox,
+      { name: containerName },
+      ...patternParams
+    );
+    if (!result.success) return { sources: null };
+    const sources = [];
+    if (Array.isArray(result.message)) {
+      for (const row of result.message) {
+        if (row.source && !sources.includes(row.source))
+          sources.push(row.source);
+      }
+    }
+    return { sources };
+  } catch (error) {
+    errorLog('findAliasesForMailbox', error.message);
+    return count ? { count: null } : { sources: null };
+  }
+};
 
 export const getAliases = async (
   containerName = null,

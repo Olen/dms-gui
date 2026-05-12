@@ -29,19 +29,20 @@ vi.mock('../env.mjs', () => ({
 const mockGetConfigs = vi.fn();
 const mockGetSettings = vi.fn();
 const mockSaveSettings = vi.fn();
+const mockGetUserConfigDict = vi.fn();
+const mockGetWebmailUrl = vi.fn();
 
 vi.mock('../settings.mjs', () => ({
   getConfigs: (...args) => mockGetConfigs(...args),
   getSettings: (...args) => mockGetSettings(...args),
   saveSettings: (...args) => mockSaveSettings(...args),
+  getUserConfigDict: (...args) => mockGetUserConfigDict(...args),
+  getWebmailUrl: (...args) => mockGetWebmailUrl(...args),
 }));
 
-const mockDbAll = vi.fn();
-const mockDbGet = vi.fn();
-
-vi.mock('../db.mjs', () => ({
-  dbAll: (...args) => mockDbAll(...args),
-  dbGet: (...args) => mockDbGet(...args),
+const mockFindAliasesForMailbox = vi.fn();
+vi.mock('../aliases.mjs', () => ({
+  findAliasesForMailbox: (...args) => mockFindAliasesForMailbox(...args),
 }));
 
 vi.mock('../demoMode.mjs', () => ({
@@ -68,7 +69,7 @@ describe('GET /api/branding (public)', () => {
         { name: 'brandColorPrimary', value: '#123456' },
       ],
     });
-    mockDbGet.mockReturnValue({ success: false });
+    mockGetWebmailUrl.mockReturnValue(null);
   });
 
   it('returns branding data without authentication', async () => {
@@ -111,10 +112,7 @@ describe('GET /api/branding (public)', () => {
   });
 
   it('includes webmailUrl when configured', async () => {
-    mockDbGet.mockReturnValue({
-      success: true,
-      message: { value: 'https://webmail.example.com' },
-    });
+    mockGetWebmailUrl.mockReturnValue('https://webmail.example.com');
 
     const res = await request(app).get('/api/branding');
 
@@ -211,15 +209,11 @@ describe('GET /api/settings/:plugin/:containerName/:scope', () => {
 describe('GET /api/user-settings/:containerName', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDbAll
-      .mockReturnValueOnce({
-        success: true,
-        message: [
-          { name: 'IMAP_HOST', value: 'imap.test.com' },
-          { name: 'ALLOW_USER_ALIASES', value: 'true' },
-        ],
-      })
-      .mockReturnValueOnce({ success: true, message: [{ count: 3 }] });
+    mockGetUserConfigDict.mockReturnValue({
+      IMAP_HOST: 'imap.test.com',
+      ALLOW_USER_ALIASES: 'true',
+    });
+    mockFindAliasesForMailbox.mockReturnValue({ count: 3 });
   });
 
   it('returns 401 without auth', async () => {
@@ -247,19 +241,35 @@ describe('GET /api/user-settings/:containerName', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message.USER_ALIAS_COUNT).toBe(3);
+    // Scoped to the URL's containerName so the count doesn't leak
+    // alias rows from another mailserver container.
+    expect(mockFindAliasesForMailbox).toHaveBeenCalledWith(
+      'mailserver',
+      'user@test.com',
+      { count: true }
+    );
+  });
+
+  it('omits USER_ALIAS_COUNT when the alias lookup fails', async () => {
+    // count === null signals a DB failure inside findAliasesForMailbox.
+    // The endpoint must NOT show "0" — that would misrepresent unknown
+    // as zero in the UI.
+    mockFindAliasesForMailbox.mockReturnValue({ count: null });
+
+    const res = await request(app)
+      .get('/api/user-settings/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.USER_ALIAS_COUNT).toBeUndefined();
   });
 
   it('filters out non-public keys', async () => {
-    mockDbAll
-      .mockReset()
-      .mockReturnValueOnce({
-        success: true,
-        message: [
-          { name: 'DMS_API_KEY', value: 'secret' }, // should NOT be returned
-          { name: 'WEBMAIL_URL', value: 'https://webmail.test.com' }, // public
-        ],
-      })
-      .mockReturnValueOnce({ success: true, message: [{ count: 0 }] });
+    mockGetUserConfigDict.mockReturnValue({
+      DMS_API_KEY: 'secret', // should NOT be returned
+      WEBMAIL_URL: 'https://webmail.test.com', // public
+    });
+    mockFindAliasesForMailbox.mockReturnValue({ count: 0 });
 
     const res = await request(app)
       .get('/api/user-settings/mailserver')

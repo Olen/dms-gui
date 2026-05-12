@@ -33,7 +33,7 @@ const { testEnv } = vi.hoisted(() => ({
 vi.mock('../env.mjs', () => ({ env: testEnv }));
 
 const mockLoginUser = vi.fn();
-const mockDbGet = vi.fn();
+const mockFindLoginByRefreshToken = vi.fn();
 const mockUpdateDB = vi.fn();
 const mockRequestPasswordReset = vi.fn();
 const mockValidateResetToken = vi.fn();
@@ -41,18 +41,10 @@ const mockExecutePasswordReset = vi.fn();
 
 vi.mock('../logins.mjs', () => ({
   loginUser: (...args) => mockLoginUser(...args),
+  findLoginByRefreshToken: (...args) => mockFindLoginByRefreshToken(...args),
 }));
 
 vi.mock('../db.mjs', () => ({
-  sql: {
-    logins: {
-      select: {
-        refreshToken:
-          'SELECT * FROM logins WHERE id = ? AND refreshToken = @refreshToken',
-      },
-    },
-  },
-  dbGet: (...args) => mockDbGet(...args),
   updateDB: (...args) => mockUpdateDB(...args),
 }));
 
@@ -175,7 +167,7 @@ describe('POST /api/refresh', () => {
       TEST_JWT_SECRET_REFRESH,
       { expiresIn: '7d' }
     );
-    mockDbGet.mockReturnValue({ success: false });
+    mockFindLoginByRefreshToken.mockReturnValue(null);
 
     const res = await request(app)
       .post('/api/refresh')
@@ -191,15 +183,12 @@ describe('POST /api/refresh', () => {
       TEST_JWT_SECRET_REFRESH,
       { expiresIn: '7d' }
     );
-    mockDbGet.mockReturnValue({
-      success: true,
-      message: {
-        id: 1,
-        mailbox: 'admin@test.com',
-        isAdmin: 1,
-        isActive: 1,
-        roles: '[]',
-      },
+    mockFindLoginByRefreshToken.mockReturnValue({
+      id: 1,
+      mailbox: 'admin@test.com',
+      isAdmin: 1,
+      isActive: 1,
+      roles: '[]',
     });
 
     const res = await request(app)
