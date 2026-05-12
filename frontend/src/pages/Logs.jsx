@@ -299,16 +299,24 @@ const Logs = () => {
             {filteredLines.length > 0
               ? filteredLines.map((line, i) => {
                   if (filter) {
-                    // Highlight matching text over syntax coloring
-                    const regex = new RegExp(
-                      `(${filter.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`,
-                      'gi'
+                    // Highlight matching text over syntax coloring.
+                    // The split regex needs `g` to return ALL splits,
+                    // but `test()` is stateful on a `g` regex via
+                    // `lastIndex` — reusing the same instance for
+                    // `parts.map(...).test()` would alternate hits and
+                    // misses. Build a SEPARATE non-global regex for
+                    // the per-part membership check.
+                    const escaped = filter.replace(
+                      /[.*+?^${}()|[\]\\]/g,
+                      '\\$&'
                     );
-                    const parts = line.split(regex);
+                    const splitRegex = new RegExp(`(${escaped})`, 'gi');
+                    const matchRegex = new RegExp(`^${escaped}$`, 'i');
+                    const parts = line.split(splitRegex);
                     return (
                       <div key={i}>
                         {parts.map((part, j) =>
-                          regex.test(part) ? (
+                          matchRegex.test(part) ? (
                             <mark
                               key={j}
                               style={{

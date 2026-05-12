@@ -110,9 +110,10 @@ const ServerInfos = () => {
      drives setState via async API calls in fetchServerInfos /
      fetchServerEnvs, not synchronous-cascade renders. */
   useEffect(() => {
+    if (!containerName) return;
     fetchAll(false);
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire only on mailservers change
-  }, [mailservers]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire on mailservers/containerName change
+  }, [mailservers, containerName]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   // Column definitions
@@ -143,7 +144,9 @@ const ServerInfos = () => {
       </div>
 
       {t('settings.serverInternalsDescription')}
-      {(!infos && t('api.errors.fetchServerInfos')) || (
+      {infos.length === 0 ? (
+        t('api.errors.fetchServerInfos')
+      ) : (
         <DataTable
           columns={columns}
           data={infos}
@@ -154,7 +157,9 @@ const ServerInfos = () => {
       )}
 
       {t('settings.serverEnvDescription')}
-      {(!envs && t('api.errors.fetchServerEnvs')) || (
+      {envs.length === 0 ? (
+        t('api.errors.fetchServerEnvs')
+      ) : (
         <DataTable
           columns={columns}
           data={envs}

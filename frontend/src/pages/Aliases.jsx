@@ -112,8 +112,14 @@ const Aliases = () => {
      .then()/.catch() setState calls inside the getUserSettings
      promise are asynchronous, not synchronous-cascade renders. */
   useEffect(() => {
+    // containerName comes from useLocalStorage and is initially '';
+    // skip the API calls until the user has picked a container,
+    // otherwise the helpers short-circuit with
+    // `{success:false, error:'containerName is required'}` and flash
+    // an error/loading state unnecessarily.
+    if (!containerName) return;
     fetchAliases(false);
-    if (user?.isAdmin != 1 && containerName) {
+    if (user?.isAdmin != 1) {
       getUserSettings(containerName)
         .then((result) => {
           if (result.success)
