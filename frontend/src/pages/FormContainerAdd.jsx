@@ -20,10 +20,11 @@ import {
 
 import {
   AlertMessage,
-  Button,
   Card,
-  FormField,
+  ContainerSettingsForm,
   LoadingSpinner,
+  PROTOCOLS,
+  SCHEMAS,
   SelectField,
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
@@ -54,21 +55,10 @@ function FormContainerAdd() {
   const [formErrors, setFormErrors] = useState({});
   const makeFavoriteRef = useRef(null);
 
-  // selector fields
-  const [protocols, setProtocols] = useState([
-    { value: 'http', label: 'http' },
-    { value: 'https', label: 'https' },
-  ]);
-
-  const [schemas, setSchemas] = useState([
-    { value: 'dms', label: 'DMS' },
-    { value: 'poste', label: 'Poste.io' },
-  ]);
-
   const [formValues, setFormValues] = useState([
-    { name: 'schema', value: schemas[0].value },
+    { name: 'schema', value: SCHEMAS[0].value },
     { name: 'containerName', value: containerName },
-    { name: 'protocol', value: protocols[0].value },
+    { name: 'protocol', value: PROTOCOLS[0].value },
     { name: 'DMS_API_PORT', value: '8888' },
     { name: 'DMS_API_KEY', value: '' },
     { name: 'timeout', value: '4' },
@@ -86,19 +76,22 @@ function FormContainerAdd() {
   // Suppressed with a comment per the same pattern Login.jsx uses for its
   // mount-once probe.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
     fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch; tracked in #105 sweep
   }, []);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchContainerSettings; tracked in #105 sweep
     fetchContainerSettings(containerName); // [ {name:name, value: value}, ..]
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetch is forward-declared by design
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; tracked in #105 sweep
   }, [containerName]);
 
   useEffect(() => {
     if (formValuesSubmitted) {
       // pull mailservers to refresh the select field list and branding selector and show the API reminder
       debugLog('FormContainerAdd call fetchMailservers()');
+      // eslint-disable-next-line react-hooks/immutability -- forward-declared; tracked in #105 sweep
       fetchMailservers();
 
       // switch to this new container to trigger fetchContainerSettings and confirm all was saved properly
@@ -122,6 +115,7 @@ function FormContainerAdd() {
           'FormContainerAdd call handleLoginSave:',
           getValueFromArrayOfObj(formValues, 'containerName')
         );
+        // eslint-disable-next-line react-hooks/immutability -- forward-declared; tracked in #105 sweep
         handleLoginSave(getValueFromArrayOfObj(formValues, 'containerName'));
       }
 
@@ -130,6 +124,7 @@ function FormContainerAdd() {
       if (APIInjected) {
         debugLog('FormContainerAdd APIValidated:', APIValidated);
         if (!APIValidated) {
+          // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-once setup info; tracked in #105 sweep
           setSuccessMessage(
             t('settings.DMS_API_KEYinit', {
               containerName: getValueFromArrayOfObj(
@@ -786,193 +781,21 @@ function FormContainerAdd() {
       </Row>
 
       <Row>
-        <form onSubmit={handleSubmitSettings} className="form-wrapper">
-          <SelectField
-            id="schema"
-            name="schema"
-            label="settings.schema"
-            value={
-              getValueFromArrayOfObj(formValues, 'schema') || schemas[0].value
-            }
-            onChange={handleChangeSettings}
-            options={schemas}
-            placeholder="settings.schema"
-            helpText="settings.schemaHelp"
-            required
-          />
-
-          <FormField
-            type="text"
-            id="containerName"
-            name="containerName"
-            label="settings.containerName"
-            value={getValueFromArrayOfObj(formValues, 'containerName')}
-            onChange={handleChangeSettings}
-            placeholder="dms"
-            error={formErrors.containerName}
-            helpText="settings.containerNameHelp"
-            required
-          >
-            <Button
-              variant={(pingResult && 'success') || 'danger'}
-              icon={(pingResult && 'check') || 'x'}
-              title={(pingResult && t('common.pingUp')) || t('common.pingDown')}
-              disabled
-            />
-            <Button
-              variant="info"
-              icon="send"
-              title={t('common.ping')}
-              onClick={() => handlePingTest()}
-              disabled={!getValueFromArrayOfObj(formValues, 'containerName')}
-            />
-          </FormField>
-
-          <SelectField
-            id="protocol"
-            name="protocol"
-            label="settings.protocol"
-            value={
-              getValueFromArrayOfObj(formValues, 'protocol') ||
-              protocols[0].value
-            }
-            onChange={handleChangeSettings}
-            options={protocols}
-            placeholder="common.protocol"
-            helpText="settings.protocolHelp"
-            required
-          />
-
-          <FormField
-            type="number"
-            id="DMS_API_PORT"
-            name="DMS_API_PORT"
-            label="settings.DMS_API_PORT"
-            value={getValueFromArrayOfObj(formValues, 'DMS_API_PORT')}
-            onChange={handleChangeSettings}
-            placeholder="settings.DMS_API_PORTdefault"
-            error={formErrors.DMS_API_PORT}
-            helpText="settings.DMS_API_PORTHelp"
-            required
-          />
-
-          <FormField
-            type="text"
-            id="DMS_API_KEY"
-            name="DMS_API_KEY"
-            label="settings.DMS_API_KEY"
-            value={getValueFromArrayOfObj(formValues, 'DMS_API_KEY')}
-            onChange={handleChangeSettings}
-            placeholder="DMS_API_KEY"
-            error={formErrors.DMS_API_KEY}
-            helpText="settings.DMS_API_KEYHelp"
-            required
-          >
-            <Button
-              variant="warning"
-              icon="recycle"
-              title={t('settings.DMS_API_KEYregen')}
-              onClick={() => handleDMS_API_KEYregen()}
-            />
-            <Button
-              variant="outline-secondary"
-              icon="question-circle"
-              title={t('settings.DMS_API_KEYinitHelp')}
-              onClick={() =>
-                setSuccessMessage(
-                  t('settings.DMS_API_KEYinit', {
-                    containerName: getValueFromArrayOfObj(
-                      formValues,
-                      'containerName'
-                    ),
-                    DMS_API_KEY: getValueFromArrayOfObj(
-                      formValues,
-                      'DMS_API_KEY'
-                    ),
-                    DMS_API_PORT: getValueFromArrayOfObj(
-                      formValues,
-                      'DMS_API_PORT'
-                    ),
-                  })
-                )
-              }
-            />
-            <Button
-              variant="outline-secondary"
-              icon="clipboard-plus"
-              title={t('common.copy')}
-              onClick={() =>
-                navigator.clipboard.writeText(
-                  getValueFromArrayOfObj(formValues, 'DMS_API_KEY')
-                )
-              }
-            />
-          </FormField>
-
-          <FormField
-            type="number"
-            id="timeout"
-            name="timeout"
-            label="settings.timeout"
-            value={getValueFromArrayOfObj(formValues, 'timeout')}
-            onChange={handleChangeSettings}
-            placeholder="settings.timeoutdefault"
-            error={formErrors.timeout}
-            helpText="settings.timeoutHelp"
-            required
-          />
-
-          <FormField
-            type="text"
-            id="setupPath"
-            name="setupPath"
-            label="settings.setupPath"
-            value={getValueFromArrayOfObj(formValues, 'setupPath')}
-            onChange={handleChangeSettings}
-            placeholder="/usr/local/bin/setup"
-            error={formErrors.setupPath}
-            helpText="settings.setupPathHelp"
-            required
-          ></FormField>
-
-          <div className="d-flex align-items-center">
-            <Button
-              variant={(APIInjected && 'success') || 'info'}
-              icon="box-arrow-in-up-right"
-              text="settings.DMS_API_inject"
-              title={
-                (APIInjected && t('settings.DMS_API_injectSuccess')) ||
-                t('settings.DMS_API_injectFailed')
-              }
-              className="me-2"
-              onClick={() => handleInjectAPI()}
-              disabled={!pingResult}
-            />
-            <Button
-              variant="info"
-              icon="hdd-network"
-              text="settings.apiTest"
-              className="me-2"
-              onClick={() => handleAPITest()}
-              disabled={!pingResult || !APIInjected || !formValidated}
-            />
-            <Button
-              type="submit"
-              variant="primary"
-              text="settings.saveButtonSettings"
-              className="me-2"
-              disabled={!formValidated}
-            />
-            <FormField
-              type="checkbox"
-              id="makeFavorite"
-              name="makeFavorite"
-              label="settings.makeFavorite"
-              ref={makeFavoriteRef}
-              disabled={!formValidated}
-            />
-          </div>
-        </form>
+        <ContainerSettingsForm
+          formValues={formValues}
+          formErrors={formErrors}
+          pingResult={pingResult}
+          apiInjected={APIInjected}
+          formValidated={formValidated}
+          makeFavoriteRef={makeFavoriteRef}
+          onSubmit={handleSubmitSettings}
+          onChangeSettings={handleChangeSettings}
+          onPingTest={handlePingTest}
+          onInjectAPI={handleInjectAPI}
+          onApiTest={handleAPITest}
+          onApiKeyRegen={handleDMS_API_KEYregen}
+          onSetSuccessMessage={setSuccessMessage}
+        />
       </Row>
 
       <AlertMessage type="danger" message={errorMessage} />
