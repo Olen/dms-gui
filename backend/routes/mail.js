@@ -16,10 +16,11 @@ import {
   getRspamdUserHistory,
   rspamdLearnMessage,
   getDovecotSessions,
+  getUserConfigDict,
 } from '../settings.mjs';
+import { findAliasesForMailbox } from '../aliases.mjs';
 import { generateAutoconfig, generateMobileconfig } from '../mailprofile.mjs';
 import { generatePassphrase } from '../passphrase.mjs';
-import { dbAll } from '../db.mjs';
 import { debugLog } from '../backend.mjs';
 
 const router = Router();
@@ -38,19 +39,7 @@ router.get(
       if (!mailbox)
         return clientError(res, 400, 'No mailbox associated with this user');
 
-      // Read UserConfig settings
-      const allSettings = dbAll(
-        `SELECT s.name, s.value FROM settings s
-       JOIN configs c ON s.configID = c.id
-       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
-        {},
-        'userconfig',
-        containerName
-      );
-      const settings = {};
-      if (allSettings.success && allSettings.message) {
-        for (const row of allSettings.message) settings[row.name] = row.value;
-      }
+      const settings = getUserConfigDict(containerName);
 
       if (!settings.IMAP_HOST && !settings.SMTP_HOST) {
         return clientError(res, 404, 'Mail server settings not configured');
@@ -81,19 +70,7 @@ router.get(
       if (!mailbox)
         return clientError(res, 400, 'No mailbox associated with this user');
 
-      // Read UserConfig settings
-      const allSettings = dbAll(
-        `SELECT s.name, s.value FROM settings s
-       JOIN configs c ON s.configID = c.id
-       WHERE c.plugin = ? AND c.name = ? AND s.isMutable = 1`,
-        {},
-        'userconfig',
-        containerName
-      );
-      const settings = {};
-      if (allSettings.success && allSettings.message) {
-        for (const row of allSettings.message) settings[row.name] = row.value;
-      }
+      const settings = getUserConfigDict(containerName);
 
       if (!settings.IMAP_HOST && !settings.SMTP_HOST) {
         return clientError(res, 404, 'Mail server settings not configured');
@@ -147,20 +124,9 @@ router.get(
       // Use exact or comma-delimited match (not LIKE substring) to prevent cross-user data leakage
       const addresses = [mailbox];
       try {
-        const mb = mailbox.replace(/[%_\\]/g, '\\$&');
-        const aliasRows = dbAll(
-          `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
-          {},
-          mailbox,
-          `${mb},%`,
-          `%,${mb},%`,
-          `%,${mb}`
-        );
-        if (aliasRows.success && aliasRows.message) {
-          for (const row of aliasRows.message) {
-            if (row.source && !addresses.includes(row.source))
-              addresses.push(row.source);
-          }
+        const { sources } = findAliasesForMailbox(mailbox);
+        for (const src of sources) {
+          if (!addresses.includes(src)) addresses.push(src);
         }
       } catch (e) {
         debugLog(`Could not fetch aliases for ${mailbox}:`, e.message);

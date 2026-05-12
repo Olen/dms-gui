@@ -176,6 +176,48 @@ export const getSettings = (
   }
 };
 
+// Flatten the userconfig settings for a given container into a plain
+// { name: value } dict. Used by mail-profile generators and the
+// /user-settings endpoint, which both want O(1) keyed access rather
+// than the array-of-objects shape getSettings() returns.
+export const getUserConfigDict = (containerName) => {
+  if (!containerName) return {};
+  const result = getSettings('userconfig', containerName);
+  if (!result.success || !Array.isArray(result.message)) return {};
+  const dict = {};
+  for (const row of result.message) dict[row.name] = row.value;
+  return dict;
+};
+
+// Look up the first WEBMAIL_URL setting across any userconfig container.
+// The /branding endpoint is unauthenticated and has no containerName in
+// context — it just wants whatever webmail URL is configured so the
+// login page can render a link. Returns the URL string or null.
+export const getWebmailUrl = () => {
+  try {
+    const result = dbGet(
+      sql.configs.select.firstSettingByName,
+      { plugin: 'userconfig' },
+      'WEBMAIL_URL'
+    );
+    return result.success && result.message?.value
+      ? result.message.value
+      : null;
+  } catch (error) {
+    errorLog('getWebmailUrl', error.message);
+    return null;
+  }
+};
+
+// Insert a domain row if it doesn't already exist. New domains only
+// exist via postfix aliases (the allDomains UNION query in
+// sql.domains.select.domainsWithCounts), so an UPDATE on a brand-new
+// domain would match 0 rows without this priming step.
+export const ensureDomainRow = (domain, containerName) => {
+  if (!domain || !containerName) return;
+  dbRun(sql.domains.insert.ensureRow, { domain }, containerName);
+};
+
 // this returns all configs, and roles are mailboxes or logins id
 export const getConfigs = async (
   plugin = 'mailserver',

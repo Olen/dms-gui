@@ -29,11 +29,12 @@ vi.mock('../settings.mjs', () => ({
   getConfigs: (...args) => mockGetConfigs(...args),
   getSettings: (...args) => mockGetSettings(...args),
   saveSettings: (...args) => mockSaveSettings(...args),
+  getUserConfigDict: vi.fn(() => ({})),
+  getWebmailUrl: vi.fn(() => null),
 }));
 
-vi.mock('../db.mjs', () => ({
-  dbAll: vi.fn(),
-  dbGet: vi.fn(),
+vi.mock('../aliases.mjs', () => ({
+  findAliasesForMailbox: vi.fn(() => ({ count: 0, sources: [] })),
 }));
 
 vi.mock('../demoMode.mjs', () => ({

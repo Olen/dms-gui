@@ -10,8 +10,8 @@ import {
   requireCsrf,
   serverError,
 } from '../middleware.js';
-import { loginUser } from '../logins.mjs';
-import { sql, dbGet, updateDB } from '../db.mjs';
+import { findLoginByRefreshToken, loginUser } from '../logins.mjs';
+import { updateDB } from '../db.mjs';
 import {
   requestPasswordReset,
   validateResetToken,
@@ -251,10 +251,7 @@ router.post('/refresh', authLimiter, async (req, res) => {
     const decoded = jwt.verify(refreshToken, env.JWT_SECRET_REFRESH);
 
     // Check if refresh token exists in database
-    const result = dbGet(sql.logins.select.refreshToken, decoded.id, {
-      refreshToken: refreshToken,
-    });
-    const user = result.success ? result.message : null;
+    const user = findLoginByRefreshToken(decoded.id, refreshToken);
 
     if (!user) {
       return clientError(

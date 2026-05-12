@@ -98,6 +98,13 @@ export const sql = {
       configs: `SELECT name as value, plugin, schema, scope FROM configs WHERE 1=1 AND plugin = @plugin AND (scope LIKE ?)`,
       settings: `SELECT s.name, s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isMutable}`,
       setting: `SELECT         s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isMutable}   AND s.name = ?`,
+      // Cross-container scan for the first occurrence of a setting name
+      // within a plugin. Used for the public /branding endpoint, which
+      // has no containerName context but wants whatever WEBMAIL_URL is
+      // configured anywhere. Tightened with LIMIT 1 so the planner does
+      // not scan the whole settings table when multiple containers
+      // happen to define the same name.
+      firstSettingByName: `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = @plugin AND s.name = ? LIMIT 1`,
       envs: `SELECT s.name, s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isImmutable}`,
       env: `SELECT         s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isImmutable} AND s.name = ?`,
     },
@@ -409,14 +416,23 @@ export const sql = {
     scope: 'name',
     select: {
       count: `SELECT COUNT(*) count from aliases WHERE 1=1 AND configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name)`,
-      aliases: `SELECT a.source, a.destination, a.regex, l.username 
-               FROM aliases a 
-               LEFT JOIN configs c ON c.id = a.configID 
-               LEFT JOIN logins l ON l.mailbox = a.destination 
-               WHERE 1=1 
-               AND c.plugin = 'mailserver' 
-               AND c.name = ? 
+      aliases: `SELECT a.source, a.destination, a.regex, l.username
+               FROM aliases a
+               LEFT JOIN configs c ON c.id = a.configID
+               LEFT JOIN logins l ON l.mailbox = a.destination
+               WHERE 1=1
+               AND c.plugin = 'mailserver'
+               AND c.name = ?
                ORDER BY a.source, a.destination`,
+      // Match a single mailbox against `destination` whether it sits
+      // alone or inside a comma-delimited list. Uses exact + 3 LIKE
+      // forms (CSV head / middle / tail) with ESCAPE '\\' so a mailbox
+      // containing %, _ or \ is still matched literally. Substring LIKE
+      // would leak across users (e.g. `foo@x` would match `foobar@x`).
+      // Caller is responsible for LIKE-escaping the mailbox before
+      // wrapping it in the three patterns; see findAliasesForMailbox.
+      sourcesByDestinationMailbox: `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
+      countByDestinationMailbox: `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
     },
 
     insert: {
@@ -482,6 +498,7 @@ export const sql = {
     insert: {
       domain: `INSERT INTO domains (domain, dkim, keytype, keysize, path, configID) VALUES (@domain, @dkim, @keytype, @keysize, @path, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))
                ON CONFLICT(domain) DO UPDATE SET dkim=excluded.dkim, keytype=excluded.keytype, keysize=excluded.keysize, path=excluded.path, configID=excluded.configID`,
+      ensureRow: `INSERT OR IGNORE INTO domains (domain, configID) VALUES (@domain, (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = ?))`,
     },
 
     update: {},

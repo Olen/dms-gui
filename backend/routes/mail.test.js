@@ -28,6 +28,7 @@ const mockGetRspamdStats = vi.fn();
 const mockGetRspamdUserHistory = vi.fn();
 const mockRspamdLearnMessage = vi.fn();
 const mockGetDovecotSessions = vi.fn();
+const mockGetUserConfigDict = vi.fn();
 
 vi.mock('../settings.mjs', () => ({
   getRspamdBayesUsers: (...args) => mockGetRspamdBayesUsers(...args),
@@ -38,6 +39,12 @@ vi.mock('../settings.mjs', () => ({
   getRspamdUserHistory: (...args) => mockGetRspamdUserHistory(...args),
   rspamdLearnMessage: (...args) => mockRspamdLearnMessage(...args),
   getDovecotSessions: (...args) => mockGetDovecotSessions(...args),
+  getUserConfigDict: (...args) => mockGetUserConfigDict(...args),
+}));
+
+const mockFindAliasesForMailbox = vi.fn();
+vi.mock('../aliases.mjs', () => ({
+  findAliasesForMailbox: (...args) => mockFindAliasesForMailbox(...args),
 }));
 
 const mockGenerateAutoconfig = vi.fn();
@@ -53,31 +60,35 @@ vi.mock('../passphrase.mjs', () => ({
   generatePassphrase: (...args) => mockGeneratePassphrase(...args),
 }));
 
-const mockDbAll = vi.fn();
-vi.mock('../db.mjs', () => ({
-  dbAll: (...args) => mockDbAll(...args),
-}));
-
-import { createTestApp, adminToken, userToken, inactiveToken } from '../test/routeHelper.mjs';
+import {
+  createTestApp,
+  adminToken,
+  userToken,
+  inactiveToken,
+} from '../test/routeHelper.mjs';
 import mailRoutes from './mail.js';
 
 const app = createTestApp(mailRoutes);
 
-// Shared settings rows used by autoconfig/mobileconfig tests
-const settingsRows = [
-  { name: 'IMAP_HOST', value: 'imap.test.com' },
-  { name: 'SMTP_HOST', value: 'smtp.test.com' },
-];
+// Shared settings dict used by autoconfig/mobileconfig tests
+const settingsDict = {
+  IMAP_HOST: 'imap.test.com',
+  SMTP_HOST: 'smtp.test.com',
+};
 
 describe('GET /api/mail-profile/:containerName/autoconfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDbAll.mockReturnValue({ success: true, message: settingsRows });
-    mockGenerateAutoconfig.mockReturnValue('<?xml version="1.0"?><autoconfig/>');
+    mockGetUserConfigDict.mockReturnValue(settingsDict);
+    mockGenerateAutoconfig.mockReturnValue(
+      '<?xml version="1.0"?><autoconfig/>'
+    );
   });
 
   it('returns 401 without auth', async () => {
-    const res = await request(app).get('/api/mail-profile/mailserver/autoconfig');
+    const res = await request(app).get(
+      '/api/mail-profile/mailserver/autoconfig'
+    );
     expect(res.status).toBe(401);
   });
 
@@ -102,7 +113,7 @@ describe('GET /api/mail-profile/:containerName/autoconfig', () => {
   });
 
   it('returns 404 when mail server settings are not configured', async () => {
-    mockDbAll.mockReturnValue({ success: true, message: [] });
+    mockGetUserConfigDict.mockReturnValue({});
 
     const res = await request(app)
       .get('/api/mail-profile/mailserver/autoconfig')
@@ -128,12 +139,14 @@ describe('GET /api/mail-profile/:containerName/autoconfig', () => {
 describe('GET /api/mail-profile/:containerName/mobileconfig', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockDbAll.mockReturnValue({ success: true, message: settingsRows });
+    mockGetUserConfigDict.mockReturnValue(settingsDict);
     mockGenerateMobileconfig.mockReturnValue('<?xml version="1.0"?><plist/>');
   });
 
   it('returns 401 without auth', async () => {
-    const res = await request(app).get('/api/mail-profile/mailserver/mobileconfig');
+    const res = await request(app).get(
+      '/api/mail-profile/mailserver/mobileconfig'
+    );
     expect(res.status).toBe(401);
   });
 
@@ -151,7 +164,7 @@ describe('GET /api/mail-profile/:containerName/mobileconfig', () => {
   });
 
   it('returns 404 when mail server settings are not configured', async () => {
-    mockDbAll.mockReturnValue({ success: true, message: [] });
+    mockGetUserConfigDict.mockReturnValue({});
 
     const res = await request(app)
       .get('/api/mail-profile/mailserver/mobileconfig')
@@ -216,7 +229,7 @@ describe('GET /api/rspamd/:containerName/user-summary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     // No alias rows by default
-    mockDbAll.mockReturnValue({ success: true, message: [] });
+    mockFindAliasesForMailbox.mockReturnValue({ sources: [] });
     mockGetRspamdUserHistory.mockResolvedValue({ success: true, message: [] });
   });
 
@@ -240,10 +253,7 @@ describe('GET /api/rspamd/:containerName/user-summary', () => {
 
   it('includes alias sources in the addresses list', async () => {
     // Return an alias pointing to the user's mailbox
-    mockDbAll.mockReturnValue({
-      success: true,
-      message: [{ source: 'alias@test.com' }],
-    });
+    mockFindAliasesForMailbox.mockReturnValue({ sources: ['alias@test.com'] });
 
     const res = await request(app)
       .get('/api/rspamd/mailserver/user-summary')
@@ -271,7 +281,10 @@ describe('GET /api/rspamd/:containerName/user-summary', () => {
 describe('GET /api/rspamd/:containerName/stat (admin)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockGetRspamdStats.mockResolvedValue({ success: true, message: { scanned: 100 } });
+    mockGetRspamdStats.mockResolvedValue({
+      success: true,
+      message: { scanned: 100 },
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -315,7 +328,10 @@ describe('GET /api/rspamd/:containerName/counters (admin)', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetRspamdCounters).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetRspamdCounters).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 });
 
@@ -338,7 +354,10 @@ describe('GET /api/rspamd/:containerName/bayes-users (admin)', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetRspamdBayesUsers).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetRspamdBayesUsers).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 });
 
@@ -361,7 +380,10 @@ describe('GET /api/rspamd/:containerName/config (admin)', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetRspamdConfig).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetRspamdConfig).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 });
 
@@ -384,14 +406,20 @@ describe('GET /api/rspamd/:containerName/history (admin)', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetRspamdHistory).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetRspamdHistory).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 });
 
 describe('POST /api/rspamd/:containerName/learn (admin)', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockRspamdLearnMessage.mockResolvedValue({ success: true, message: 'Trained' });
+    mockRspamdLearnMessage.mockResolvedValue({
+      success: true,
+      message: 'Trained',
+    });
   });
 
   it('returns 401 without auth', async () => {
@@ -461,7 +489,10 @@ describe('GET /api/dovecot/:containerName/sessions (admin)', () => {
       .set('Cookie', [`accessToken=${adminToken}`]);
 
     expect(res.status).toBe(200);
-    expect(mockGetDovecotSessions).toHaveBeenCalledWith('mailserver', 'mailserver');
+    expect(mockGetDovecotSessions).toHaveBeenCalledWith(
+      'mailserver',
+      'mailserver'
+    );
   });
 
   it('returns 500 when getDovecotSessions throws', async () => {

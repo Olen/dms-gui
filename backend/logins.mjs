@@ -18,6 +18,24 @@ import {
 } from './db.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 
+// Look up a login row by id AND a stored refresh-token cookie. Used by
+// the /auth/refresh endpoint to verify that a presented refresh token
+// still matches what we recorded at login (so a stale or rotated token
+// can be rejected even if it would otherwise pass JWT verification).
+// Returns the login row or null.
+export const findLoginByRefreshToken = (id, refreshToken) => {
+  if (!id || !refreshToken) return null;
+  try {
+    const result = dbGet(sql.logins.select.refreshToken, id, {
+      refreshToken,
+    });
+    return result.success ? result.message : null;
+  } catch (error) {
+    errorLog('findLoginByRefreshToken', error.message);
+    return null;
+  }
+};
+
 // this returns an objects
 export const getLogin = async (credential, guess = false) => {
   let login = {
