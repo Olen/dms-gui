@@ -150,9 +150,14 @@ const ContainerSettingsForm = ({
           icon="clipboard-plus"
           title={t('common.copy')}
           onClick={() =>
-            navigator.clipboard.writeText(
-              getValueFromArrayOfObj(formValues, 'DMS_API_KEY')
-            )
+            // writeText() returns a Promise; on insecure context /
+            // permission denial / no Clipboard API it rejects. Swallow
+            // explicitly so the unhandled-rejection doesn't end up in
+            // DevTools — the user already sees the lack of paste in
+            // their target window.
+            navigator.clipboard
+              .writeText(getValueFromArrayOfObj(formValues, 'DMS_API_KEY'))
+              .catch(() => {})
           }
         />
       </FormField>

@@ -138,11 +138,7 @@ const DnsDetailsModal = ({
                   {computeSpfRecord(dns, domain, spfAllMode)}
                 </pre>
                 {editError && (
-                  <AlertMessage
-                    type="danger"
-                    message={editError}
-                    translate={false}
-                  />
+                  <AlertMessage type="danger" message={editError} />
                 )}
                 {editSuccess && (
                   <AlertMessage type="success" message={editSuccess} />
@@ -268,7 +264,6 @@ const DnsDetailsModal = ({
                       <AlertMessage
                         type="danger"
                         message={dkimPushResult.error}
-                        translate={false}
                       />
                     )}
                   </div>
@@ -353,11 +348,7 @@ const DnsDetailsModal = ({
                   {computeDmarcRecord(dmarcPolicy, dmarcRua, dmarcRuf)}
                 </pre>
                 {editError && (
-                  <AlertMessage
-                    type="danger"
-                    message={editError}
-                    translate={false}
-                  />
+                  <AlertMessage type="danger" message={editError} />
                 )}
                 {editSuccess && (
                   <AlertMessage type="success" message={editSuccess} />

@@ -118,11 +118,7 @@ const DkimGenerateModal = ({
                       />
                     )}
                     {pushResult && !pushResult.success && (
-                      <AlertMessage
-                        type="danger"
-                        message={pushResult.error}
-                        translate={false}
-                      />
+                      <AlertMessage type="danger" message={pushResult.error} />
                     )}
                   </div>
                 )}
