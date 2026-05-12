@@ -2,32 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 
 import { debugLog, errorLog } from '../../frontend.mjs';
-import {
-  //   regexColors,
-  //   regexPrintOnly,
-  //   regexFindEmailRegex,
-  //   regexFindEmailStrict,
-  //   regexFindEmailLax,
-  //   regexEmailRegex,
-  //   regexEmailStrict,
-  //   regexEmailLax,
-  //   regexMatchPostfix,
-  //   regexUsername,
-  //   funcName,
-  //   fixStringType,
-  //   arrayOfStringToDict,
-  //   obj2ArrayOfObj,
-  //   reduxArrayOfObjByKey,
-  //   reduxArrayOfObjByValue,
-  //   reduxPropertiesOfObj,
-  //   mergeArrayOfObj,
-  getValueFromArrayOfObj,
-  //   getValuesFromArrayOfObj,
-  //   pluck,
-  //   byteSize2HumanSize,
-  //   humanSize2ByteSize,
-  //   moveKeyToLast,
-} from '../../../common.mjs';
 import { getNodeInfos, getServerEnvs } from '../services/api.mjs';
 
 import {
@@ -144,30 +118,22 @@ const ServerInfos = () => {
       </div>
 
       {t('settings.serverInternalsDescription')}
-      {infos.length === 0 ? (
-        t('api.errors.fetchServerInfos')
-      ) : (
-        <DataTable
-          columns={columns}
-          data={infos}
-          keyExtractor={(info) => info.name}
-          isLoading={isLoading}
-          emptyMessage="N/A"
-        />
-      )}
+      <DataTable
+        columns={columns}
+        data={infos}
+        keyExtractor={(info) => info.name}
+        isLoading={isLoading}
+        emptyMessage="N/A"
+      />
 
       {t('settings.serverEnvDescription')}
-      {envs.length === 0 ? (
-        t('api.errors.fetchServerEnvs')
-      ) : (
-        <DataTable
-          columns={columns}
-          data={envs}
-          keyExtractor={(env) => env.name}
-          isLoading={isLoading}
-          emptyMessage="N/A"
-        />
-      )}
+      <DataTable
+        columns={columns}
+        data={envs}
+        keyExtractor={(env) => env.name}
+        isLoading={isLoading}
+        emptyMessage="N/A"
+      />
     </>
   );
 };
