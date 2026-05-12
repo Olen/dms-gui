@@ -125,8 +125,13 @@ router.get(
       const addresses = [mailbox];
       try {
         const { sources } = findAliasesForMailbox(containerName, mailbox);
-        for (const src of sources) {
-          if (!addresses.includes(src)) addresses.push(src);
+        // sources === null signals a lookup failure (treat the same
+        // as "no matches" for rspamd-summary enrichment — the user's
+        // own mailbox is still queried).
+        if (sources) {
+          for (const src of sources) {
+            if (!addresses.includes(src)) addresses.push(src);
+          }
         }
       } catch (e) {
         debugLog(`Could not fetch aliases for ${mailbox}:`, e.message);

@@ -275,7 +275,10 @@ router.get(
         const { count } = findAliasesForMailbox(containerName, mailbox, {
           count: true,
         });
-        settings.USER_ALIAS_COUNT = count;
+        // Omit USER_ALIAS_COUNT when the lookup failed (helper signals
+        // failure with count === null) so the UI doesn't render a
+        // misleading "0" in place of the real-but-unknown value.
+        if (count !== null) settings.USER_ALIAS_COUNT = count;
       }
 
       res.json({ success: true, message: settings });

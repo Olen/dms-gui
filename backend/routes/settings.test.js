@@ -250,6 +250,20 @@ describe('GET /api/user-settings/:containerName', () => {
     );
   });
 
+  it('omits USER_ALIAS_COUNT when the alias lookup fails', async () => {
+    // count === null signals a DB failure inside findAliasesForMailbox.
+    // The endpoint must NOT show "0" — that would misrepresent unknown
+    // as zero in the UI.
+    mockFindAliasesForMailbox.mockReturnValue({ count: null });
+
+    const res = await request(app)
+      .get('/api/user-settings/mailserver')
+      .set('Cookie', [`accessToken=${userToken}`]);
+
+    expect(res.status).toBe(200);
+    expect(res.body.message.USER_ALIAS_COUNT).toBeUndefined();
+  });
+
   it('filters out non-public keys', async () => {
     mockGetUserConfigDict.mockReturnValue({
       DMS_API_KEY: 'secret', // should NOT be returned

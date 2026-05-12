@@ -46,14 +46,20 @@ export const isUserAliasingAllowed = (containerName) => {
 // called with `{ count: true }`. Scoped to a single mailserver
 // container — aliases live in a per-config table, so a missing
 // containerName would risk matching rows on other containers and
-// leaking USER_ALIAS_COUNT/sources across tenants. Used by per-user
-// rspamd summary (routes/mail.js) and the public user-settings
-// endpoint (routes/settings.js).
+// leaking USER_ALIAS_COUNT/sources across tenants.
+//
+// Returns `{ count: null }` / `{ sources: null }` on DB error so
+// callers can distinguish "no matches" from "lookup failed" — the
+// public /user-settings endpoint omits USER_ALIAS_COUNT in the
+// failure case rather than reporting a misleading 0 to the UI.
+// Used by per-user rspamd summary (routes/mail.js) and the public
+// user-settings endpoint (routes/settings.js).
 export const findAliasesForMailbox = (
   containerName,
   mailbox,
   { count = false } = {}
 ) => {
+  // Missing required input → empty result, not an error condition.
   if (!containerName || !mailbox) return count ? { count: 0 } : { sources: [] };
   // Escape LIKE metacharacters in the mailbox before wrapping it in
   // the three CSV patterns — otherwise `_` and `%` in a mailbox name
@@ -67,17 +73,17 @@ export const findAliasesForMailbox = (
         { name: containerName },
         ...patternParams
       );
-      return {
-        count: (result.success && result.message?.[0]?.count) || 0,
-      };
+      if (!result.success) return { count: null };
+      return { count: result.message?.[0]?.count ?? 0 };
     }
     const result = dbAll(
       sql.aliases.select.sourcesByDestinationMailbox,
       { name: containerName },
       ...patternParams
     );
+    if (!result.success) return { sources: null };
     const sources = [];
-    if (result.success && Array.isArray(result.message)) {
+    if (Array.isArray(result.message)) {
       for (const row of result.message) {
         if (row.source && !sources.includes(row.source))
           sources.push(row.source);
@@ -86,7 +92,7 @@ export const findAliasesForMailbox = (
     return { sources };
   } catch (error) {
     errorLog('findAliasesForMailbox', error.message);
-    return count ? { count: 0 } : { sources: [] };
+    return count ? { count: null } : { sources: null };
   }
 };
 
