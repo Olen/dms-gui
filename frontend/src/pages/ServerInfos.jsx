@@ -89,8 +89,8 @@ const ServerInfos = () => {
     // containerName (getNodeInfos is global), and fetchServerEnvs
     // self-guards on missing mailservers/containerName. An early
     // return here would leave the page stuck on the spinner
-    // because isLoading starts as `true` and only fetchAll's
-    // `finally` clears it.
+    // because isLoading starts as `true` and only the trailing
+    // setLoading(false) inside fetchAll clears it.
     fetchAll(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire on mailservers/containerName change
   }, [mailservers, containerName]);
