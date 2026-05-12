@@ -43,22 +43,29 @@ export const isUserAliasingAllowed = (containerName) => {
 // Find aliases whose destination contains `mailbox`, either as the
 // sole value or as part of a comma-delimited list. Returns the array
 // of distinct `source` addresses by default, or `{ count }` when
-// called with `{ count: true }`. Used by per-user rspamd summary
-// (routes/mail.js) and the public user-settings endpoint
-// (routes/settings.js).
-export const findAliasesForMailbox = (mailbox, { count = false } = {}) => {
-  if (!mailbox) return count ? { count: 0 } : { sources: [] };
+// called with `{ count: true }`. Scoped to a single mailserver
+// container — aliases live in a per-config table, so a missing
+// containerName would risk matching rows on other containers and
+// leaking USER_ALIAS_COUNT/sources across tenants. Used by per-user
+// rspamd summary (routes/mail.js) and the public user-settings
+// endpoint (routes/settings.js).
+export const findAliasesForMailbox = (
+  containerName,
+  mailbox,
+  { count = false } = {}
+) => {
+  if (!containerName || !mailbox) return count ? { count: 0 } : { sources: [] };
   // Escape LIKE metacharacters in the mailbox before wrapping it in
   // the three CSV patterns — otherwise `_` and `%` in a mailbox name
   // would match unintended destinations.
   const mb = mailbox.replace(/[%_\\]/g, '\\$&');
-  const params = [mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`];
+  const patternParams = [mailbox, `${mb},%`, `%,${mb},%`, `%,${mb}`];
   try {
     if (count) {
       const result = dbAll(
         sql.aliases.select.countByDestinationMailbox,
-        {},
-        ...params
+        { name: containerName },
+        ...patternParams
       );
       return {
         count: (result.success && result.message?.[0]?.count) || 0,
@@ -66,8 +73,8 @@ export const findAliasesForMailbox = (mailbox, { count = false } = {}) => {
     }
     const result = dbAll(
       sql.aliases.select.sourcesByDestinationMailbox,
-      {},
-      ...params
+      { name: containerName },
+      ...patternParams
     );
     const sources = [];
     if (result.success && Array.isArray(result.message)) {

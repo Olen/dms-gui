@@ -260,6 +260,12 @@ describe('GET /api/rspamd/:containerName/user-summary', () => {
       .set('Cookie', [`accessToken=${userToken}`]);
 
     expect(res.status).toBe(200);
+    // Scoped to the URL's containerName so the lookup doesn't leak
+    // alias rows from another mailserver container.
+    expect(mockFindAliasesForMailbox).toHaveBeenCalledWith(
+      'mailserver',
+      'user@test.com'
+    );
     expect(mockGetRspamdUserHistory).toHaveBeenCalledWith(
       'mailserver',
       'mailserver',

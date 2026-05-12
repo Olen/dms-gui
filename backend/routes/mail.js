@@ -124,7 +124,7 @@ router.get(
       // Use exact or comma-delimited match (not LIKE substring) to prevent cross-user data leakage
       const addresses = [mailbox];
       try {
-        const { sources } = findAliasesForMailbox(mailbox);
+        const { sources } = findAliasesForMailbox(containerName, mailbox);
         for (const src of sources) {
           if (!addresses.includes(src)) addresses.push(src);
         }

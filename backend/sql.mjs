@@ -98,13 +98,14 @@ export const sql = {
       configs: `SELECT name as value, plugin, schema, scope FROM configs WHERE 1=1 AND plugin = @plugin AND (scope LIKE ?)`,
       settings: `SELECT s.name, s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isMutable}`,
       setting: `SELECT         s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isMutable}   AND s.name = ?`,
-      // Cross-container scan for the first occurrence of a setting name
-      // within a plugin. Used for the public /branding endpoint, which
-      // has no containerName context but wants whatever WEBMAIL_URL is
-      // configured anywhere. Tightened with LIMIT 1 so the planner does
-      // not scan the whole settings table when multiple containers
-      // happen to define the same name.
-      firstSettingByName: `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = @plugin AND s.name = ? LIMIT 1`,
+      // Cross-container scan for a single setting name within a
+      // plugin. Used for the public /branding endpoint, which has no
+      // containerName context but wants whatever WEBMAIL_URL is
+      // configured anywhere. Ordered by c.id so the pick is
+      // deterministic (oldest config wins) — without ORDER BY, SQLite
+      // is free to return rows in any storage order, which can shift
+      // after VACUUM or schema changes.
+      firstSettingByName: `SELECT s.value FROM settings s JOIN configs c ON s.configID = c.id WHERE c.plugin = @plugin AND s.name = ? ORDER BY c.id LIMIT 1`,
       envs: `SELECT s.name, s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isImmutable}`,
       env: `SELECT         s.value FROM settings s LEFT JOIN configs c ON s.configID = c.id WHERE 1=1 AND configID = (select id FROM configs WHERE name = ? AND plugin = @plugin) AND isMutable = ${env.isImmutable} AND s.name = ?`,
     },
@@ -429,10 +430,14 @@ export const sql = {
       // forms (CSV head / middle / tail) with ESCAPE '\\' so a mailbox
       // containing %, _ or \ is still matched literally. Substring LIKE
       // would leak across users (e.g. `foo@x` would match `foobar@x`).
-      // Caller is responsible for LIKE-escaping the mailbox before
-      // wrapping it in the three patterns; see findAliasesForMailbox.
-      sourcesByDestinationMailbox: `SELECT source FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
-      countByDestinationMailbox: `SELECT COUNT(*) as count FROM aliases WHERE destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\'`,
+      // Scoped to a single mailserver container via configID — the
+      // aliases table is per-config, so an unscoped query would also
+      // match rows belonging to other containers and inflate the
+      // result. Caller is responsible for LIKE-escaping the mailbox
+      // before wrapping it in the three patterns; see
+      // findAliasesForMailbox.
+      sourcesByDestinationMailbox: `SELECT source FROM aliases WHERE configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND (destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\')`,
+      countByDestinationMailbox: `SELECT COUNT(*) as count FROM aliases WHERE configID = (SELECT id FROM configs WHERE plugin = 'mailserver' AND name = @name) AND (destination = ? OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\' OR destination LIKE ? ESCAPE '\\')`,
     },
 
     insert: {

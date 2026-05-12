@@ -241,6 +241,13 @@ describe('GET /api/user-settings/:containerName', () => {
 
     expect(res.status).toBe(200);
     expect(res.body.message.USER_ALIAS_COUNT).toBe(3);
+    // Scoped to the URL's containerName so the count doesn't leak
+    // alias rows from another mailserver container.
+    expect(mockFindAliasesForMailbox).toHaveBeenCalledWith(
+      'mailserver',
+      'user@test.com',
+      { count: true }
+    );
   });
 
   it('filters out non-public keys', async () => {

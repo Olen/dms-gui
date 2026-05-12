@@ -22,14 +22,17 @@ import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 // the /auth/refresh endpoint to verify that a presented refresh token
 // still matches what we recorded at login (so a stale or rotated token
 // can be rejected even if it would otherwise pass JWT verification).
-// Returns the login row or null.
+// Returns the login row or null — note that dbGet reports
+// {success:true,message:undefined} for a no-match query, so we
+// explicitly coerce that to null to keep the helper's contract honest.
 export const findLoginByRefreshToken = (id, refreshToken) => {
   if (!id || !refreshToken) return null;
   try {
     const result = dbGet(sql.logins.select.refreshToken, id, {
       refreshToken,
     });
-    return result.success ? result.message : null;
+    if (result.success && result.message) return result.message;
+    return null;
   } catch (error) {
     errorLog('findLoginByRefreshToken', error.message);
     return null;

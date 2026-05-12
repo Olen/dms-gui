@@ -272,7 +272,9 @@ router.get(
       // Count aliases for this user (exact or comma-delimited match, not LIKE substring)
       const mailbox = req.user.mailbox || (req.user.roles && req.user.roles[0]);
       if (mailbox) {
-        const { count } = findAliasesForMailbox(mailbox, { count: true });
+        const { count } = findAliasesForMailbox(containerName, mailbox, {
+          count: true,
+        });
         settings.USER_ALIAS_COUNT = count;
       }
 
