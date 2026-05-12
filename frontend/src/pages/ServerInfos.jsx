@@ -46,6 +46,7 @@ const ServerInfos = () => {
 
   const fetchServerEnvs = async (refresh = false) => {
     if (!mailservers || !mailservers.length) return;
+    if (!containerName) return;
     refresh = !user.isAdmin ? false : refresh;
     debugLog(
       `fetchServerEnvs call getServerEnvs('mailserver', ${containerName}, ${refresh})`
@@ -84,7 +85,12 @@ const ServerInfos = () => {
      drives setState via async API calls in fetchServerInfos /
      fetchServerEnvs, not synchronous-cascade renders. */
   useEffect(() => {
-    if (!containerName) return;
+    // Always call fetchAll: fetchServerInfos doesn't need
+    // containerName (getNodeInfos is global), and fetchServerEnvs
+    // self-guards on missing mailservers/containerName. An early
+    // return here would leave the page stuck on the spinner
+    // because isLoading starts as `true` and only fetchAll's
+    // `finally` clears it.
     fetchAll(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire on mailservers/containerName change
   }, [mailservers, containerName]);

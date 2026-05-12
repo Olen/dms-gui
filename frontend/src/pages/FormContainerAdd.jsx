@@ -69,78 +69,6 @@ function FormContainerAdd() {
   //   {value: 'cloudflare', label: 'Cloudflare'},
   // ]);
 
-  // The fetch helpers below are declared as `const` further down. They are
-  // safe to call from these effects because effect callbacks run after the
-  // component body finishes (i.e. after the consts are initialised), but
-  // ESLint's react-hooks/exhaustive-deps rule still flags textual TDZ.
-  // Suppressed with a comment per the same pattern Login.jsx uses for its
-  // mount-once probe.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch; tracked in #105 sweep
-  }, []);
-
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchContainerSettings; tracked in #105 sweep
-    fetchContainerSettings(containerName); // [ {name:name, value: value}, ..]
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; tracked in #105 sweep
-  }, [containerName]);
-
-  useEffect(() => {
-    if (formValuesSubmitted) {
-      // pull mailservers to refresh the select field list and branding selector and show the API reminder
-      debugLog('FormContainerAdd call fetchMailservers()');
-      // eslint-disable-next-line react-hooks/immutability -- forward-declared; tracked in #105 sweep
-      fetchMailservers();
-
-      // switch to this new container to trigger fetchContainerSettings and confirm all was saved properly
-      // UNLESS containerName is already set, indeed
-      // containerName shall always be set, even if user doesn't want it as a favorite
-      if (!containerName) {
-        // this will trigger a form refresh with this container's data
-        debugLog(
-          'FormContainerAdd call setContainerName:',
-          getValueFromArrayOfObj(formValues, 'containerName')
-        );
-        setContainerName(getValueFromArrayOfObj(formValues, 'containerName'));
-
-        // containerName was already set, do nothing
-        // } else {
-        // fetchContainerSettings(getValueFromArrayOfObj(formValues, 'containerName'));
-      }
-
-      if (makeFavoriteRef.current.checked) {
-        debugLog(
-          'FormContainerAdd call handleLoginSave:',
-          getValueFromArrayOfObj(formValues, 'containerName')
-        );
-        // eslint-disable-next-line react-hooks/immutability -- forward-declared; tracked in #105 sweep
-        handleLoginSave(getValueFromArrayOfObj(formValues, 'containerName'));
-      }
-
-      // pull all data if API is working
-      debugLog('FormContainerAdd APIInjected:', APIInjected);
-      if (APIInjected) {
-        debugLog('FormContainerAdd APIValidated:', APIValidated);
-        if (!APIValidated) {
-          // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-once setup info; tracked in #105 sweep
-          setSuccessMessage(
-            t('settings.DMS_API_KEYinit', {
-              containerName: getValueFromArrayOfObj(
-                formValues,
-                'containerName'
-              ),
-              DMS_API_KEY: getValueFromArrayOfObj(formValues, 'DMS_API_KEY'),
-              DMS_API_PORT: getValueFromArrayOfObj(formValues, 'DMS_API_PORT'),
-            })
-          );
-        }
-      }
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-run on submission
-  }, [formValuesSubmitted]);
-
   // const initFormValues = () => {
   //   setFormValues([
   //       {name: 'schema', value: schemas[0].value},
@@ -607,6 +535,67 @@ function FormContainerAdd() {
       setErrorMessage('api.errors.updateLogin');
     }
   };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll/fetchContainerSettings drive setState via async API calls in fetchMailservers/getSettings, not synchronous-cascade renders; the leading setLoading(true)/(false) bracketing is the loading-spinner lifecycle, not a re-render cascade. */
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch; fetchAll is a stable per-render helper above
+  }, []);
+
+  useEffect(() => {
+    fetchContainerSettings(containerName);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; fetchContainerSettings is a stable per-render helper above
+  }, [containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  /* eslint-disable react-hooks/set-state-in-effect -- post-submit follow-ups: refresh mailserver list, propagate containerName, optionally persist favorite, and surface the API-setup hint when injection has not yet happened. */
+  useEffect(() => {
+    if (formValuesSubmitted) {
+      // pull mailservers to refresh the select field list and branding selector and show the API reminder
+      debugLog('FormContainerAdd call fetchMailservers()');
+      fetchMailservers();
+
+      // switch to this new container to trigger fetchContainerSettings and confirm all was saved properly
+      // UNLESS containerName is already set, indeed
+      // containerName shall always be set, even if user doesn't want it as a favorite
+      if (!containerName) {
+        // this will trigger a form refresh with this container's data
+        debugLog(
+          'FormContainerAdd call setContainerName:',
+          getValueFromArrayOfObj(formValues, 'containerName')
+        );
+        setContainerName(getValueFromArrayOfObj(formValues, 'containerName'));
+      }
+
+      if (makeFavoriteRef.current.checked) {
+        debugLog(
+          'FormContainerAdd call handleLoginSave:',
+          getValueFromArrayOfObj(formValues, 'containerName')
+        );
+        handleLoginSave(getValueFromArrayOfObj(formValues, 'containerName'));
+      }
+
+      // pull all data if API is working
+      debugLog('FormContainerAdd APIInjected:', APIInjected);
+      if (APIInjected) {
+        debugLog('FormContainerAdd APIValidated:', APIValidated);
+        if (!APIValidated) {
+          setSuccessMessage(
+            t('settings.DMS_API_KEYinit', {
+              containerName: getValueFromArrayOfObj(
+                formValues,
+                'containerName'
+              ),
+              DMS_API_KEY: getValueFromArrayOfObj(formValues, 'DMS_API_KEY'),
+              DMS_API_PORT: getValueFromArrayOfObj(formValues, 'DMS_API_PORT'),
+            })
+          );
+        }
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional: only re-run on submission
+  }, [formValuesSubmitted]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const validateFormContainerAdd = (setErrors = false) => {
     const errors = {};
