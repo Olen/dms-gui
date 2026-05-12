@@ -25,6 +25,11 @@ describe('spfGrade', () => {
     expect(spfGrade('v=spf1 mx +all')).toBe('danger');
     expect(spfGrade('v=spf1 mx')).toBe('danger'); // no all mechanism at all
   });
+
+  it('grades case-insensitively (RFC 7208 §4.6.1)', () => {
+    expect(spfGrade('v=spf1 mx -ALL')).toBe('success');
+    expect(spfGrade('v=spf1 mx ~All')).toBe('warning');
+  });
 });
 
 describe('dmarcGrade', () => {

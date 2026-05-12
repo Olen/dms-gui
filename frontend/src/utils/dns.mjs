@@ -17,10 +17,13 @@ export const TLSA_MATCH = { 0: 'Exact', 1: 'SHA-256', 2: 'SHA-512' };
 
 // SPF qualifier grading: -all is strict (success), ~all is softfail
 // (warning), anything else (?all, +all, missing) is danger.
+// Case-insensitive per RFC 7208 §4.6.1 — mechanism names are
+// case-insensitive, and the rest of this file (computeSpfRecord,
+// SPF_ALL_TOKEN_RE) already matches that.
 export const spfGrade = (spf) => {
   if (!spf) return 'danger';
-  if (/-all\s*$/.test(spf)) return 'success';
-  if (/~all\s*$/.test(spf)) return 'warning';
+  if (/-all\s*$/i.test(spf)) return 'success';
+  if (/~all\s*$/i.test(spf)) return 'warning';
   return 'danger';
 };
 
