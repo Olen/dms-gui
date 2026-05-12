@@ -28,7 +28,10 @@ const MailSetup = () => {
   const [errorMessage, setErrorMessage] = useState(null);
 
   const fetchSettings = async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setErrorMessage(null);

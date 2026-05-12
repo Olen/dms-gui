@@ -129,7 +129,10 @@ const Logs = () => {
   const logEndRef = useRef(null);
 
   const fetchLogs = async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setErrorMessage(null);

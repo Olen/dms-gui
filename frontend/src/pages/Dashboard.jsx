@@ -149,7 +149,10 @@ const Dashboard = () => {
   };
 
   const fetchBounces = async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setBouncesLoading(false);
+      return;
+    }
     try {
       const result = await getMailBounces(containerName);
       if (result.success) setBounces(result.message);
@@ -161,8 +164,10 @@ const Dashboard = () => {
   };
 
   const fetchStatus = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setStatusLoading(false);
+      return;
+    }
 
     try {
       const statusData = await getServerStatus(
@@ -219,8 +224,10 @@ const Dashboard = () => {
   };
 
   const fetchDisk = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setDiskLoading(false);
+      return;
+    }
 
     try {
       const diskData = await getServerStatus(
@@ -248,8 +255,10 @@ const Dashboard = () => {
   };
 
   const fetchCounts = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setCountsLoading(false);
+      return;
+    }
 
     try {
       const [loginsRes, accountsRes, aliasesRes] = await Promise.all([

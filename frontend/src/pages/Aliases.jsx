@@ -116,8 +116,13 @@ const Aliases = () => {
     // skip the API calls until the user has picked a container,
     // otherwise the helpers short-circuit with
     // `{success:false, error:'containerName is required'}` and flash
-    // an error/loading state unnecessarily.
-    if (!containerName) return;
+    // an error/loading state unnecessarily. Clear isLoading on this
+    // path so the page renders an empty state instead of a stuck
+    // spinner (isLoading starts as true).
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     fetchAliases(false);
     if (user?.isAdmin != 1) {
       getUserSettings(containerName)

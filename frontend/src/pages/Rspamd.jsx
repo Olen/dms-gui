@@ -107,7 +107,10 @@ const Rspamd = () => {
   const HISTORY_PAGE_SIZE = 50;
 
   const fetchData = useCallback(async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {

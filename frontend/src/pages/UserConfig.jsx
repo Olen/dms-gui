@@ -53,6 +53,10 @@ function UserConfig() {
   ];
 
   const loadSettings = async () => {
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setErrorMessage(null);
@@ -120,7 +124,7 @@ function UserConfig() {
 
   /* eslint-disable react-hooks/set-state-in-effect -- loadSettings drives setState via async getUserSettings/getServerEnvs, not synchronous-cascade renders. */
   useEffect(() => {
-    if (containerName) loadSettings();
+    loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a stable per-render helper above; intentional re-fire only on containerName change
   }, [containerName]);
   /* eslint-enable react-hooks/set-state-in-effect */
