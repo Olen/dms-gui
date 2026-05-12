@@ -4,10 +4,7 @@ import Form from 'react-bootstrap/Form';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
-import {
-  debugLog,
-  errorLog,
-} from '../../frontend.mjs';
+import { debugLog, errorLog } from '../../frontend.mjs';
 
 import {
   getConfigs,
@@ -24,12 +21,10 @@ import {
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-
 function DnsProviderConfig() {
   const { t } = useTranslation();
-  const [containerName] = useLocalStorage("containerName", '');
+  const [containerName] = useLocalStorage('containerName', '');
 
-  const [isLoading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
 
@@ -64,7 +59,10 @@ function DnsProviderConfig() {
         const tmpl = {};
         for (const item of result.message) {
           if (item.name && item.value) {
-            tmpl[item.name] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+            tmpl[item.name] =
+              typeof item.value === 'string'
+                ? JSON.parse(item.value)
+                : item.value;
           }
         }
         setTemplates(tmpl);
@@ -76,10 +74,15 @@ function DnsProviderConfig() {
 
   const loadProfiles = async () => {
     try {
-      setLoading(true);
       setErrorMessage(null);
 
-      const result = await getSettings('dnscontrol', containerName, undefined, true, 'dnscontrol');
+      const result = await getSettings(
+        'dnscontrol',
+        containerName,
+        undefined,
+        true,
+        'dnscontrol'
+      );
       debugLog('DnsProviderConfig loadProfiles result:', result);
 
       const loaded = [];
@@ -87,10 +90,17 @@ function DnsProviderConfig() {
         const items = Array.isArray(result.message) ? result.message : [];
         for (const item of items) {
           try {
-            const parsed = typeof item.value === 'string' ? JSON.parse(item.value) : item.value;
+            const parsed =
+              typeof item.value === 'string'
+                ? JSON.parse(item.value)
+                : item.value;
             loaded.push({ name: item.name, ...parsed });
           } catch (e) {
-            debugLog('DnsProviderConfig: could not parse profile', item.name, e);
+            debugLog(
+              'DnsProviderConfig: could not parse profile',
+              item.name,
+              e
+            );
           }
         }
       }
@@ -98,8 +108,6 @@ function DnsProviderConfig() {
     } catch (error) {
       errorLog('DnsProviderConfig loadProfiles error:', error);
       setErrorMessage('api.errors.fetchSettings');
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -109,7 +117,7 @@ function DnsProviderConfig() {
       setAddError('settings.dnsProvider.nameRequired');
       return;
     }
-    if (profiles.some(p => p.name === newProfileName.trim())) {
+    if (profiles.some((p) => p.name === newProfileName.trim())) {
       setAddError('settings.dnsProvider.nameExists');
       return;
     }
@@ -134,11 +142,17 @@ function DnsProviderConfig() {
   };
 
   const handleProfileFieldChange = (profileName, field, value) => {
-    setProfiles(profiles.map(p =>
-      p.name === profileName ? { ...p, [field]: value } : p
-    ));
+    setProfiles(
+      profiles.map((p) =>
+        p.name === profileName ? { ...p, [field]: value } : p
+      )
+    );
     // Clear test result when credentials change
-    setTestResults(prev => { const next = { ...prev }; delete next[profileName]; return next; });
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[profileName];
+      return next;
+    });
   };
 
   const handleSaveProfile = async (profile) => {
@@ -147,13 +161,22 @@ function DnsProviderConfig() {
 
     try {
       const { name, ...creds } = profile;
-      const jsonArrayOfObjects = [{
-        name: name,
-        value: JSON.stringify(creds),
-      }];
+      const jsonArrayOfObjects = [
+        {
+          name: name,
+          value: JSON.stringify(creds),
+        },
+      ];
 
       debugLog('DnsProviderConfig saveProfile:', jsonArrayOfObjects);
-      const result = await saveSettings('dnscontrol', 'dnscontrol', 'dnscontrol', containerName, jsonArrayOfObjects, true);
+      const result = await saveSettings(
+        'dnscontrol',
+        'dnscontrol',
+        'dnscontrol',
+        containerName,
+        jsonArrayOfObjects,
+        true
+      );
 
       if (result.success) {
         setSuccessMessage('settings.dnsProvider.saved');
@@ -170,27 +193,50 @@ function DnsProviderConfig() {
     const { name, type, ...creds } = profile;
     const template = getTemplateForType(type);
 
-    setTestResults(prev => ({ ...prev, [name]: { loading: true } }));
+    setTestResults((prev) => ({ ...prev, [name]: { loading: true } }));
 
     try {
-      const result = await testDnsProvider({ ...creds, type: template?.TYPE || type });
-      setTestResults(prev => ({ ...prev, [name]: { loading: false, ...result } }));
+      const result = await testDnsProvider({
+        ...creds,
+        type: template?.TYPE || type,
+      });
+      setTestResults((prev) => ({
+        ...prev,
+        [name]: { loading: false, ...result },
+      }));
     } catch (error) {
-      setTestResults(prev => ({ ...prev, [name]: { loading: false, success: false, error: error.message } }));
+      setTestResults((prev) => ({
+        ...prev,
+        [name]: { loading: false, success: false, error: error.message },
+      }));
     }
   };
 
   const handleDeleteProfile = async (profileName) => {
-    if (!window.confirm(t('settings.dnsProvider.confirmDelete', { name: profileName }))) return;
+    if (
+      !window.confirm(
+        t('settings.dnsProvider.confirmDelete', { name: profileName })
+      )
+    )
+      return;
 
     try {
       // Save with empty value to delete
-      const jsonArrayOfObjects = [{
-        name: profileName,
-        value: '',
-      }];
-      await saveSettings('dnscontrol', 'dnscontrol', 'dnscontrol', containerName, jsonArrayOfObjects, true);
-      setProfiles(profiles.filter(p => p.name !== profileName));
+      const jsonArrayOfObjects = [
+        {
+          name: profileName,
+          value: '',
+        },
+      ];
+      await saveSettings(
+        'dnscontrol',
+        'dnscontrol',
+        'dnscontrol',
+        containerName,
+        jsonArrayOfObjects,
+        true
+      );
+      setProfiles(profiles.filter((p) => p.name !== profileName));
       setSuccessMessage('settings.dnsProvider.deleted');
     } catch (error) {
       errorLog('DnsProviderConfig delete error:', error);
@@ -208,11 +254,13 @@ function DnsProviderConfig() {
   const getCredentialFields = (profile) => {
     const template = getTemplateForType(profile.type);
     if (!template) return [];
-    return Object.keys(template).filter(k => k !== 'desc' && k !== 'TYPE');
+    return Object.keys(template).filter((k) => k !== 'desc' && k !== 'TYPE');
   };
 
   if (!containerName) {
-    return <AlertMessage type="warning" message="settings.dnsProvider.noContainer" />;
+    return (
+      <AlertMessage type="warning" message="settings.dnsProvider.noContainer" />
+    );
   }
 
   const templateNames = Object.keys(templates);
@@ -222,7 +270,9 @@ function DnsProviderConfig() {
       <AlertMessage type="danger" message={errorMessage} />
       <AlertMessage type="success" message={successMessage} />
 
-      <p className="text-muted mb-3">{Translate('settings.dnsProvider.description')}</p>
+      <p className="text-muted mb-3">
+        {Translate('settings.dnsProvider.description')}
+      </p>
 
       {profiles.map((profile) => {
         const template = getTemplateForType(profile.type);
@@ -236,11 +286,19 @@ function DnsProviderConfig() {
                 <h6 className="mb-1">
                   <i className="bi bi-globe2 me-2" />
                   {profile.name}
-                  <span className="badge bg-secondary ms-2">{template?.TYPE || profile.type}</span>
+                  <span className="badge bg-secondary ms-2">
+                    {template?.TYPE || profile.type}
+                  </span>
                 </h6>
                 {template?.desc && (
-                  <a href={template.desc} target="_blank" rel="noopener noreferrer" className="text-muted small">
-                    <i className="bi bi-box-arrow-up-right me-1" />{t('settings.dnsProvider.docsLink')}
+                  <a
+                    href={template.desc}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-muted small"
+                  >
+                    <i className="bi bi-box-arrow-up-right me-1" />
+                    {t('settings.dnsProvider.docsLink')}
                   </a>
                 )}
               </div>
@@ -262,7 +320,13 @@ function DnsProviderConfig() {
                     label={field}
                     translate={false}
                     value={profile[field] || ''}
-                    onChange={(e) => handleProfileFieldChange(profile.name, field, e.target.value)}
+                    onChange={(e) =>
+                      handleProfileFieldChange(
+                        profile.name,
+                        field,
+                        e.target.value
+                      )
+                    }
                     placeholder={template?.[field] || ''}
                   />
                 </Col>
@@ -270,8 +334,12 @@ function DnsProviderConfig() {
             </Row>
 
             {test && !test.loading && (
-              <div className={`alert alert-${test.success ? 'success' : 'danger'} py-2 mb-2`}>
-                <i className={`bi bi-${test.success ? 'check-circle' : 'exclamation-triangle'} me-1`} />
+              <div
+                className={`alert alert-${test.success ? 'success' : 'danger'} py-2 mb-2`}
+              >
+                <i
+                  className={`bi bi-${test.success ? 'check-circle' : 'exclamation-triangle'} me-1`}
+                />
                 {test.success ? test.message : test.error}
               </div>
             )}
@@ -294,7 +362,9 @@ function DnsProviderConfig() {
                 onClick={() => handleTestProfile(profile)}
                 disabled={test?.loading}
               />
-              {test?.loading && <span className="spinner-border spinner-border-sm align-self-center" />}
+              {test?.loading && (
+                <span className="spinner-border spinner-border-sm align-self-center" />
+              )}
             </div>
           </div>
         );
@@ -302,7 +372,9 @@ function DnsProviderConfig() {
 
       {showAddForm ? (
         <div className="border rounded p-3 mb-3 bg-light">
-          <h6 className="mb-3">{Translate('settings.dnsProvider.addProfile')}</h6>
+          <h6 className="mb-3">
+            {Translate('settings.dnsProvider.addProfile')}
+          </h6>
           {addError && <AlertMessage type="danger" message={addError} />}
 
           <Row>
@@ -319,14 +391,18 @@ function DnsProviderConfig() {
             </Col>
             <Col md={6}>
               <Form.Group className="mb-3" controlId="newProfileType">
-                <Form.Label>{t('settings.dnsProvider.providerType')}</Form.Label>
+                <Form.Label>
+                  {t('settings.dnsProvider.providerType')}
+                </Form.Label>
                 <Form.Select
                   value={newProfileType}
                   onChange={(e) => setNewProfileType(e.target.value)}
                 >
                   <option value="">—</option>
-                  {templateNames.map(name => (
-                    <option key={name} value={name}>{name} ({templates[name]?.TYPE})</option>
+                  {templateNames.map((name) => (
+                    <option key={name} value={name}>
+                      {name} ({templates[name]?.TYPE})
+                    </option>
                   ))}
                 </Form.Select>
               </Form.Group>
@@ -334,12 +410,31 @@ function DnsProviderConfig() {
           </Row>
 
           <div className="d-flex gap-2">
-            <Button variant="primary" size="sm" icon="plus-lg" text="settings.dnsProvider.addProfile" onClick={handleAddProfile} />
-            <Button variant="secondary" size="sm" text="common.cancel" onClick={() => { setShowAddForm(false); setAddError(null); }} />
+            <Button
+              variant="primary"
+              size="sm"
+              icon="plus-lg"
+              text="settings.dnsProvider.addProfile"
+              onClick={handleAddProfile}
+            />
+            <Button
+              variant="secondary"
+              size="sm"
+              text="common.cancel"
+              onClick={() => {
+                setShowAddForm(false);
+                setAddError(null);
+              }}
+            />
           </div>
         </div>
       ) : (
-        <Button variant="outline-primary" icon="plus-lg" text="settings.dnsProvider.addProfile" onClick={() => setShowAddForm(true)} />
+        <Button
+          variant="outline-primary"
+          icon="plus-lg"
+          text="settings.dnsProvider.addProfile"
+          onClick={() => setShowAddForm(true)}
+        />
       )}
     </>
   );
