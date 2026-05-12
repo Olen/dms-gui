@@ -91,14 +91,54 @@ const Domains = () => {
   const [dkimPushing, setDkimPushing] = useState(false);
   const [dkimPushResult, setDkimPushResult] = useState(null);
 
-  useEffect(() => {
+  const checkDns = async (domain) => {
+    setDnsLoading((prev) => ({ ...prev, [domain]: true }));
+    setDnsErrors((prev) => ({ ...prev, [domain]: null }));
+    try {
+      const result = await getDnsLookup(containerName, domain);
+      if (result.success) {
+        setDnsResults((prev) => ({ ...prev, [domain]: result.message }));
+      } else {
+        setDnsErrors((prev) => ({ ...prev, [domain]: true }));
+      }
+    } catch (err) {
+      setDnsErrors((prev) => ({ ...prev, [domain]: true }));
+    } finally {
+      setDnsLoading((prev) => ({ ...prev, [domain]: false }));
+    }
+  };
+
+  const fetchDomains = async () => {
     if (!containerName) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- mount-once probe; tracked in #105 sweep
       setLoading(false);
       return;
     }
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchDomains; tracked in #105 sweep
+    try {
+      setLoading(true);
+      setError(null);
+      const result = await getDomains(containerName);
+      if (result.success) {
+        const domainList = result.message || [];
+        setDomains(domainList);
+        setLoading(false);
+        // Fire DNS checks async per-row (don't block table rendering)
+        for (const d of domainList) {
+          checkDns(d.domain);
+        }
+      } else {
+        setError(result.error || 'api.errors.fetchDomains');
+        setLoading(false);
+      }
+    } catch (err) {
+      setError('api.errors.fetchDomains');
+      setLoading(false);
+    }
+  };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchDomains synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getDomains and fires async checkDns calls per row. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
+  useEffect(() => {
     fetchDomains();
+    if (!containerName) return;
     // Fetch DKIM selector from DMS rspamd config
     getDkimSelector(containerName)
       .then((result) => {
@@ -124,31 +164,9 @@ const Domains = () => {
         });
       })
       .catch(() => {});
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- forward-declared fetchDomains/getDkimSelector/getSettings; intentional re-fire only on containerName change; tracked in #105 sweep
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchDomains is a stable per-render helper above; intentional re-fire only on containerName change
   }, [containerName]);
-
-  const fetchDomains = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const result = await getDomains(containerName);
-      if (result.success) {
-        const domainList = result.message || [];
-        setDomains(domainList);
-        setLoading(false);
-        // Fire DNS checks async per-row (don't block table rendering)
-        for (const d of domainList) {
-          checkDns(d.domain);
-        }
-      } else {
-        setError(result.error || 'api.errors.fetchDomains');
-        setLoading(false);
-      }
-    } catch (err) {
-      setError('api.errors.fetchDomains');
-      setLoading(false);
-    }
-  };
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleProviderChange = async (domain, provider) => {
     setProviderSaving((prev) => ({ ...prev, [domain]: true }));
@@ -167,23 +185,6 @@ const Domains = () => {
       // silently fail
     } finally {
       setProviderSaving((prev) => ({ ...prev, [domain]: false }));
-    }
-  };
-
-  const checkDns = async (domain) => {
-    setDnsLoading((prev) => ({ ...prev, [domain]: true }));
-    setDnsErrors((prev) => ({ ...prev, [domain]: null }));
-    try {
-      const result = await getDnsLookup(containerName, domain);
-      if (result.success) {
-        setDnsResults((prev) => ({ ...prev, [domain]: result.message }));
-      } else {
-        setDnsErrors((prev) => ({ ...prev, [domain]: true }));
-      }
-    } catch (err) {
-      setDnsErrors((prev) => ({ ...prev, [domain]: true }));
-    } finally {
-      setDnsLoading((prev) => ({ ...prev, [domain]: false }));
     }
   };
 

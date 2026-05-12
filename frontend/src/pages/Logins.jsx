@@ -87,17 +87,6 @@ const Logins = () => {
   });
   const [newLoginFormErrors, setNewLoginFormErrors] = useState({});
 
-  // fetchAll is declared as `const` further down. The effect callback
-  // runs after the component body finishes, so the const is initialised
-  // by the time it fires; ESLint's react-hooks/exhaustive-deps still
-  // flags textual TDZ. Suppressed per the same pattern used in
-  // FormContainerAdd.jsx and Login.jsx.
-  useEffect(() => {
-    // eslint-disable-next-line react-hooks/immutability -- forward-declared fetchAll; tracked in #105 sweep
-    fetchAll();
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- intentionally re-fires only on containerName change; tracked in #105 sweep
-  }, [containerName]);
-
   const formatLoginsForTable = async (data) => {
     // add bolder for admins
     data = data.map((login) => {
@@ -124,21 +113,6 @@ const Logins = () => {
     });
 
     return data;
-  };
-
-  const fetchAll = async () => {
-    try {
-      setLoading(true);
-      setErrorMessage(null);
-      setSuccessMessage(null);
-
-      await Promise.all([fetchAccounts(), fetchLogins()]);
-    } catch (error) {
-      errorLog(t('api.errors.fetchLogins'), error);
-      setErrorMessage('api.errors.fetchLogins');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const fetchAccounts = async () => {
@@ -195,6 +169,28 @@ const Logins = () => {
     // See fetchAccounts: fetchAll's finally clears isLoading once
     // BOTH fetches have settled.
   };
+
+  const fetchAll = async () => {
+    try {
+      setLoading(true);
+      setErrorMessage(null);
+      setSuccessMessage(null);
+
+      await Promise.all([fetchAccounts(), fetchLogins()]);
+    } catch (error) {
+      errorLog(t('api.errors.fetchLogins'), error);
+      setErrorMessage('api.errors.fetchLogins');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll synchronously sets the loading flag + clears messages at entry, then awaits fetchAccounts/fetchLogins in parallel and clears the loading flag in finally. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
+  useEffect(() => {
+    fetchAll();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire on containerName change
+  }, [containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleNewLoginInputChange = (e) => {
     debugLog(newLoginformData);

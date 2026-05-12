@@ -6,15 +6,8 @@ import Form from 'react-bootstrap/Form';
 import Select from 'react-select';
 import CreatableSelect from 'react-select/creatable';
 
-import {
-  debugLog,
-  errorLog,
-} from '../../frontend.mjs';
-import {
-  regexEmailRegex,
-  regexEmailStrict,
-  pluck,
-} from '../../../common.mjs';
+import { debugLog, errorLog } from '../../frontend.mjs';
+import { regexEmailRegex, regexEmailStrict, pluck } from '../../../common.mjs';
 
 import {
   getAccounts,
@@ -41,16 +34,16 @@ import { useAuth } from '../hooks/useAuth';
 const Aliases = () => {
   const { t } = useTranslation();
   const { user } = useAuth();
-  const [containerName] = useLocalStorage("containerName", '');
-  const [mailservers] = useLocalStorage("mailservers", []);
+  const [containerName] = useLocalStorage('containerName', '');
+  const [mailservers] = useLocalStorage('mailservers', []);
 
   const [isLoading, setLoading] = useState(true);
   const [allowUserAliases, setAllowUserAliases] = useState(null); // null = not loaded yet
 
   const [aliases, setAliases] = useState([]);
-  const [isSource, setIsSource] = useState({valid:true, alias:true});
+  const [isSource, setIsSource] = useState({ valid: true, alias: true });
   const [accounts, setAccounts] = useState([]);
-  
+
   const [successMessage, setSuccessMessage] = useState(null);
   const [errorMessage, setErrorMessage] = useState(null);
   const [formData, setFormData] = useState({
@@ -74,107 +67,129 @@ const Aliases = () => {
     // This will now only re-run if parentObject actually changes
   }, [parentObject]);
    */
-  // https://www.w3schools.com/react/react_useeffect.asp
-  useEffect(() => {
-    fetchAliases(false);
-    if (user?.isAdmin != 1 && containerName) {
-      getUserSettings(containerName).then(result => {
-        if (result.success) setAllowUserAliases(result.message?.ALLOW_USER_ALIASES === 'true');
-        else setAllowUserAliases(false);
-      }).catch(() => setAllowUserAliases(false));
-    }
-  }, [mailservers, containerName]);
-
-  const fetchAliases = async (refresh=false) => {
+  const fetchAliases = async (refresh = false) => {
     refresh = !user.isAdmin ? false : refresh;
-    debugLog(`fetchAliases call getAliases(${refresh}) and getAccounts(${containerName}, ${refresh})`);
-    
+    debugLog(
+      `fetchAliases call getAliases(${refresh}) and getAccounts(${containerName}, ${refresh})`
+    );
+
     try {
       setLoading(true);
       setErrorMessage(null);
       setSuccessMessage(null);
-      
+
       const [aliasesData, accountsData] = await Promise.all([
-        // getAliases(getValueFromArrayOfObj(mailservers, containerName, 'value', 'schema'), containerName, refresh),
         getAliases(containerName, refresh),
-        getAccounts(containerName),           // refresh accounts is done on first load or in Accounts page
+        getAccounts(containerName), // refresh accounts is done on first load or in Accounts page
       ]);
 
       if (accountsData.success) {
         setAccounts(accountsData.message);
-        debugLog('accountsData', accountsData);                 // [ { mailbox: 'a@a.com', domain:'a.com', storage: {} },{ mailbox: 'b@b.com', domain:'b.com', storage: {} }, .. ]
+        debugLog('accountsData', accountsData); // [ { mailbox: 'a@a.com', domain:'a.com', storage: {} },{ mailbox: 'b@b.com', domain:'b.com', storage: {} }, .. ]
       } else setErrorMessage(accountsData?.error);
-      
+
       if (aliasesData.success) {
         // add color column for regex aliases
-        let aliasesDataFormatted = aliasesData.message.map(alias => { return { 
-          ...alias, 
-          color:  (alias.regex) ? "text-info" : "",
-          }; });
+        let aliasesDataFormatted = aliasesData.message.map((alias) => {
+          return {
+            ...alias,
+            color: alias.regex ? 'text-info' : '',
+          };
+        });
         setAliases(aliasesDataFormatted);
         debugLog('aliasesDataFormatted', aliasesDataFormatted); // [ { source: 'a@b.com', destination:'b@b.com', regex: 0, color: '' }, .. ]
-        
       } else setErrorMessage(aliasesData?.error);
-      
-
     } catch (error) {
       errorLog(t('api.errors.fetchAliases'), error);
       setErrorMessage('api.errors.fetchAliases');
-      
     } finally {
       setLoading(false);
     }
   };
 
+  // https://www.w3schools.com/react/react_useeffect.asp
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAliases
+     synchronously sets the loading flag + clears messages at entry,
+     then awaits getAliases/getAccounts; the .then handlers on
+     getUserSettings flip setAllowUserAliases asynchronously. Both
+     are the page's data-load lifecycle (one render-trigger per
+     dep change), not the cascading-render pattern this rule
+     guards against. */
+  useEffect(() => {
+    // containerName comes from useLocalStorage and is initially '';
+    // skip the API calls until the user has picked a container,
+    // otherwise the helpers short-circuit with
+    // `{success:false, error:'containerName is required'}` and flash
+    // an error/loading state unnecessarily. Clear isLoading on this
+    // path so the page renders an empty state instead of a stuck
+    // spinner (isLoading starts as true).
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
+    fetchAliases(false);
+    if (user?.isAdmin != 1) {
+      getUserSettings(containerName)
+        .then((result) => {
+          if (result.success)
+            setAllowUserAliases(result.message?.ALLOW_USER_ALIASES === 'true');
+          else setAllowUserAliases(false);
+        })
+        .catch(() => setAllowUserAliases(false));
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAliases is a stable per-render helper above; intentional re-fire only on mailservers/containerName change
+  }, [mailservers, containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const handleInputChange = (e) => {
     const { name, value, type } = e.target;
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       [name]: type === 'number' ? Number(value) : value,
-    });
-    
-    
+    }));
+
     if (name == 'source') {
       debugLog('value.match(regexEmailStrict)', value.match(regexEmailStrict));
       debugLog('value.match(regexEmailRegex)', value.match(regexEmailRegex));
       setIsSource({
         alias: value.trim().match(regexEmailStrict),
-        valid: value.trim().match(regexEmailStrict) || value.trim().match(regexEmailRegex),
+        valid:
+          value.trim().match(regexEmailStrict) ||
+          value.trim().match(regexEmailRegex),
       });
     }
 
-    // Clear the error for this field while typing
-    if (formErrors[name]) {
-      setFormErrors({
-        ...formErrors,
-        [name]: null,
-      });
-    }
+    // Clear the error for this field while typing. Functional update
+    // so we don't depend on `formErrors` from closure (would force a
+    // new handler identity on every error change, and risk a stale
+    // read if the user types between setFormErrors and the re-render).
+    // Returns `prev` unchanged when no key to clear, so React skips
+    // the re-render by reference identity.
+    setFormErrors((prev) => (prev[name] ? { ...prev, [name]: null } : prev));
   };
 
   const handleDestinationChange = (newValue) => {
-    setFormData({
-      ...formData,
+    setFormData((prev) => ({
+      ...prev,
       destination: newValue || [],
-    });
-    if (formErrors.destination) {
-      setFormErrors({
-        ...formErrors,
-        destination: null,
-      });
-    }
+    }));
+    setFormErrors((prev) =>
+      prev.destination ? { ...prev, destination: null } : prev
+    );
   };
 
   // Only allow creating custom options that look like valid email addresses
   const isValidNewOption = (inputValue) => {
-    return inputValue.trim().length > 0 && regexEmailStrict.test(inputValue.trim());
+    return (
+      inputValue.trim().length > 0 && regexEmailStrict.test(inputValue.trim())
+    );
   };
 
   const validateForm = () => {
     const errors = {};
-    
+
     // with FormField type="text" we don't need any of that, but since we deal with regex...
-    
+
     let matchEmailStrict = formData.source.trim().match(regexEmailStrict);
     let matchEmailRegex = formData.source.trim().match(regexEmailRegex);
     debugLog('matchEmailStrict', matchEmailStrict);
@@ -192,7 +207,9 @@ const Aliases = () => {
       errors.destination = 'aliases.destinationRequired';
       setErrorMessage(errors.destination);
     } else {
-      const invalidDest = formData.destination.find(d => !regexEmailStrict.test(d.value.trim()));
+      const invalidDest = formData.destination.find(
+        (d) => !regexEmailStrict.test(d.value.trim())
+      );
       if (invalidDest) {
         errors.destination = 'aliases.invalidDestination';
         setErrorMessage(errors.destination);
@@ -201,19 +218,28 @@ const Aliases = () => {
 
     // Also test if source domain exist in domains when it's a mailbox match
     // I can't see how to really test for regex as the domain part can be regex too but let's do our best
-    if (matchEmailStrict && !pluck(accounts, 'domain').includes(matchEmailStrict[2])) {
+    if (
+      matchEmailStrict &&
+      !pluck(accounts, 'domain').includes(matchEmailStrict[2])
+    ) {
       errors.source = 'aliases.invalidSourceDomain';
       setErrorMessage(errors.source);
     }
 
     // Check if source already exists as an alias
-    if (!errors.source && aliases.some(a => a.source === formData.source.trim())) {
+    if (
+      !errors.source &&
+      aliases.some((a) => a.source === formData.source.trim())
+    ) {
       errors.source = 'aliases.sourceAlreadyExists';
       setErrorMessage(errors.source);
     }
 
     // Check if source already exists as an account (mailbox)
-    if (!errors.source && accounts.some(a => a.mailbox === formData.source.trim())) {
+    if (
+      !errors.source &&
+      accounts.some((a) => a.mailbox === formData.source.trim())
+    ) {
       errors.source = 'aliases.sourceIsAccount';
       setErrorMessage(errors.source);
     }
@@ -233,8 +259,12 @@ const Aliases = () => {
 
     try {
       // const result = await addAlias(getValueFromArrayOfObj(mailservers, containerName, 'value', 'schema'), containerName, formData.source.trim(), formData.destination.trim());
-      const destinationStr = formData.destination.map(d => d.value).join(',');
-      const result = await addAlias(containerName, formData.source.trim(), destinationStr);
+      const destinationStr = formData.destination.map((d) => d.value).join(',');
+      const result = await addAlias(
+        containerName,
+        formData.source.trim(),
+        destinationStr
+      );
       if (result.success) {
         setFormData({
           source: '',
@@ -242,9 +272,7 @@ const Aliases = () => {
         });
         fetchAliases(true); // Refresh the aliases list
         setSuccessMessage('aliases.aliasCreated');
-        
       } else setErrorMessage(result?.error);
-      
     } catch (error) {
       errorLog(t('api.errors.addAlias'), error.message);
       setErrorMessage('api.errors.addAlias');
@@ -252,19 +280,17 @@ const Aliases = () => {
   };
 
   const handleDelete = async (source, destination) => {
-    if (window.confirm(t('aliases.confirmDelete', { source:source }))) {
+    if (window.confirm(t('aliases.confirmDelete', { source: source }))) {
       setErrorMessage(null);
       setSuccessMessage(null);
-      
+
       try {
         // const result = await deleteAlias(getValueFromArrayOfObj(mailservers, containerName, 'value', 'schema'), containerName, source, destination);
         const result = await deleteAlias(containerName, source, destination);
         if (result.success) {
           fetchAliases(true); // Refresh the aliases list
           setSuccessMessage('aliases.aliasDeleted');
-          
         } else setErrorMessage(result?.error);
-        
       } catch (error) {
         errorLog(t('api.errors.deleteAlias'), error.message);
         setErrorMessage('api.errors.deleteAlias');
@@ -304,35 +330,41 @@ const Aliases = () => {
   // Column definitions for aliases table
   const columns = [
     { key: 'source', label: 'aliases.sourceAddress' },
-    { key: 'destination', label: 'aliases.destinationAddress',
+    {
+      key: 'destination',
+      label: 'aliases.destinationAddress',
       render: (alias) => alias.destination?.split(',').join(', '),
     },
-    ...(canModify ? [{
-      key: 'actions',
-      label: 'common.actions',
-      noSort: true,
-      noFilter: true,
-      render: (alias) => (
-        <div className="d-flex gap-1">
-          {!alias.regex && (
-            <Button
-              variant="primary"
-              size="sm"
-              icon="pencil"
-              title={t('aliases.editAlias', { source: alias.source })}
-              onClick={() => handleEdit(alias)}
-            />
-          )}
-          <Button
-            variant="danger"
-            size="sm"
-            icon="trash"
-            title={t('aliases.confirmDelete', { source: alias.source })}
-            onClick={() => handleDelete(alias.source, alias.destination)}
-          />
-        </div>
-      ),
-    }] : []),
+    ...(canModify
+      ? [
+          {
+            key: 'actions',
+            label: 'common.actions',
+            noSort: true,
+            noFilter: true,
+            render: (alias) => (
+              <div className="d-flex gap-1">
+                {!alias.regex && (
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    icon="pencil"
+                    title={t('aliases.editAlias', { source: alias.source })}
+                    onClick={() => handleEdit(alias)}
+                  />
+                )}
+                <Button
+                  variant="danger"
+                  size="sm"
+                  icon="trash"
+                  title={t('aliases.confirmDelete', { source: alias.source })}
+                  onClick={() => handleDelete(alias.source, alias.destination)}
+                />
+              </div>
+            ),
+          },
+        ]
+      : []),
   ];
 
   const isAdmin = user.isAdmin == 1;
@@ -341,140 +373,186 @@ const Aliases = () => {
   // Admin: all accounts + can type external emails
   // Non-admin: only their own roles (mailboxes they have access to)
   const accountOptions = isAdmin
-    ? accounts.map((account) => ({ value: account.mailbox, label: account.mailbox }))
+    ? accounts.map((account) => ({
+        value: account.mailbox,
+        label: account.mailbox,
+      }))
     : (user.roles || []).map((mailbox) => ({ value: mailbox, label: mailbox }));
-
 
   // if (isLoading && !aliases && !aliases.length) {
   if (isLoading) {
     return <LoadingSpinner />;
   }
-  
-  
+
   return (
     <div>
-      <h2 className="mb-4">{Translate('aliases.title')} {t('common.for', {what:containerName})}</h2>
-      
+      <h2 className="mb-4">
+        {Translate('aliases.title')} {t('common.for', { what: containerName })}
+      </h2>
       <AlertMessage type="danger" message={errorMessage} />
       <AlertMessage type="success" message={successMessage} />
       {user?.isAdmin != 1 && !canModify && allowUserAliases !== null && (
         <AlertMessage type="info" message="aliases.readOnly" />
       )}
-      
       <Row>
         {canModify && (
-        <Col md={5} className="mb-4">
-          <Card title="aliases.newAlias" icon="person-plus-fill">
-            <form onSubmit={handleSubmit} className="form-wrapper">
-              <FormField
-                type="text"
-                id="source"
-                name="source"
-                label={isSource?.valid ? (isSource?.alias ? "aliases.sourceAlias" : "aliases.sourceRegex") : "aliases.sourceRequired"}
-                labelColor={isSource?.valid ? (isSource?.alias ? "" : "text-info") : "text-danger"}
-                value={formData.source}
-                onChange={handleInputChange}
-                placeholder="alias@domain.com"
-                error={formErrors.source}
-                helpText="aliases.sourceInfo"
-                required
-              />
+          <Col md={5} className="mb-4">
+            <Card title="aliases.newAlias" icon="person-plus-fill">
+              <form onSubmit={handleSubmit} className="form-wrapper">
+                <FormField
+                  type="text"
+                  id="source"
+                  name="source"
+                  label={
+                    isSource?.valid
+                      ? isSource?.alias
+                        ? 'aliases.sourceAlias'
+                        : 'aliases.sourceRegex'
+                      : 'aliases.sourceRequired'
+                  }
+                  labelColor={
+                    isSource?.valid
+                      ? isSource?.alias
+                        ? ''
+                        : 'text-info'
+                      : 'text-danger'
+                  }
+                  value={formData.source}
+                  onChange={handleInputChange}
+                  placeholder="alias@domain.com"
+                  error={formErrors.source}
+                  helpText="aliases.sourceInfo"
+                  required
+                />
 
-              <Form.Group className="mb-3" controlId="destination">
-                <Form.Label>
-                  {t('aliases.destinationAddress')}
-                  <span className="text-danger ms-1">*</span>
-                </Form.Label>
-                {isAdmin ? (
-                  <CreatableSelect
-                    isMulti
-                    name="destination"
-                    value={formData.destination}
-                    onChange={handleDestinationChange}
-                    options={accountOptions}
-                    isValidNewOption={isValidNewOption}
-                    placeholder={t('aliases.selectDestination')}
-                    formatCreateLabel={(inputValue) => `${t('aliases.addExternal')}: ${inputValue}`}
-                    noOptionsMessage={() => t('aliases.typeToAdd')}
-                    styles={{
-                      control: (base, state) => ({
-                        ...base,
-                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
-                        boxShadow: formErrors.destination
-                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
-                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
-                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
-                      }),
-                      multiValue: (base) => ({
-                        ...base,
-                        backgroundColor: '#e7f1ff',
-                        borderRadius: '4px',
-                      }),
-                      multiValueLabel: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                      }),
-                      multiValueRemove: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
-                      }),
-                    }}
-                  />
-                ) : (
-                  <Select
-                    isMulti
-                    name="destination"
-                    value={formData.destination}
-                    onChange={handleDestinationChange}
-                    options={accountOptions}
-                    placeholder={t('aliases.selectDestination')}
-                    noOptionsMessage={() => t('aliases.noRoles')}
-                    styles={{
-                      control: (base, state) => ({
-                        ...base,
-                        borderColor: formErrors.destination ? '#dc3545' : state.isFocused ? '#86b7fe' : '#dee2e6',
-                        boxShadow: formErrors.destination
-                          ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
-                          : state.isFocused ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)' : 'none',
-                        '&:hover': { borderColor: state.isFocused ? '#86b7fe' : '#adb5bd' },
-                      }),
-                      multiValue: (base) => ({
-                        ...base,
-                        backgroundColor: '#e7f1ff',
-                        borderRadius: '4px',
-                      }),
-                      multiValueLabel: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                      }),
-                      multiValueRemove: (base) => ({
-                        ...base,
-                        color: '#0d6efd',
-                        '&:hover': { backgroundColor: '#0d6efd', color: '#fff' },
-                      }),
-                    }}
-                  />
-                )}
-                {formErrors.destination && (
-                  <div className="text-danger small mt-1">{t(formErrors.destination)}</div>
-                )}
-                <Form.Text muted>{t('aliases.destinationInfo')}</Form.Text>
-              </Form.Group>
+                <Form.Group className="mb-3" controlId="destination">
+                  <Form.Label>
+                    {t('aliases.destinationAddress')}
+                    <span className="text-danger ms-1">*</span>
+                  </Form.Label>
+                  {isAdmin ? (
+                    <CreatableSelect
+                      isMulti
+                      name="destination"
+                      value={formData.destination}
+                      onChange={handleDestinationChange}
+                      options={accountOptions}
+                      isValidNewOption={isValidNewOption}
+                      placeholder={t('aliases.selectDestination')}
+                      formatCreateLabel={(inputValue) =>
+                        `${t('aliases.addExternal')}: ${inputValue}`
+                      }
+                      noOptionsMessage={() => t('aliases.typeToAdd')}
+                      styles={{
+                        control: (base, state) => ({
+                          ...base,
+                          borderColor: formErrors.destination
+                            ? '#dc3545'
+                            : state.isFocused
+                              ? '#86b7fe'
+                              : '#dee2e6',
+                          boxShadow: formErrors.destination
+                            ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+                            : state.isFocused
+                              ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'
+                              : 'none',
+                          '&:hover': {
+                            borderColor: state.isFocused
+                              ? '#86b7fe'
+                              : '#adb5bd',
+                          },
+                        }),
+                        multiValue: (base) => ({
+                          ...base,
+                          backgroundColor: '#e7f1ff',
+                          borderRadius: '4px',
+                        }),
+                        multiValueLabel: (base) => ({
+                          ...base,
+                          color: '#0d6efd',
+                        }),
+                        multiValueRemove: (base) => ({
+                          ...base,
+                          color: '#0d6efd',
+                          '&:hover': {
+                            backgroundColor: '#0d6efd',
+                            color: '#fff',
+                          },
+                        }),
+                      }}
+                    />
+                  ) : (
+                    <Select
+                      isMulti
+                      name="destination"
+                      value={formData.destination}
+                      onChange={handleDestinationChange}
+                      options={accountOptions}
+                      placeholder={t('aliases.selectDestination')}
+                      noOptionsMessage={() => t('aliases.noRoles')}
+                      styles={{
+                        control: (base, state) => ({
+                          ...base,
+                          borderColor: formErrors.destination
+                            ? '#dc3545'
+                            : state.isFocused
+                              ? '#86b7fe'
+                              : '#dee2e6',
+                          boxShadow: formErrors.destination
+                            ? '0 0 0 0.25rem rgba(220, 53, 69, 0.25)'
+                            : state.isFocused
+                              ? '0 0 0 0.25rem rgba(13, 110, 253, 0.25)'
+                              : 'none',
+                          '&:hover': {
+                            borderColor: state.isFocused
+                              ? '#86b7fe'
+                              : '#adb5bd',
+                          },
+                        }),
+                        multiValue: (base) => ({
+                          ...base,
+                          backgroundColor: '#e7f1ff',
+                          borderRadius: '4px',
+                        }),
+                        multiValueLabel: (base) => ({
+                          ...base,
+                          color: '#0d6efd',
+                        }),
+                        multiValueRemove: (base) => ({
+                          ...base,
+                          color: '#0d6efd',
+                          '&:hover': {
+                            backgroundColor: '#0d6efd',
+                            color: '#fff',
+                          },
+                        }),
+                      }}
+                    />
+                  )}
+                  {formErrors.destination && (
+                    <div className="text-danger small mt-1">
+                      {t(formErrors.destination)}
+                    </div>
+                  )}
+                  <Form.Text muted>{t('aliases.destinationInfo')}</Form.Text>
+                </Form.Group>
 
-              <Button type="submit" variant="primary" text="aliases.addAlias" />
-            </form>
-          </Card>
-        </Col>
+                <Button
+                  type="submit"
+                  variant="primary"
+                  text="aliases.addAlias"
+                />
+              </form>
+            </Card>
+          </Col>
         )}
-
         <Col md={canModify ? 7 : 12}>
           {' '}
           {/* Use Col component */}
-          <Card 
-            title="aliases.existingAliases" 
-            titleExtra={`(${aliases.length})`} 
-            icon="person-lines-fill" 
+          <Card
+            title="aliases.existingAliases"
+            titleExtra={`(${aliases.length})`}
+            icon="person-lines-fill"
             isLoading={isLoading}
             onClickRefresh={() => fetchAliases(true)}
           >

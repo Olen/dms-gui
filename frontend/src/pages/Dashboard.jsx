@@ -114,28 +114,6 @@ const Dashboard = () => {
   const [bounces, setBounces] = useState(null);
   const [isBouncesLoading, setBouncesLoading] = useState(true);
 
-  const fetchAll = useCallback(async () => {
-    fetchStatus();
-    fetchDisk();
-    fetchCounts();
-    if (user?.isAdmin === 1) {
-      fetchBounces();
-    } else {
-      fetchUserSettings();
-      fetchSpamSummary();
-      fetchUserQuota();
-    }
-  }, [containerName, user, mailservers]);
-
-  useEffect(() => {
-    fetchAll();
-
-    // Refresh data every 30 seconds (fetchAll covers both admin and user data)
-    const interval = setInterval(fetchAll, 30000);
-
-    return () => clearInterval(interval);
-  }, [fetchAll]);
-
   const fetchUserSettings = async () => {
     if (!containerName) return;
     try {
@@ -171,7 +149,10 @@ const Dashboard = () => {
   };
 
   const fetchBounces = async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setBouncesLoading(false);
+      return;
+    }
     try {
       const result = await getMailBounces(containerName);
       if (result.success) setBounces(result.message);
@@ -183,8 +164,10 @@ const Dashboard = () => {
   };
 
   const fetchStatus = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setStatusLoading(false);
+      return;
+    }
 
     try {
       const statusData = await getServerStatus(
@@ -241,8 +224,10 @@ const Dashboard = () => {
   };
 
   const fetchDisk = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setDiskLoading(false);
+      return;
+    }
 
     try {
       const diskData = await getServerStatus(
@@ -270,8 +255,10 @@ const Dashboard = () => {
   };
 
   const fetchCounts = async () => {
-    if (!mailservers || !mailservers.length) return;
-    if (!containerName) return;
+    if (!mailservers || !mailservers.length || !containerName) {
+      setCountsLoading(false);
+      return;
+    }
 
     try {
       const [loginsRes, accountsRes, aliasesRes] = await Promise.all([
@@ -296,6 +283,48 @@ const Dashboard = () => {
       setCountsLoading(false);
     }
   };
+
+  // fetchAll + its useEffect live AFTER the helper declarations so the
+  // useCallback closure captures fully-initialised function bindings.
+  // Previously these were declared up top and the helpers were
+  // forward-referenced — eslint flagged each call site with
+  // react-hooks/immutability (the const-TDZ trap that JS lets us
+  // get away with only because useEffect callbacks run after the
+  // body completes).
+  const fetchAll = useCallback(async () => {
+    fetchStatus();
+    fetchDisk();
+    fetchCounts();
+    if (user?.isAdmin === 1) {
+      fetchBounces();
+    } else {
+      fetchUserSettings();
+      fetchSpamSummary();
+      fetchUserQuota();
+    }
+    // Stable per-render helpers (no useCallback themselves) — listing
+    // every one in deps would just churn the timer below. The
+    // closure-capture-once-per-mount is intentional.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [containerName, user, mailservers]);
+
+  // Initial fetch on mount + a 30s polling interval. Registering the
+  // interval is the intended side-effect — useEffect is the right
+  // tool. The lint rule flags any setState that may execute
+  // synchronously inside an effect; the polling here is explicitly
+  // asynchronous (setInterval defers to the next tick) and the
+  // cleanup returns properly.
+  /* eslint-disable react-hooks/set-state-in-effect -- Polling via
+     setInterval is the canonical useEffect side-effect pattern; the
+     lint rule reports the (possibly cascading) setState calls inside
+     the interval callback, but those are intentional refreshes, not
+     synchronous-cascade renders. */
+  useEffect(() => {
+    fetchAll();
+    const interval = setInterval(fetchAll, 30000);
+    return () => clearInterval(interval);
+  }, [fetchAll]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const rebootMe = async () => {
     killContainer('dms-gui', 'dms-gui', 'dms-gui');

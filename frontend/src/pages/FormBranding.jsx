@@ -2,14 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
 import Form from 'react-bootstrap/Form';
 
-import {
-  debugLog,
-  errorLog,
-} from '../../frontend.mjs';
-import {
-  getValueFromArrayOfObj,
-  mergeArrayOfObj,
-} from '../../../common.mjs';
+import { debugLog, errorLog } from '../../frontend.mjs';
+import { getValueFromArrayOfObj, mergeArrayOfObj } from '../../../common.mjs';
 
 import {
   getSettings,
@@ -18,19 +12,12 @@ import {
   deleteLogo,
 } from '../services/api.mjs';
 
-import {
-  AlertMessage,
-  Button,
-  Card,
-  FormField,
-} from '../components/index.jsx';
+import { AlertMessage, Button, Card, FormField } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 import { useBranding } from '../hooks/useBranding';
 
-
 function FormBranding() {
   const { t } = useTranslation();
-  const [containerName] = useLocalStorage('containerName', '');
   const [mailservers] = useLocalStorage('mailservers', []);
   const { refreshBranding } = useBranding();
 
@@ -49,17 +36,13 @@ function FormBranding() {
     { name: 'brandColorSidebar', value: '' },
   ]);
 
-  useEffect(() => {
-    fetchBrandingSettings(scope);
-  }, [scope]);
-
   const fetchBrandingSettings = async (scopeName) => {
     try {
       const result = await getSettings('dms-gui', scopeName);
       debugLog('FormBranding fetchBrandingSettings result:', result);
 
       if (result.success && result.message?.length) {
-        setFormValues(prev => mergeArrayOfObj(prev, result.message));
+        setFormValues((prev) => mergeArrayOfObj(prev, result.message));
       } else {
         // Reset to defaults when no settings exist for this scope
         setFormValues([
@@ -75,9 +58,15 @@ function FormBranding() {
     }
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchBrandingSettings awaits getSettings then calls setFormValues with the result; one render-trigger per scope change, not the cascading-render pattern this rule guards against. */
+  useEffect(() => {
+    fetchBrandingSettings(scope);
+  }, [scope]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormValues(prev => mergeArrayOfObj(prev, [{ name, value }]));
+    setFormValues((prev) => mergeArrayOfObj(prev, [{ name, value }]));
   };
 
   const handleSave = async (e) => {
@@ -86,7 +75,13 @@ function FormBranding() {
     setErrorMessage(null);
 
     try {
-      const result = await saveSettings('dms-gui', 'branding', 'dms-gui', scope, formValues);
+      const result = await saveSettings(
+        'dms-gui',
+        'branding',
+        'dms-gui',
+        scope,
+        formValues
+      );
       debugLog('FormBranding saveSettings result:', result);
 
       if (result.success) {
@@ -103,7 +98,10 @@ function FormBranding() {
 
   const scopeOptions = [
     { value: '_global', label: t('settings.brandingScopeGlobal') },
-    ...mailservers.map(ms => ({ value: ms.value, label: ms.label || ms.value })),
+    ...mailservers.map((ms) => ({
+      value: ms.value,
+      label: ms.label || ms.value,
+    })),
   ];
 
   const handleLogoUpload = async () => {
@@ -112,9 +110,14 @@ function FormBranding() {
     setSuccessMessage(null);
     setErrorMessage(null);
     try {
-      const result = await uploadLogo(logoFile, scope === '_global' ? undefined : scope);
+      const result = await uploadLogo(
+        logoFile,
+        scope === '_global' ? undefined : scope
+      );
       if (result.success) {
-        setFormValues(prev => mergeArrayOfObj(prev, [{ name: 'brandLogo', value: result.filename }]));
+        setFormValues((prev) =>
+          mergeArrayOfObj(prev, [{ name: 'brandLogo', value: result.filename }])
+        );
         setLogoFile(null);
         setSuccessMessage('settings.logoUploaded');
         refreshBranding();
@@ -133,7 +136,9 @@ function FormBranding() {
     try {
       const result = await deleteLogo(scope === '_global' ? undefined : scope);
       if (result.success) {
-        setFormValues(prev => mergeArrayOfObj(prev, [{ name: 'brandLogo', value: '' }]));
+        setFormValues((prev) =>
+          mergeArrayOfObj(prev, [{ name: 'brandLogo', value: '' }])
+        );
         setSuccessMessage('settings.logoDeleted');
         refreshBranding();
       } else {
@@ -145,22 +150,23 @@ function FormBranding() {
   };
 
   const currentLogo = getValueFromArrayOfObj(formValues, 'brandLogo') || '';
-  const iconPreview = getValueFromArrayOfObj(formValues, 'brandIcon') || 'envelope-fill';
+  const iconPreview =
+    getValueFromArrayOfObj(formValues, 'brandIcon') || 'envelope-fill';
 
   return (
     <Card title="settings.titleBranding" icon="palette">
-
       <Form.Group className="mb-3">
         <Form.Label>{t('settings.brandingScope')}</Form.Label>
         <Form.Select value={scope} onChange={(e) => setScope(e.target.value)}>
-          {scopeOptions.map(opt => (
-            <option key={opt.value} value={opt.value}>{opt.label}</option>
+          {scopeOptions.map((opt) => (
+            <option key={opt.value} value={opt.value}>
+              {opt.label}
+            </option>
           ))}
         </Form.Select>
       </Form.Group>
 
       <form onSubmit={handleSave}>
-
         <FormField
           type="text"
           id="brandName"
@@ -194,7 +200,11 @@ function FormBranding() {
           <Form.Label>{t('settings.brandLogo')}</Form.Label>
           {currentLogo && (
             <div className="mb-2 d-flex align-items-center gap-2">
-              <img src={`/uploads/${currentLogo}`} alt="Logo" style={{ height: '2rem', width: 'auto' }} />
+              <img
+                src={`/uploads/${currentLogo}`}
+                alt="Logo"
+                style={{ height: '2rem', width: 'auto' }}
+              />
               <Button
                 variant="outline-danger"
                 icon="trash"
@@ -231,7 +241,10 @@ function FormBranding() {
               type="color"
               id="brandColorPrimary"
               name="brandColorPrimary"
-              value={getValueFromArrayOfObj(formValues, 'brandColorPrimary') || '#0d6efd'}
+              value={
+                getValueFromArrayOfObj(formValues, 'brandColorPrimary') ||
+                '#0d6efd'
+              }
               onChange={handleChange}
               style={{ width: '4rem' }}
             />
@@ -241,11 +254,17 @@ function FormBranding() {
                 icon="arrow-counterclockwise"
                 text="settings.colorReset"
                 size="sm"
-                onClick={() => handleChange({ target: { name: 'brandColorPrimary', value: '' } })}
+                onClick={() =>
+                  handleChange({
+                    target: { name: 'brandColorPrimary', value: '' },
+                  })
+                }
               />
             )}
           </div>
-          <Form.Text className="text-muted">{t('settings.brandColorPrimaryHelp')}</Form.Text>
+          <Form.Text className="text-muted">
+            {t('settings.brandColorPrimaryHelp')}
+          </Form.Text>
         </Form.Group>
 
         <Form.Group className="mb-3">
@@ -255,7 +274,10 @@ function FormBranding() {
               type="color"
               id="brandColorSidebar"
               name="brandColorSidebar"
-              value={getValueFromArrayOfObj(formValues, 'brandColorSidebar') || '#343a40'}
+              value={
+                getValueFromArrayOfObj(formValues, 'brandColorSidebar') ||
+                '#343a40'
+              }
               onChange={handleChange}
               style={{ width: '4rem' }}
             />
@@ -265,11 +287,17 @@ function FormBranding() {
                 icon="arrow-counterclockwise"
                 text="settings.colorReset"
                 size="sm"
-                onClick={() => handleChange({ target: { name: 'brandColorSidebar', value: '' } })}
+                onClick={() =>
+                  handleChange({
+                    target: { name: 'brandColorSidebar', value: '' },
+                  })
+                }
               />
             )}
           </div>
-          <Form.Text className="text-muted">{t('settings.brandColorSidebarHelp')}</Form.Text>
+          <Form.Text className="text-muted">
+            {t('settings.brandColorSidebarHelp')}
+          </Form.Text>
         </Form.Group>
 
         <AlertMessage type="success" message={successMessage} />
@@ -281,7 +309,6 @@ function FormBranding() {
           icon="save"
           text="settings.saveSettings"
         />
-
       </form>
     </Card>
   );

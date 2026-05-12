@@ -27,12 +27,11 @@ const MailSetup = () => {
   const [isLoading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  useEffect(() => {
-    fetchSettings();
-  }, [containerName]);
-
   const fetchSettings = async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     try {
       setLoading(true);
       setErrorMessage(null);
@@ -49,6 +48,13 @@ const MailSetup = () => {
       setLoading(false);
     }
   };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchSettings synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getUserSettings. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
+  useEffect(() => {
+    fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSettings is a stable per-render helper above; intentional re-fire only on containerName change
+  }, [containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDownload = (type) => {
     // Direct browser download via API endpoint (cookies sent automatically)

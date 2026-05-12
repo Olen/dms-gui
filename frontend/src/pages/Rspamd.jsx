@@ -107,7 +107,10 @@ const Rspamd = () => {
   const HISTORY_PAGE_SIZE = 50;
 
   const fetchData = useCallback(async () => {
-    if (!containerName) return;
+    if (!containerName) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     setError(null);
     try {
@@ -186,9 +189,18 @@ const Rspamd = () => {
 
   const externalUrl = safeUrl(adminRspamdUrl || rspamdUrl);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchData
+     synchronously sets the loading flag + clears errors at entry
+     (or clears it on the missing-containerName early-return), then
+     awaits getRspamdStats/getRspamdCounters/getRspamdBayesUsers/
+     getRspamdConfig. One render-trigger per containerName change,
+     not the cascading-render pattern this rule guards against.
+     The useEffect kicks off the initial load and re-runs when
+     fetchData's identity changes (i.e. when its own deps update). */
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <LoadingSpinner />;
   if (error)
