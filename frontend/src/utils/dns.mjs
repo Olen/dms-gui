@@ -59,32 +59,33 @@ export const keysizeBadge = (size) => {
 // `dns` is the result shape returned by getDnsLookup (object with
 // `spf` string and `mx` array of `{priority, exchange}`).
 //
-// SPF spec: https://www.rfc-editor.org/rfc/rfc7208. The `all`
-// mechanism (§5.1) can appear with any of four qualifiers (+, -, ~, ?)
-// or without one (defaults to +all). SPF evaluation stops at the
-// first `all` it encounters, so any stray `all` earlier in the
-// record would override our appended choice — we tokenise, drop all
-// `all` forms, then append the user-selected mode at the end.
-// Per RFC 7208 §5.1 an `all` mechanism may carry one of the four
-// qualifiers (`+`, `-`, `~`, `?`) OR appear without a qualifier
-// (defaulting to `+all`). Match all five forms so the editor's
-// chosen qualifier is the only `all` left in the record.
-const SPF_ALL_TOKEN_RE = /^[~\-?+]?all$/;
+// SPF spec: https://www.rfc-editor.org/rfc/rfc7208. Per §4.6.1, all
+// mechanism names (`all`, `mx`, `a`, `include`, ...) and the version
+// tag are case-insensitive. The `all` mechanism (§5.1) can appear
+// with any of four qualifiers (`+`, `-`, `~`, `?`) OR bare (defaults
+// to `+all`). SPF evaluation stops at the first `all` it encounters,
+// so any stray `all` earlier in the record would override our
+// appended choice — we tokenise, drop every `all` form, then append
+// the user-selected mode at the end. Case-insensitive matching so
+// `ALL`/`-ALL`/`All` are all caught.
+const SPF_ALL_TOKEN_RE = /^[~\-?+]?all$/i;
+const SPF_VERSION_TAG_RE = /^v=spf1$/i;
 
 export const computeSpfRecord = (dns, domain, spfAllMode) => {
   const currentSpf = dns?.spf;
   if (currentSpf) {
-    // Tokenise on whitespace, drop every qualified `all` token, then
-    // append the user-selected mode at the end. SPF evaluation stops
-    // at the first `all` it encounters, so a stray `all` earlier in
-    // the record (e.g. "v=spf1 mx -all include:_spf.example.com")
-    // would override the editor's choice if we just rewrote the
-    // trailing token or appended without cleaning. Removing ALL
-    // qualified-all tokens makes the appended mode authoritative
-    // regardless of where the original ones sat.
     const tokens = currentSpf.trim().split(/\s+/);
     const kept = tokens.filter((t) => !SPF_ALL_TOKEN_RE.test(t));
-    return `${kept.join(' ')} ${spfAllMode}`;
+    // Only trust the existing record if it still starts with the
+    // `v=spf1` version tag after `all`-stripping. Pathological inputs
+    // like `dns.spf = '-all'` would otherwise produce
+    // ` ~all` (leading space, no v=spf1) — a record DNS providers
+    // would happily publish but that no SPF resolver would accept.
+    // Fall through to the synthesis path so the published record is
+    // always valid.
+    if (kept.length > 0 && SPF_VERSION_TAG_RE.test(kept[0])) {
+      return `${kept.join(' ')} ${spfAllMode}`;
+    }
   }
   const mechanisms = ['mx', 'a'];
   if (dns?.mx?.length) {

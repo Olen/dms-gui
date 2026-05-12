@@ -190,6 +190,44 @@ describe('computeSpfRecord', () => {
       'v=spf1 mx a ~all'
     );
   });
+
+  it('strips `all` tokens case-insensitively (RFC 7208 §4.6.1)', () => {
+    // Mechanism names are case-insensitive per spec. Without the
+    // i-flag on SPF_ALL_TOKEN_RE, uppercase tokens like `-ALL` would
+    // survive the filter and SPF evaluation would stop at them.
+    const dns = { spf: 'v=spf1 mx -ALL include:_spf.example.com' };
+    expect(computeSpfRecord(dns, 'example.com', '~all')).toBe(
+      'v=spf1 mx include:_spf.example.com ~all'
+    );
+  });
+
+  it('strips ALL/All/all variants together', () => {
+    const dns = { spf: 'v=spf1 ALL mx ~All a +all' };
+    expect(computeSpfRecord(dns, 'example.com', '-all')).toBe(
+      'v=spf1 mx a -all'
+    );
+  });
+
+  it('falls back to synthesis when the input lacks v=spf1', () => {
+    // Pathological: input is just an `all` token with no version tag.
+    // Without the v=spf1 guard, kept = [] → output starts with a
+    // leading space and no version tag — a record DNS providers
+    // would publish but no resolver would accept. Synthesise from
+    // scratch so the pushed record is always valid SPF.
+    expect(computeSpfRecord({ spf: '-all' }, 'example.com', '~all')).toBe(
+      'v=spf1 mx a ~all'
+    );
+    expect(computeSpfRecord({ spf: 'mx a' }, 'example.com', '~all')).toBe(
+      'v=spf1 mx a ~all'
+    );
+  });
+
+  it('accepts a case-variant v=SPF1 version tag', () => {
+    const dns = { spf: 'V=SPF1 mx a ~all' };
+    expect(computeSpfRecord(dns, 'example.com', '-all')).toBe(
+      'V=SPF1 mx a -all'
+    );
+  });
 });
 
 describe('computeDmarcRecord', () => {

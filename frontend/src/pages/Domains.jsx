@@ -294,9 +294,16 @@ const Domains = () => {
   const startEditSpf = (currentSpf) => {
     setEditError(null);
     setEditSuccess(null);
+    // The dropdown only offers the two recommended qualifiers (~all
+    // and -all). If the current record uses +all (no protection),
+    // ?all (neutral), or bare `all` (== +all), default the editor to
+    // ~all — the safer of the two supported options. Anything that
+    // was already -all is preserved. Case-insensitive per RFC 7208
+    // §4.6.1.
     if (currentSpf) {
-      const match = currentSpf.match(/([~\-?+]all)\s*$/);
-      setSpfAllMode(match ? match[1] : '~all');
+      const match = currentSpf.match(/([~\-?+]?all)\s*$/i);
+      const captured = match ? match[1].toLowerCase() : null;
+      setSpfAllMode(captured === '-all' ? '-all' : '~all');
     } else {
       setSpfAllMode('~all');
     }
