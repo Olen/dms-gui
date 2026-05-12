@@ -189,12 +189,14 @@ const Rspamd = () => {
 
   const externalUrl = safeUrl(adminRspamdUrl || rspamdUrl);
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchData is a
-     useCallback implemented with async/await + try/catch; the
-     setState calls run after each `await` (the next microtask, not
-     a synchronous cascade in the effect body). The useEffect kicks
-     off the initial load and re-runs when fetchData's identity
-     changes (i.e. when its own deps update). */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchData
+     synchronously sets the loading flag + clears errors at entry
+     (or clears it on the missing-containerName early-return), then
+     awaits getRspamdStats/getRspamdCounters/getRspamdBayesUsers/
+     getRspamdConfig. One render-trigger per containerName change,
+     not the cascading-render pattern this rule guards against.
+     The useEffect kicks off the initial load and re-runs when
+     fetchData's identity changes (i.e. when its own deps update). */
   useEffect(() => {
     fetchData();
   }, [fetchData]);

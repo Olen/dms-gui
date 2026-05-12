@@ -122,7 +122,7 @@ function UserConfig() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- loadSettings drives setState via async getUserSettings/getServerEnvs, not synchronous-cascade renders. */
+  /* eslint-disable react-hooks/set-state-in-effect -- loadSettings synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getUserSettings/getServerEnvs. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     loadSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a stable per-render helper above; intentional re-fire only on containerName change

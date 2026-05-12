@@ -82,8 +82,11 @@ const ServerInfos = () => {
 
   // https://www.w3schools.com/react/react_useeffect.asp
   /* eslint-disable react-hooks/set-state-in-effect -- fetchAll
-     drives setState via async API calls in fetchServerInfos /
-     fetchServerEnvs, not synchronous-cascade renders. */
+     synchronously sets the loading flag at entry, then awaits
+     fetchServerInfos (always runs, no containerName needed) and
+     fetchServerEnvs (self-guards on missing mailservers /
+     containerName). One render-trigger per dep change, not the
+     cascading-render pattern this rule guards against. */
   useEffect(() => {
     // Always call fetchAll: fetchServerInfos doesn't need
     // containerName (getNodeInfos is global), and fetchServerEnvs

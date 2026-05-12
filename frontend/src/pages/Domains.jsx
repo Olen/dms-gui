@@ -135,7 +135,7 @@ const Domains = () => {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchDomains drives setState via async API calls in getDomains/checkDns, not synchronous-cascade renders; mount-once guards (containerName check, setLoading defaults) need to happen before the awaits. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchDomains synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getDomains and fires async checkDns calls per row. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     fetchDomains();
     if (!containerName) return;

@@ -59,7 +59,7 @@ function FormBranding() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchBrandingSettings drives setState via async API calls, not synchronous-cascade renders. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchBrandingSettings awaits getSettings then calls setFormValues with the result; one render-trigger per scope change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     fetchBrandingSettings(scope);
   }, [scope]);

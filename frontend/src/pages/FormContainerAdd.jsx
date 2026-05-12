@@ -536,7 +536,7 @@ function FormContainerAdd() {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll/fetchContainerSettings drive setState via async API calls in fetchMailservers/getSettings, not synchronous-cascade renders; the leading setLoading(true)/(false) bracketing is the loading-spinner lifecycle, not a re-render cascade. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll synchronously sets the loading flag + clears messages at entry then fires fetchMailservers/fetchContainerSettings; fetchContainerSettings synchronously sets the loading flag at entry then awaits getSettings. One render-trigger per dep change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- intentional mount-once fetch; fetchAll is a stable per-render helper above

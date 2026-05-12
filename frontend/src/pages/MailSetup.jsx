@@ -49,7 +49,7 @@ const MailSetup = () => {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchSettings drives setState via async getUserSettings, not synchronous-cascade renders. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchSettings synchronously sets the loading flag + clears errors at entry (or clears it on the missing-containerName early-return), then awaits getUserSettings. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     fetchSettings();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSettings is a stable per-render helper above; intentional re-fire only on containerName change

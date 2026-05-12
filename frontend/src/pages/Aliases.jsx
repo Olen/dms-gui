@@ -108,9 +108,13 @@ const Aliases = () => {
   };
 
   // https://www.w3schools.com/react/react_useeffect.asp
-  /* eslint-disable react-hooks/set-state-in-effect -- the
-     .then()/.catch() setState calls inside the getUserSettings
-     promise are asynchronous, not synchronous-cascade renders. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAliases
+     synchronously sets the loading flag + clears messages at entry,
+     then awaits getAliases/getAccounts; the .then handlers on
+     getUserSettings flip setAllowUserAliases asynchronously. Both
+     are the page's data-load lifecycle (one render-trigger per
+     dep change), not the cascading-render pattern this rule
+     guards against. */
   useEffect(() => {
     // containerName comes from useLocalStorage and is initially '';
     // skip the API calls until the user has picked a container,

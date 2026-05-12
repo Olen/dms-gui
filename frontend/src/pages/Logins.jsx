@@ -185,7 +185,7 @@ const Logins = () => {
     }
   };
 
-  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll drives setState via async API calls in fetchAccounts / fetchLogins, not synchronous-cascade renders. */
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchAll synchronously sets the loading flag + clears messages at entry, then awaits fetchAccounts/fetchLogins in parallel and clears the loading flag in finally. One render-trigger per containerName change, not the cascading-render pattern this rule guards against. */
   useEffect(() => {
     fetchAll();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchAll is a stable per-render helper above; intentional re-fire on containerName change
