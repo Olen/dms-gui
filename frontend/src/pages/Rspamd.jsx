@@ -186,9 +186,15 @@ const Rspamd = () => {
 
   const externalUrl = safeUrl(adminRspamdUrl || rspamdUrl);
 
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchData is a
+     useCallback that performs setState via .then/.catch on async API
+     calls, not synchronous-cascade renders. The useEffect kicks off
+     the initial load + re-runs when fetchData's identity changes
+     (i.e. when its own deps update). */
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   if (loading) return <LoadingSpinner />;
   if (error)

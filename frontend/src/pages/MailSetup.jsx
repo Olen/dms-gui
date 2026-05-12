@@ -27,10 +27,6 @@ const MailSetup = () => {
   const [isLoading, setLoading] = useState(true);
   const [errorMessage, setErrorMessage] = useState(null);
 
-  useEffect(() => {
-    fetchSettings();
-  }, [containerName]);
-
   const fetchSettings = async () => {
     if (!containerName) return;
     try {
@@ -49,6 +45,13 @@ const MailSetup = () => {
       setLoading(false);
     }
   };
+
+  /* eslint-disable react-hooks/set-state-in-effect -- fetchSettings drives setState via async getUserSettings, not synchronous-cascade renders. */
+  useEffect(() => {
+    fetchSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fetchSettings is a stable per-render helper above; intentional re-fire only on containerName change
+  }, [containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   const handleDownload = (type) => {
     // Direct browser download via API endpoint (cookies sent automatically)

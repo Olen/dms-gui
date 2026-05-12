@@ -4,10 +4,7 @@ import Form from 'react-bootstrap/Form';
 import Row from 'react-bootstrap/Row';
 import Col from 'react-bootstrap/Col';
 
-import {
-  debugLog,
-  errorLog,
-} from '../../frontend.mjs';
+import { debugLog, errorLog } from '../../frontend.mjs';
 
 import {
   getUserSettings,
@@ -23,10 +20,9 @@ import {
 } from '../components/index.jsx';
 import { useLocalStorage } from '../hooks/useLocalStorage';
 
-
 function UserConfig() {
   const { t } = useTranslation();
-  const [containerName] = useLocalStorage("containerName", '');
+  const [containerName] = useLocalStorage('containerName', '');
 
   const [isLoading, setLoading] = useState(true);
   const [successMessage, setSuccessMessage] = useState(null);
@@ -44,11 +40,17 @@ function UserConfig() {
     RSPAMD_URL: '',
   });
 
-  const settingNames = ['WEBMAIL_URL', 'IMAP_HOST', 'IMAP_PORT', 'SMTP_HOST', 'SMTP_PORT', 'POP3_HOST', 'POP3_PORT', 'ALLOW_USER_ALIASES', 'RSPAMD_URL'];
-
-  useEffect(() => {
-    if (containerName) loadSettings();
-  }, [containerName]);
+  const settingNames = [
+    'WEBMAIL_URL',
+    'IMAP_HOST',
+    'IMAP_PORT',
+    'SMTP_HOST',
+    'SMTP_PORT',
+    'POP3_HOST',
+    'POP3_PORT',
+    'ALLOW_USER_ALIASES',
+    'RSPAMD_URL',
+  ];
 
   const loadSettings = async () => {
     try {
@@ -72,10 +74,20 @@ function UserConfig() {
       if (!loaded.IMAP_HOST || !loaded.SMTP_HOST) {
         try {
           // Try cached first, then force refresh if empty
-          let envResult = await getServerEnvs('mailserver', containerName, false, 'HOSTNAME');
+          let envResult = await getServerEnvs(
+            'mailserver',
+            containerName,
+            false,
+            'HOSTNAME'
+          );
           let hostname = envResult?.message?.value || envResult?.message || '';
           if (!hostname || typeof hostname !== 'string') {
-            envResult = await getServerEnvs('mailserver', containerName, true, 'HOSTNAME');
+            envResult = await getServerEnvs(
+              'mailserver',
+              containerName,
+              true,
+              'HOSTNAME'
+            );
             hostname = envResult?.message?.value || envResult?.message || '';
           }
           debugLog('UserConfig HOSTNAME result:', hostname);
@@ -85,9 +97,12 @@ function UserConfig() {
             if (!loaded.POP3_HOST) loaded.POP3_HOST = hostname;
             // Extract base domain (e.g. "mail.nytt.no" -> "nytt.no")
             const parts = hostname.split('.');
-            const domain = parts.length > 2 ? parts.slice(1).join('.') : hostname;
-            if (!loaded.WEBMAIL_URL) loaded.WEBMAIL_URL = `https://webmail.${domain}`;
-            if (!loaded.RSPAMD_URL) loaded.RSPAMD_URL = `https://rspamd.${domain}`;
+            const domain =
+              parts.length > 2 ? parts.slice(1).join('.') : hostname;
+            if (!loaded.WEBMAIL_URL)
+              loaded.WEBMAIL_URL = `https://webmail.${domain}`;
+            if (!loaded.RSPAMD_URL)
+              loaded.RSPAMD_URL = `https://rspamd.${domain}`;
           }
         } catch (e) {
           debugLog('Could not fetch HOSTNAME for auto-populate:', e.message);
@@ -103,6 +118,13 @@ function UserConfig() {
     }
   };
 
+  /* eslint-disable react-hooks/set-state-in-effect -- loadSettings drives setState via async getUserSettings/getServerEnvs, not synchronous-cascade renders. */
+  useEffect(() => {
+    if (containerName) loadSettings();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- loadSettings is a stable per-render helper above; intentional re-fire only on containerName change
+  }, [containerName]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
     setFormData({
@@ -117,13 +139,19 @@ function UserConfig() {
     setSuccessMessage(null);
 
     try {
-      const jsonArrayOfObjects = settingNames.map(name => ({
+      const jsonArrayOfObjects = settingNames.map((name) => ({
         name,
         value: formData[name] || '',
       }));
 
       debugLog('UserConfig saveSettings:', jsonArrayOfObjects);
-      const result = await saveSettings('userconfig', 'userconfig', 'userconfig', containerName, jsonArrayOfObjects);
+      const result = await saveSettings(
+        'userconfig',
+        'userconfig',
+        'userconfig',
+        containerName,
+        jsonArrayOfObjects
+      );
 
       if (result.success) {
         setSuccessMessage('settings.saveSuccess');
@@ -154,7 +182,9 @@ function UserConfig() {
           helpText="settings.userConfig.webmailUrlHelp"
         />
 
-        <h6 className="mb-3 mt-4">{Translate('settings.userConfig.mailConfig')}</h6>
+        <h6 className="mb-3 mt-4">
+          {Translate('settings.userConfig.mailConfig')}
+        </h6>
         <Row>
           <Col md={8}>
             <FormField
@@ -228,7 +258,9 @@ function UserConfig() {
           </Col>
         </Row>
 
-        <h6 className="mb-3 mt-4">{Translate('settings.userConfig.permissions')}</h6>
+        <h6 className="mb-3 mt-4">
+          {Translate('settings.userConfig.permissions')}
+        </h6>
         <FormField
           type="checkbox"
           id="ALLOW_USER_ALIASES"
@@ -250,7 +282,13 @@ function UserConfig() {
           helpText="settings.userConfig.rspamdUrlHelp"
         />
 
-        <Button type="submit" variant="primary" icon="floppy" text="settings.saveSettings" className="mt-3" />
+        <Button
+          type="submit"
+          variant="primary"
+          icon="floppy"
+          text="settings.saveSettings"
+          className="mt-3"
+        />
       </Form>
     </>
   );
