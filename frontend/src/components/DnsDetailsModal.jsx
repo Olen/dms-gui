@@ -138,10 +138,18 @@ const DnsDetailsModal = ({
                   {computeSpfRecord(dns, domain, spfAllMode)}
                 </pre>
                 {editError && (
-                  <AlertMessage type="danger" message={editError} />
+                  <AlertMessage
+                    type="danger"
+                    message={editError}
+                    translate={false}
+                  />
                 )}
                 {editSuccess && (
-                  <AlertMessage type="success" message={editSuccess} />
+                  <AlertMessage
+                    type="success"
+                    message={editSuccess}
+                    translate={false}
+                  />
                 )}
                 <div className="d-flex gap-2">
                   <Button
@@ -264,6 +272,7 @@ const DnsDetailsModal = ({
                       <AlertMessage
                         type="danger"
                         message={dkimPushResult.error}
+                        translate={false}
                       />
                     )}
                   </div>
@@ -348,10 +357,18 @@ const DnsDetailsModal = ({
                   {computeDmarcRecord(dmarcPolicy, dmarcRua, dmarcRuf)}
                 </pre>
                 {editError && (
-                  <AlertMessage type="danger" message={editError} />
+                  <AlertMessage
+                    type="danger"
+                    message={editError}
+                    translate={false}
+                  />
                 )}
                 {editSuccess && (
-                  <AlertMessage type="success" message={editSuccess} />
+                  <AlertMessage
+                    type="success"
+                    message={editSuccess}
+                    translate={false}
+                  />
                 )}
                 <div className="d-flex gap-2">
                   <Button

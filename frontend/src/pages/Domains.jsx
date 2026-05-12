@@ -325,14 +325,14 @@ const Domains = () => {
         data: record,
       });
       if (result.success) {
-        setEditSuccess('domains.dnsRecordSaved');
+        setEditSuccess(t('domains.dnsRecordSaved'));
         checkDns(modalDomain);
         setTimeout(() => setEditingSection(null), 1500);
       } else {
-        setEditError(result.error || 'domains.dnsRecordError');
+        setEditError(result.error || t('domains.dnsRecordError'));
       }
     } catch (err) {
-      setEditError(err.message || 'domains.dnsRecordError');
+      setEditError(err.message || t('domains.dnsRecordError'));
     } finally {
       setEditSaving(false);
     }
@@ -360,12 +360,12 @@ const Domains = () => {
     setEditError(null);
     setEditSuccess(null);
     if (dmarcRua && !regexEmailStrict.test(dmarcRua.trim())) {
-      setEditError('domains.invalidEmail');
+      setEditError(t('domains.invalidEmail'));
       setEditSaving(false);
       return;
     }
     if (dmarcRuf && !regexEmailStrict.test(dmarcRuf.trim())) {
-      setEditError('domains.invalidEmail');
+      setEditError(t('domains.invalidEmail'));
       setEditSaving(false);
       return;
     }
@@ -376,14 +376,14 @@ const Domains = () => {
         data: record,
       });
       if (result.success) {
-        setEditSuccess('domains.dnsRecordSaved');
+        setEditSuccess(t('domains.dnsRecordSaved'));
         checkDns(modalDomain);
         setTimeout(() => setEditingSection(null), 1500);
       } else {
-        setEditError(result.error || 'domains.dnsRecordError');
+        setEditError(result.error || t('domains.dnsRecordError'));
       }
     } catch (err) {
-      setEditError(err.message || 'domains.dnsRecordError');
+      setEditError(err.message || t('domains.dnsRecordError'));
     } finally {
       setEditSaving(false);
     }
@@ -403,7 +403,7 @@ const Domains = () => {
     } catch (err) {
       setDkimPushResult({
         success: false,
-        error: err.message || 'domains.dkimPushError',
+        error: err.message || t('domains.dkimPushError'),
       });
     } finally {
       setDkimPushing(false);
