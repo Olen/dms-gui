@@ -15,6 +15,11 @@ WORKDIR /app/frontend
 # Copy frontend package.json and install dependencies
 COPY frontend/package*.json ./
 COPY common.*js* ../
+# vite.config.js reads ../package.json at build time to inject the
+# root version into the bundle (the About tab displays it). Without
+# this COPY, `npm run build` fails with ENOENT inside the multi-stage
+# builder, where only frontend/ would otherwise be present.
+COPY package.json ../
 
 RUN npm ci
 
