@@ -235,6 +235,7 @@
     "aboutDescription": "Docker-Mailserver GUI er et grafisk grensesnitt for administrasjon av Docker-Mailserver. Applikasjonen gjør det enkelt å administrere e-postkontoer, alias og overvåke serverstatus.",
     "aboutText": "Docker-Mailserver GUI er et grafisk grensesnitt for administrasjon av Docker-Mailserver. Applikasjonen gjør det enkelt å administrere e-postkontoer, alias og overvåke serverstatus.",
     "aboutTitle": "Om Docker-Mailserver GUI",
+    "aboutVersion": "Versjon {{version}}",
     "apiTest": "Test API",
     "dnsProvider": "DNS-leverandør API",
     "dnsProviderHelp": "Velg din DNS-leverandør; ser du ikke din? Send en PR!",
