@@ -31,6 +31,9 @@ export default [
       sourceType: 'module',
       globals: {
         ...globals.browser,
+        // Replaced at build time by Vite's `define` with the root
+        // package.json version string (see frontend/vite.config.js).
+        __APP_VERSION__: 'readonly',
       },
       parserOptions: {
         ecmaFeatures: { jsx: true },

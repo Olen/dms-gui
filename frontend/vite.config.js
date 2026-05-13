@@ -1,3 +1,6 @@
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 
@@ -6,6 +9,19 @@ import react from '@vitejs/plugin-react';
 // at build time, so call sites resolve to the env value at compile time
 // (no runtime `process` object needed in the browser).
 const API_URL = process.env.API_URL || '/api';
+
+// Read the repo-root package.json — the single source of truth for the
+// release version per CLAUDE.md ("backend/package.json and
+// frontend/package.json are internal-only and stay at 1.0.0"). Calls
+// to the literal `__APP_VERSION__` are replaced with the string at
+// build time so e.g. the About tab can show the running version
+// without a backend round-trip.
+const rootPkg = JSON.parse(
+  readFileSync(
+    resolve(dirname(fileURLToPath(import.meta.url)), '..', 'package.json'),
+    'utf8'
+  )
+);
 
 export default defineConfig({
   plugins: [react()],
@@ -24,6 +40,7 @@ export default defineConfig({
     // 'production' under `vite dev` when NODE_ENV is unset, breaking
     // React's dev warnings and other dev-only behaviour in dependencies.
     'process.env.API_URL': JSON.stringify(API_URL),
+    __APP_VERSION__: JSON.stringify(rootPkg.version),
   },
   server: {
     port: 3000,
