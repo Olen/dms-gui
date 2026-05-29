@@ -18,6 +18,14 @@ on:
   push:
     branches: [main]
 
+# Minimum permissions: we only check out the code and run tests.
+# No issue comments, no package writes, no tag creation. Declaring
+# this explicitly closes the CodeQL `actions/missing-workflow-
+# permissions` alert and follows the defense-in-depth principle that
+# every workflow should opt in to exactly the scopes it needs.
+permissions:
+  contents: read
+
 jobs:
   test:
     runs-on: ubuntu-latest
