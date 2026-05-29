@@ -92,7 +92,7 @@ LABEL org.opencontainers.image.description=${DMSGUI_DESCRIPTION}
 LABEL org.opencontainers.image.url="https://github.com/Olen/dms-gui"
 LABEL org.opencontainers.image.documentation="https://github.com/Olen/dms-gui/blob/deploy/README.md"
 LABEL org.opencontainers.image.source="https://github.com/Olen/dms-gui"
-LABEL org.opencontainers.image.base.name="docker.io/library/node:24.14.0-alpine"
+LABEL org.opencontainers.image.base.name="docker.io/library/node:24.16.0-alpine"
 # ARG invalidates cache when it is used by a layer (implicitly affects RUN)
 # Thus to maximize cache, keep these lines last:
 LABEL org.opencontainers.image.revision=${DMSGUI_VERSION}
