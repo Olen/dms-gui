@@ -17,6 +17,16 @@ version: 2
 
 updates:
   # Root npm — devDependencies only (eslint, husky, lint-staged, prettier).
+  #
+  # eslint 10 is held back until eslint-plugin-react widens its
+  # peerDependency range. Today (eslint-plugin-react@7.37.5) the
+  # range is "^3 || ^4 || ^5 || ^6 || ^7 || ^8 || ^9.7" — installing
+  # eslint 10 fails with ERESOLVE. Upstream merged the prep work in
+  # https://github.com/jsx-eslint/eslint-plugin-react/pull/4006
+  # (2026-05-13); a release widening the peer range should follow.
+  # When eslint-plugin-react publishes that release: remove this
+  # ignore block, let Dependabot reopen the bump, and verify
+  # `npm install` and `npm run lint` both pass.
   - package-ecosystem: "npm"
     directory: "/"
     target-branch: "main"
@@ -33,6 +43,11 @@ updates:
         update-types:
           - "minor"
           - "patch"
+    ignore:
+      - dependency-name: "eslint"
+        update-types: ["version-update:semver-major"]
+      - dependency-name: "@eslint/js"
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: "npm"
     directory: "/backend"
