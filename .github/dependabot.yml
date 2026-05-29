@@ -3,9 +3,20 @@ version: 2
 # Dependabot opens PRs against `main` (the primary branch).
 # `upstream-snapshot` preserves the original fork point and must
 # never receive automated commits.
+#
+# Grouping strategy: minor + patch updates are collapsed per
+# ecosystem-directory into one PR per dependency-type. Major bumps
+# fall out of the group and arrive as individual PRs so each one
+# still gets its own review. This keeps PR churn low without losing
+# review granularity where it actually matters (breaking changes).
+#
+# The 5-PR limit per ecosystem-directory is preserved as a safety
+# rail. With grouping, hitting it now means real work (groups + a
+# stack of individual major bumps), not background noise from
+# routine patch updates.
 
 updates:
-  # Root npm — devDependencies (eslint, husky, lint-staged)
+  # Root npm — devDependencies only (eslint, husky, lint-staged, prettier).
   - package-ecosystem: "npm"
     directory: "/"
     target-branch: "main"
@@ -16,6 +27,12 @@ updates:
       prefix: "deps"
     labels:
       - "dependencies"
+    groups:
+      development-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/backend"
@@ -28,6 +45,17 @@ updates:
     labels:
       - "dependencies"
       - "backend"
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
 
   - package-ecosystem: "npm"
     directory: "/frontend"
@@ -40,6 +68,17 @@ updates:
     labels:
       - "dependencies"
       - "frontend"
+    groups:
+      production-deps:
+        dependency-type: "production"
+        update-types:
+          - "minor"
+          - "patch"
+      development-deps:
+        dependency-type: "development"
+        update-types:
+          - "minor"
+          - "patch"
 
   # GitHub Actions in .github/workflows — catches the Node 20 → 24
   # action upgrades (actions/checkout, docker/*-action, etc.) once
@@ -54,6 +93,13 @@ updates:
     labels:
       - "dependencies"
       - "ci"
+    groups:
+      github-actions:
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
 
   # Dockerfile base image (currently node:24.14.0-alpine).
   - package-ecosystem: "docker"

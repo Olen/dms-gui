@@ -1,0 +1,50 @@
+name: Tests
+
+# Runs the backend + frontend test suites on every PR and on every
+# push to main. This is the gate that catches regressions — and the
+# only one that fires on Dependabot PRs, since release.yml is scoped
+# to release commits (its `test` job is guarded by should_release).
+#
+# release.yml still has its own duplicate `test` job. That redundancy
+# is intentional: it keeps build-and-publish gated on a fresh test
+# run in the same workflow, rather than depending on a sibling
+# workflow's completion via workflow_run.
+#
+# Security note: no `github.event.*` / `github.head_ref` strings are
+# interpolated into run: blocks here. All shell input is static.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: |
+            backend/package-lock.json
+            frontend/package-lock.json
+
+      - name: Backend tests
+        working-directory: backend
+        env:
+          # sql.mjs interpolates env.DMSGUI_VERSION at module load —
+          # set it explicitly so the SQL templates resolve to a clean
+          # string rather than literal "undefined".
+          DMSGUI_VERSION: test
+        run: |
+          npm ci
+          npx vitest run
+
+      - name: Frontend tests
+        working-directory: frontend
+        run: |
+          npm ci
+          npx vitest run
