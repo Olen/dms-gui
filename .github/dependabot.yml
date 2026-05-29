@@ -102,6 +102,16 @@ updates:
           - "patch"
 
   # Dockerfile base image (currently node:24.14.0-alpine).
+  #
+  # We ignore major bumps for `node` so Dependabot only proposes
+  # patch/minor updates within the current LTS line (24.x → 24.x).
+  # Node's release cadence puts every odd major on the "Current"
+  # track (never LTS) and only promotes an even major to LTS roughly
+  # six months after release — production should not auto-track those.
+  # When the next even major becomes LTS, bump `node-version` in
+  # .github/workflows/{test,release}.yml + the `FROM` lines + the
+  # OCI label on Dockerfile:95 together in one commit and let
+  # Dependabot resume minor tracking on the new line.
   - package-ecosystem: "docker"
     directory: "/"
     target-branch: "main"
@@ -112,3 +122,6 @@ updates:
     labels:
       - "dependencies"
       - "docker"
+    ignore:
+      - dependency-name: "node"
+        update-types: ["version-update:semver-major"]
