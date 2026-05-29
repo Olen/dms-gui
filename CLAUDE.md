@@ -16,19 +16,19 @@ Web GUI for docker-mailserver (DMS). React frontend (webpack, Bootstrap) + Node.
 ```
 main                        ← primary development + production branch
   └── feature/<name>        ← optional branches for larger features
+  └── dependabot/*          ← ephemeral, owned by Dependabot
 upstream-snapshot           ← frozen at the original fork point (audioscavenger/dms-gui v1.5.23)
-fix/*                       ← archived branches mapped to upstream PRs #7–#25 (still open, no engagement)
 ```
 
-This repo was forked from [audioscavenger/dms-gui](https://github.com/audioscavenger/dms-gui) at version 1.5.23 (tag `fork-from-upstream-1.5.23`). Since the fork, this repo has diverged 230+ commits while upstream has made one. The 18 `fix/*` branches were sent as PRs to upstream but received no review; they remain pushed to origin as archived snapshots of those proposals.
+This repo was forked from [audioscavenger/dms-gui](https://github.com/audioscavenger/dms-gui) at version 1.5.23 (tag `fork-from-upstream-1.5.23`). Since the fork, this repo has diverged 230+ commits while upstream has made one. Eighteen `fix/*` proposals were sent back to upstream in February 2026; after 3+ months with zero review they were closed on 2026-05-29 and the corresponding origin branches deleted. There is no longer any expectation of upstream collaboration.
 
-The `upstream` git remote (`https://github.com/audioscavenger/dms-gui.git`) is kept available locally for cherry-picks if upstream ever revives, but routine development assumes no upstream collaboration.
+The `upstream` git remote (`https://github.com/audioscavenger/dms-gui.git`) is kept available locally for cherry-picks if upstream ever revives, but in practice routine development treats this as an independent project.
 
 ### Core rules
 1. **`main` is the primary branch** — all development happens here
 2. **Feature branches are optional** — use `feature/<name>` off `main` for larger multi-commit work, merge back when done
 3. **`upstream-snapshot` is frozen** — do not commit to it; it preserves the upstream fork point for historical reference
-4. **`fix/*` branches are archived** — they still exist for the open upstream PRs but are not actively maintained
+4. **Dependabot branches are ephemeral** — they exist only until the PR is merged or closed (auto-deleted by GitHub)
 
 ### Day-to-day workflow
 
