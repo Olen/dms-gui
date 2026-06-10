@@ -24,6 +24,57 @@ import { debugLog } from '../backend.mjs';
 const router = Router();
 router.param('containerName', validateContainerName);
 
+// Container-scoping authorization shared by /status and /envs. Verifies the
+// caller may access `containerName` under `plugin`, mirroring the per-mailbox
+// role model settings.mjs uses: admins see every config; non-admins on the
+// mailserver plugin are scoped to their mailbox roles; non-admins on other
+// plugins are scoped to their own login id. Returns true when access is
+// allowed (no response sent). On denial or an operational getConfigs failure
+// it sends the response (403 or 500) and returns false, so callers do
+// `if (!(await assertContainerAccess(...))) return;`.
+//
+// The empty-roles guard is load-bearing: getConfigs(plugin, []) is the admin
+// path (no scope filter → all configs), so a non-admin with no mailbox roles
+// on the mailserver plugin must be rejected upfront rather than handed every
+// container. Non-mailserver plugins always pass a one-element [req.user.id],
+// so they can't hit that bypass — the guard is mailserver-specific.
+const assertContainerAccess = async (req, res, plugin, containerName) => {
+  if (
+    !req.user.isAdmin &&
+    plugin === 'mailserver' &&
+    (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
+  ) {
+    denyPermission(res);
+    return false;
+  }
+
+  const configsScope = req.user.isAdmin
+    ? []
+    : plugin === 'mailserver'
+      ? req.user.roles
+      : [req.user.id];
+  const configs = await getConfigs(plugin, configsScope);
+  // Distinguish operational getConfigs failures (DB locked, plugin
+  // misconfigured) from real permission denials: a 500 here keeps
+  // "Permission denied" toasts from firing during a database hiccup.
+  // Detailed error stays server-side via serverError — the client gets
+  // the generic 500 body so DB internals don't leak in the response.
+  if (!configs.success) {
+    serverError(
+      res,
+      'assertContainerAccess getConfigs',
+      new Error(configs.error || 'unknown error')
+    );
+    return false;
+  }
+  const validContainers = (configs.message || []).map((c) => c.value);
+  if (!validContainers.includes(containerName)) {
+    denyPermission(res);
+    return false;
+  }
+  return true;
+};
+
 /**
  * @swagger
  * /api/status/{plugin}/{containerName}:
@@ -101,57 +152,14 @@ router.post(
       // presence check, any authenticated user could submit a
       // hostname-shaped string in the path param and trigger a
       // server-side ping/setup_help against it, turning the endpoint
-      // into a network scanner. Verify the containerName is in the
-      // caller's accessible config set first. Skipped when an
+      // into a network scanner. Verify the caller may access the
+      // container first (see assertContainerAccess). Skipped when an
       // override is actually in play (admin testing a NEW container
       // that isn't yet in the DB — the legitimate FormContainerAdd
       // flow).
       if (!hasOverride) {
-        // Scope the config lookup the same way settings.js does:
-        // admins see everything; non-admins on mailserver see configs
-        // they have a mailbox role for; non-admins on non-mailserver
-        // plugins see configs scoped to their login id. Passing
-        // req.user.roles unconditionally would return zero configs
-        // for non-mailserver plugins and yield false 403s.
-        //
-        // Important guard: getConfigs treats an empty `roles` array
-        // as the admin path (no scope filter → all configs). A
-        // non-admin with no mailbox roles on the mailserver plugin
-        // would therefore be granted access to every container's
-        // status. Reject upfront for that case rather than calling
-        // getConfigs with `[]`. (Non-mailserver plugins always pass
-        // a one-element `[req.user.id]` so this special case is
-        // mailserver-specific.)
-        if (
-          !req.user.isAdmin &&
-          plugin === 'mailserver' &&
-          (!Array.isArray(req.user.roles) || req.user.roles.length === 0)
-        ) {
-          return denyPermission(res);
-        }
-        const configsScope = req.user.isAdmin
-          ? []
-          : plugin === 'mailserver'
-            ? req.user.roles
-            : [req.user.id];
-        const configs = await getConfigs(plugin, configsScope);
-        // Distinguish operational getConfigs failures (DB locked,
-        // plugin misconfigured) from real permission denials: a 500
-        // here keeps "Permission denied" toasts from firing during a
-        // database hiccup. Detailed error stays server-side via
-        // serverError — the client gets the generic 500 body so DB
-        // internals don't leak in the response.
-        if (!configs.success) {
-          return serverError(
-            res,
-            'POST /api/status getConfigs',
-            new Error(configs.error || 'unknown error')
-          );
-        }
-        const validContainers = (configs.message || []).map((c) => c.value);
-        if (!validContainers.includes(containerName)) {
-          return denyPermission(res);
-        }
+        if (!(await assertContainerAccess(req, res, plugin, containerName)))
+          return;
       }
 
       const status = await getServerStatus(
@@ -243,6 +251,14 @@ router.get(
   async (req, res) => {
     try {
       const { plugin, containerName } = req.params;
+
+      // Same container-scoping gate as /status: without it any active
+      // user could read the parsed DMS environment of an arbitrary
+      // container by varying the path param (and, on ?refresh=true,
+      // trigger a pull against its stored target). There is no
+      // settings-override path here, so the check is unconditional.
+      if (!(await assertContainerAccess(req, res, plugin, containerName)))
+        return;
 
       // Robust to both the production query parser (booleans) and any
       // caller / test that uses Express's default parser (strings).
