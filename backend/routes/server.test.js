@@ -313,3 +313,102 @@ describe('POST /api/status/:plugin/:containerName — SSRF gates (CodeQL #68)', 
     expect(mockGetServerStatus).toHaveBeenCalledOnce();
   });
 });
+
+describe('GET /api/envs/:plugin/:containerName — container-scoping authorization', () => {
+  // Same container-scoping gate as POST /status: any active user could
+  // otherwise retrieve the parsed DMS environment of an arbitrary
+  // container by varying the path param. The route must verify the
+  // requested containerName is in the caller's accessible config set
+  // (and reject the empty-roles → admin-path bypass) before calling
+  // getServerEnvs. There is no settings-override path here.
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockGetServerEnvs.mockResolvedValue({
+      success: true,
+      message: [{ name: 'DOVECOT_FTS_PLUGIN', value: 'xapian' }],
+    });
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'dms', plugin: 'mailserver' }],
+    });
+  });
+
+  it('returns 403 when a non-admin requests a containerName not in their roles', async () => {
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'other-container' }],
+    });
+
+    const res = await request(app)
+      .get('/api/envs/mailserver/dms')
+      .set('Cookie', [`accessToken=${userToken}`]);
+
+    expect(res.status).toBe(403);
+    expect(mockGetServerEnvs).not.toHaveBeenCalled();
+  });
+
+  it('returns 403 for a non-admin with empty roles on the mailserver plugin (no getConfigs call)', async () => {
+    // getConfigs treats an empty roles array as the admin path and
+    // returns ALL configs — the route must reject upfront before any
+    // DB lookup, same as /status.
+    const res = await request(app)
+      .get('/api/envs/mailserver/dms')
+      .set('Cookie', [`accessToken=${rolelessUserToken}`]);
+
+    expect(res.status).toBe(403);
+    expect(mockGetConfigs).not.toHaveBeenCalled();
+    expect(mockGetServerEnvs).not.toHaveBeenCalled();
+  });
+
+  it('returns 500 when getConfigs fails (operational error, not 403)', async () => {
+    mockGetConfigs.mockResolvedValue({
+      success: false,
+      error: 'database is locked',
+    });
+
+    const res = await request(app)
+      .get('/api/envs/mailserver/dms')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(500);
+    expect(JSON.stringify(res.body)).not.toContain('database is locked');
+    expect(mockGetServerEnvs).not.toHaveBeenCalled();
+  });
+
+  it('admin reaches getServerEnvs for any container (getConfigs scoped with [])', async () => {
+    const res = await request(app)
+      .get('/api/envs/mailserver/dms')
+      .set('Cookie', [`accessToken=${adminToken}`]);
+
+    expect(res.status).toBe(200);
+    expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', []);
+    expect(mockGetServerEnvs).toHaveBeenCalledOnce();
+  });
+
+  it('non-admin with a matching role reaches getServerEnvs (getConfigs scoped by roles)', async () => {
+    const res = await request(app)
+      .get('/api/envs/mailserver/dms')
+      .set('Cookie', [`accessToken=${userToken}`]);
+
+    expect(res.status).toBe(200);
+    expect(mockGetConfigs).toHaveBeenCalledWith('mailserver', [
+      'user@test.com',
+    ]);
+    expect(mockGetServerEnvs).toHaveBeenCalledOnce();
+  });
+
+  it('non-admin on a non-mailserver plugin is scoped by [req.user.id]', async () => {
+    mockGetConfigs.mockResolvedValue({
+      success: true,
+      message: [{ value: 'some-host' }],
+    });
+
+    const res = await request(app)
+      .get('/api/envs/dns-control/some-host')
+      .set('Cookie', [`accessToken=${userToken}`]);
+
+    expect(res.status).toBe(200);
+    expect(mockGetConfigs).toHaveBeenCalledWith('dns-control', [2]);
+    expect(mockGetServerEnvs).toHaveBeenCalledOnce();
+  });
+});
