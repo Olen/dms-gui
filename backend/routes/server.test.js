@@ -375,7 +375,7 @@ describe('GET /api/envs/:plugin/:containerName — container-scoping authorizati
     expect(mockGetServerEnvs).not.toHaveBeenCalled();
   });
 
-  it('admin reaches getServerEnvs for any container (getConfigs scoped with [])', async () => {
+  it('admin reaches getServerEnvs for a configured container (getConfigs scoped with [])', async () => {
     const res = await request(app)
       .get('/api/envs/mailserver/dms')
       .set('Cookie', [`accessToken=${adminToken}`]);

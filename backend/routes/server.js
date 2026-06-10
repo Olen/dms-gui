@@ -26,7 +26,7 @@ router.param('containerName', validateContainerName);
 
 // Container-scoping authorization shared by /status and /envs. Verifies the
 // caller may access `containerName` under `plugin`, mirroring the per-mailbox
-// role model settings.js uses: admins see every config; non-admins on the
+// role model settings.mjs uses: admins see every config; non-admins on the
 // mailserver plugin are scoped to their mailbox roles; non-admins on other
 // plugins are scoped to their own login id. Returns true when access is
 // allowed (no response sent). On denial or an operational getConfigs failure
