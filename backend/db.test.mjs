@@ -94,6 +94,31 @@ describe('encrypt / decrypt roundtrip', () => {
     expect(() => decrypt(tampered)).toThrow();
   });
 
+  it('rejects a GCM ciphertext carrying a downgraded (short) auth tag', () => {
+    // A valid 16-byte GCM tag gives 2^-128 forgery resistance; a 4-byte
+    // tag drops that to 2^-32. createDecipheriv accepts any GCM-legal tag
+    // length unless authTagLength is pinned, so an attacker who controls
+    // the stored ciphertext could downgrade the tag and brute-force a
+    // match. Craft a ciphertext with a *valid* 4-byte tag (generated with
+    // authTagLength: 4 so it authenticates under a permissive decipher)
+    // and assert decrypt refuses it outright.
+    const key = crypto
+      .createHash('sha512')
+      .update(testSecret)
+      .digest()
+      .subarray(0, 32);
+    const iv = crypto.randomBytes(16);
+    const cipher = crypto.createCipheriv('aes-256-gcm', key, iv, {
+      authTagLength: 4,
+    });
+    let ct = cipher.update('downgrade-payload', 'utf-8', 'hex');
+    ct += cipher.final('hex');
+    const shortTag = cipher.getAuthTag().toString('hex'); // 4 bytes / 8 hex
+    const forged = `g1:${iv.toString('hex')}:${shortTag}:${ct}`;
+
+    expect(() => decrypt(forged)).toThrow();
+  });
+
   it('roundtrips a long string (API key length)', () => {
     const plaintext = 'dms-d6657c97-abcd-1234-5678-3e3d43478f41';
     const ciphertext = encrypt(plaintext);

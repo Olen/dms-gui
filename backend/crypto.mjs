@@ -49,10 +49,16 @@ export const decrypt = (encryptedData) => {
     const [ivHex, tagHex, ciphertextHex] = parts;
     const iv = Buffer.from(ivHex, 'hex');
     const tag = Buffer.from(tagHex, 'hex');
+    // Pin the tag length to the full 16 bytes. Without authTagLength,
+    // createDecipheriv accepts any GCM-legal tag length (4..16 bytes), so a
+    // ciphertext carrying a downgraded short tag — far easier to forge —
+    // would still be accepted. Pinning it makes setAuthTag reject anything
+    // shorter than a full-strength tag outright.
     const decipher = crypto.createDecipheriv(
       'aes-256-gcm',
       Buffer.from(env.AES_KEY),
-      iv
+      iv,
+      { authTagLength: 16 }
     );
     decipher.setAuthTag(tag);
     let decrypted = decipher.update(ciphertextHex, 'hex', 'utf-8');
