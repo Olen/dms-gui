@@ -24,7 +24,7 @@
   "license": "ISC",
   "description": "Frontend GUI for DMS",
   "dependencies": {
-    "axios": "^1.17.0",
+    "axios": "^1.18.0",
     "bootstrap": "^5.3.8",
     "bootstrap-icons": "^1.13.1",
     "i18next": "^26.3.1",
