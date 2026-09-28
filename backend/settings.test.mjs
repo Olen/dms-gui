@@ -141,27 +141,33 @@ describe('classifyMissingAuthTargetDict', () => {
 });
 
 describe('generateDkim dispatch', () => {
-  // generateDkim picks one of four manifest action ids based on the
-  // (keytype, force) tuple. The argv templates differ — RSA bakes in
-  // `keysize`, ed25519 omits it — so a wrong dispatch silently runs
-  // a malformed setup.sh invocation. These tests pin the mapping.
+  // generateDkim picks one of four rspamadm dkim_keygen action ids based on the
+  // (keytype, force) tuple. RSA actions carry `keysize`, ed25519 omit it, and
+  // all write the key straight to `keypath`. A wrong dispatch would run a
+  // malformed keygen, so these tests pin the mapping.
   beforeEach(() => {
     vi.clearAllMocks();
     getTargetDict.mockReturnValue({
       setupPath: '/usr/local/bin/setup',
       Authorization: 'Bearer test',
     });
-    // Make the dispatch call fail-fast so the function returns before
-    // the post-generation mkdir/cp/chown chain (which we don't want
-    // to assert on here — that's a separate concern).
-    execAction.mockResolvedValue({
-      returncode: 1,
-      stderr: 'short-circuit',
-      stdout: '',
-    });
+    // mkdir_p (the first call) succeeds; the keygen call short-circuits with a
+    // non-zero returncode so we return before the chown / DNS-parse tail
+    // (not asserted here — a separate concern).
+    execAction.mockImplementation((actionId) =>
+      Promise.resolve(
+        actionId === 'mkdir_p'
+          ? { returncode: 0, stdout: '', stderr: '' }
+          : { returncode: 1, stdout: '', stderr: 'short-circuit' }
+      )
+    );
   });
 
-  it('routes RSA without force to setup_dkim_generate_rsa with keysize', async () => {
+  // The keygen call is not calls[0] anymore — mkdir_p runs first — so locate it.
+  const keygenCall = () =>
+    execAction.mock.calls.find((c) => c[0].startsWith('rspamd_dkim_keygen'));
+
+  it('routes RSA without force to rspamd_dkim_keygen_rsa with keysize + keypath', async () => {
     await generateDkim(
       'mailserver',
       'dms',
@@ -171,19 +177,19 @@ describe('generateDkim dispatch', () => {
       'mail',
       false
     );
-    expect(execAction).toHaveBeenCalledOnce();
-    const [actionId, args] = execAction.mock.calls[0];
-    expect(actionId).toBe('setup_dkim_generate_rsa');
+    const [actionId, args] = keygenCall();
+    expect(actionId).toBe('rspamd_dkim_keygen_rsa');
     expect(args).toEqual({
-      setup_path: '/usr/local/bin/setup',
-      keytype: 'rsa',
       keysize: '2048',
       selector: 'mail',
       domain: 'example.com',
+      keypath: expect.stringContaining(
+        '/rspamd/dkim/keys/example.com/mail.private'
+      ),
     });
   });
 
-  it('routes RSA with force to setup_dkim_generate_rsa_force with keysize', async () => {
+  it('routes RSA with force to rspamd_dkim_keygen_rsa_force with keysize', async () => {
     await generateDkim(
       'mailserver',
       'dms',
@@ -193,12 +199,12 @@ describe('generateDkim dispatch', () => {
       'mail',
       true
     );
-    const [actionId, args] = execAction.mock.calls[0];
-    expect(actionId).toBe('setup_dkim_generate_rsa_force');
+    const [actionId, args] = keygenCall();
+    expect(actionId).toBe('rspamd_dkim_keygen_rsa_force');
     expect(args.keysize).toBe('4096');
   });
 
-  it('routes ed25519 without force to setup_dkim_generate (no keysize)', async () => {
+  it('routes ed25519 without force to rspamd_dkim_keygen_ed25519 (no keysize)', async () => {
     await generateDkim(
       'mailserver',
       'dms',
@@ -208,12 +214,12 @@ describe('generateDkim dispatch', () => {
       'mail',
       false
     );
-    const [actionId, args] = execAction.mock.calls[0];
-    expect(actionId).toBe('setup_dkim_generate');
+    const [actionId, args] = keygenCall();
+    expect(actionId).toBe('rspamd_dkim_keygen_ed25519');
     expect(args).not.toHaveProperty('keysize');
   });
 
-  it('routes ed25519 with force to setup_dkim_generate_force (no keysize)', async () => {
+  it('routes ed25519 with force to rspamd_dkim_keygen_ed25519_force (no keysize)', async () => {
     await generateDkim(
       'mailserver',
       'dms',
@@ -223,8 +229,8 @@ describe('generateDkim dispatch', () => {
       'mail',
       true
     );
-    const [actionId, args] = execAction.mock.calls[0];
-    expect(actionId).toBe('setup_dkim_generate_force');
+    const [actionId, args] = keygenCall();
+    expect(actionId).toBe('rspamd_dkim_keygen_ed25519_force');
     expect(args).not.toHaveProperty('keysize');
   });
 
@@ -241,7 +247,7 @@ describe('generateDkim dispatch', () => {
       'Mail',
       false
     );
-    const [, args] = execAction.mock.calls[0];
+    const [, args] = keygenCall();
     expect(args.domain).toBe('example.com');
     expect(args.selector).toBe('mail');
   });

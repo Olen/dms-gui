@@ -110,12 +110,10 @@ const PASSWORD_VALIDATOR = {
   maxlen: 256,
 };
 
-// DKIM keytype validators are split per-action so the action allowlist
-// matches the command shape: an RSA-only action with `keysize` baked
-// into argv must reject `keytype=ed25519` outright, and an ed25519-only
-// action without `keysize` must reject `keytype=rsa`.
-const KEYTYPE_RSA_VALIDATOR = { enum: ['rsa'] };
-const KEYTYPE_NORSA_VALIDATOR = { enum: ['ed25519'] };
+// DKIM keytype is baked into each keygen action's argv as a literal ('rsa' /
+// 'ed25519'), so there is no keytype placeholder to validate — the RSA actions
+// carry `keysize`, the ed25519 actions omit it, and generateDkim dispatches to
+// the matching action id.
 // DKIM keysize: accepts 1024, 2048, or 4096 (generateDkim validates all three).
 const KEYSIZE_VALIDATOR = { enum: ['1024', '2048', '4096'] };
 // DKIM selector: lowercase alphanumeric + hyphen + underscore, per RFC 6376.
@@ -570,96 +568,109 @@ export const REST_API_MANIFEST = [
       setup_path: SETUP_PATH_VALIDATOR,
     },
   },
-  // Generate RSA DKIM key (keysize required for rsa).
+  // Generate an RSA DKIM key with rspamd's native keygen, writing the private
+  // key straight into the rspamd keys/ layout (`-k {keypath}`). We use rspamadm
+  // rather than DMS `setup config dkim` because in DMS v16 that command became
+  // OpenDKIM-only (drops `keytype`, writes to opendkim/keys/, warns on rspamd
+  // conflict). rspamadm works on rspamd 4.x regardless of DMS version.
+  // `-o dnskey` emits a single-line `v=DKIM1; ...` record on stdout.
   {
-    id: 'setup_dkim_generate_rsa',
+    id: 'rspamd_dkim_keygen_rsa',
     argv: [
-      '{setup_path}',
-      'config',
-      'dkim',
-      'keytype',
-      '{keytype}',
-      'keysize',
+      'rspamadm',
+      'dkim_keygen',
+      '-t',
+      'rsa',
+      '-b',
       '{keysize}',
-      'selector',
+      '-s',
       '{selector}',
-      'domain',
+      '-d',
       '{domain}',
+      '-k',
+      '{keypath}',
+      '-o',
+      'dnskey',
     ],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-      keytype: KEYTYPE_RSA_VALIDATOR,
       keysize: KEYSIZE_VALIDATOR,
       selector: SELECTOR_VALIDATOR,
       domain: DOMAIN_VALIDATOR,
+      keypath: DKIM_KEY_PATH_VALIDATOR,
     },
   },
-  // Same as setup_dkim_generate_rsa but with trailing --force flag.
+  // Same as rspamd_dkim_keygen_rsa but overwrites an existing key file (-f).
   {
-    id: 'setup_dkim_generate_rsa_force',
+    id: 'rspamd_dkim_keygen_rsa_force',
     argv: [
-      '{setup_path}',
-      'config',
-      'dkim',
-      'keytype',
-      '{keytype}',
-      'keysize',
+      'rspamadm',
+      'dkim_keygen',
+      '-t',
+      'rsa',
+      '-b',
       '{keysize}',
-      'selector',
+      '-s',
       '{selector}',
-      'domain',
+      '-d',
       '{domain}',
-      '--force',
+      '-k',
+      '{keypath}',
+      '-o',
+      'dnskey',
+      '-f',
     ],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-      keytype: KEYTYPE_RSA_VALIDATOR,
       keysize: KEYSIZE_VALIDATOR,
       selector: SELECTOR_VALIDATOR,
       domain: DOMAIN_VALIDATOR,
+      keypath: DKIM_KEY_PATH_VALIDATOR,
     },
   },
-  // Generate non-RSA DKIM key (no keysize arg; keytype must not be 'rsa').
+  // Generate an ed25519 DKIM key (no keysize).
   {
-    id: 'setup_dkim_generate',
+    id: 'rspamd_dkim_keygen_ed25519',
     argv: [
-      '{setup_path}',
-      'config',
-      'dkim',
-      'keytype',
-      '{keytype}',
-      'selector',
+      'rspamadm',
+      'dkim_keygen',
+      '-t',
+      'ed25519',
+      '-s',
       '{selector}',
-      'domain',
+      '-d',
       '{domain}',
+      '-k',
+      '{keypath}',
+      '-o',
+      'dnskey',
     ],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-      keytype: KEYTYPE_NORSA_VALIDATOR,
       selector: SELECTOR_VALIDATOR,
       domain: DOMAIN_VALIDATOR,
+      keypath: DKIM_KEY_PATH_VALIDATOR,
     },
   },
-  // Same as setup_dkim_generate but with trailing --force flag.
+  // Same as rspamd_dkim_keygen_ed25519 but overwrites an existing key file (-f).
   {
-    id: 'setup_dkim_generate_force',
+    id: 'rspamd_dkim_keygen_ed25519_force',
     argv: [
-      '{setup_path}',
-      'config',
-      'dkim',
-      'keytype',
-      '{keytype}',
-      'selector',
+      'rspamadm',
+      'dkim_keygen',
+      '-t',
+      'ed25519',
+      '-s',
       '{selector}',
-      'domain',
+      '-d',
       '{domain}',
-      '--force',
+      '-k',
+      '{keypath}',
+      '-o',
+      'dnskey',
+      '-f',
     ],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-      keytype: KEYTYPE_NORSA_VALIDATOR,
       selector: SELECTOR_VALIDATOR,
       domain: DOMAIN_VALIDATOR,
+      keypath: DKIM_KEY_PATH_VALIDATOR,
     },
   },
 

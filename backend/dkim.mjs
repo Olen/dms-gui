@@ -69,82 +69,57 @@ export const generateDkim = async (
 
   const targetDict = getTargetDict(plugin, containerName);
 
+  // rspamadm dkim_keygen writes the private key directly to `-k {keypath}`, so
+  // we generate straight into the layout rspamd signs from
+  // (…/rspamd/dkim/keys/$domain/$selector.private) — no flat-file + copy dance.
+  // The directory must exist first (rspamadm won't create parents), so mkdir_p
+  // runs before keygen. DKIM_KEY_PATH_VALIDATOR / DKIM_DIR_VALIDATOR constrain
+  // these paths to the rspamd dkim subtree, derived from env.DMS_CONFIG_PATH.
+  const dkimBase = `${env.DMS_CONFIG_PATH}/rspamd/dkim`;
+  const keysDir = `${dkimBase}/keys/${domain}`;
+  const keysDest = `${keysDir}/${selector}.private`;
+
+  try {
+    await execAction('mkdir_p', { dir: keysDir }, targetDict, { timeout: 10 });
+  } catch (e) {
+    return {
+      success: false,
+      error: `Could not create DKIM key directory: ${e.message}`,
+    };
+  }
+
   // Dispatch to one of four action ids based on keytype and force flag.
   // Action ids are inlined as literals so the build-time manifest invariant
   // test (restApiManifest.test.mjs) can statically verify each id exists.
   let result;
   if (keytype === 'rsa') {
-    if (force) {
-      result = await execAction(
-        'setup_dkim_generate_rsa_force',
-        {
-          setup_path: targetDict.setupPath,
-          keytype,
-          keysize: String(keysize),
-          selector,
-          domain,
-        },
-        targetDict,
-        { timeout: 30 }
-      );
-    } else {
-      result = await execAction(
-        'setup_dkim_generate_rsa',
-        {
-          setup_path: targetDict.setupPath,
-          keytype,
-          keysize: String(keysize),
-          selector,
-          domain,
-        },
-        targetDict,
-        { timeout: 30 }
-      );
-    }
+    result = await execAction(
+      force ? 'rspamd_dkim_keygen_rsa_force' : 'rspamd_dkim_keygen_rsa',
+      { keysize: String(keysize), selector, domain, keypath: keysDest },
+      targetDict,
+      { timeout: 30 }
+    );
   } else {
-    if (force) {
-      result = await execAction(
-        'setup_dkim_generate_force',
-        { setup_path: targetDict.setupPath, keytype, selector, domain },
-        targetDict,
-        { timeout: 30 }
-      );
-    } else {
-      result = await execAction(
-        'setup_dkim_generate',
-        { setup_path: targetDict.setupPath, keytype, selector, domain },
-        targetDict,
-        { timeout: 30 }
-      );
-    }
+    result = await execAction(
+      force ? 'rspamd_dkim_keygen_ed25519_force' : 'rspamd_dkim_keygen_ed25519',
+      { selector, domain, keypath: keysDest },
+      targetDict,
+      { timeout: 30 }
+    );
   }
 
   if (result.returncode)
     return { success: false, error: result.stderr || 'DKIM generation failed' };
 
-  // DMS generates flat key files (e.g. rsa-2048-default-example.com.private.txt).
-  // The signing config uses path = "...keys/$domain/$selector.private", so copy
-  // the private key into that structure for rspamd to find it.
-  // mkdir_p, cp_file and chown_rspamd_recursive validators require paths under
-  // DMS_CONFIG_PATH/rspamd/dkim/; DKIM_DIR_VALIDATOR in restApiManifest.mjs
-  // is derived from env.DMS_CONFIG_PATH so both sides stay in sync.
-  const dkimBase = `${env.DMS_CONFIG_PATH}/rspamd/dkim`;
-  const flatKey = `${dkimBase}/${keytype}-${keysize}-${selector}-${domain}.private.txt`;
-  const keysDir = `${dkimBase}/keys/${domain}`;
-  const keysDest = `${keysDir}/${selector}.private`;
+  // Key was written as root by the interpreter; hand ownership to rspamd so the
+  // signing worker can read it.
   try {
-    await execAction('mkdir_p', { dir: keysDir }, targetDict, { timeout: 10 });
-    await execAction('cp_file', { src: flatKey, dst: keysDest }, targetDict, {
-      timeout: 10,
-    });
     await execAction('chown_rspamd_recursive', { dir: keysDir }, targetDict, {
       timeout: 10,
     });
-    debugLog(`generateDkim: copied key to ${keysDest}`);
+    debugLog(`generateDkim: wrote key to ${keysDest}`);
   } catch (e) {
-    infoLog(
-      `generateDkim: could not copy key to keys/ structure: ${e.message}`
-    );
+    infoLog(`generateDkim: could not chown keys/ structure: ${e.message}`);
   }
 
   // Parse the DNS record from stdout (line containing "v=DKIM1;")

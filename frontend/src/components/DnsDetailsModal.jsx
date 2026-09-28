@@ -90,7 +90,7 @@ const DnsDetailsModal = ({
             </h6>
             {dns.mx?.length ? (
               <ul>
-                {dns.mx.map((r, i) => (
+                {dns.mx.filter(Boolean).map((r, i) => (
                   <li key={i}>
                     {r.priority} — {r.exchange}
                   </li>
@@ -473,7 +473,7 @@ const DnsDetailsModal = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {dns.tlsa.map((r, i) => (
+                  {dns.tlsa.filter(Boolean).map((r, i) => (
                     <tr key={i}>
                       <td>{r.port}</td>
                       <td>{TLSA_USAGE[r.usage] || r.usage}</td>
@@ -513,7 +513,7 @@ const DnsDetailsModal = ({
                   </tr>
                 </thead>
                 <tbody>
-                  {dns.srv.map((r, i) => (
+                  {dns.srv.filter(Boolean).map((r, i) => (
                     <tr key={i}>
                       <td>{r.service}</td>
                       <td>{r.priority}</td>
