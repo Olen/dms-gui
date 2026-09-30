@@ -617,6 +617,47 @@ export const changePassword = async (
         return { success: false, error: ErrorMsg };
       }
     } else {
+      // table === 'logins'
+      // Mail-account-linked logins (isAccount=1) authenticate via doveadm against
+      // the MAILBOX password (see logins.mjs loginUser) — the scrypt hash here is
+      // never consulted, so rewriting it is a silent no-op (bug: GUI reported
+      // success but the password never changed). Route the change to the mailbox
+      // (setup_email_update), exactly like the accounts branch, so an account
+      // login's GUI password stays == its mailbox password. Only the few
+      // non-account logins (admin/local) actually use the scrypt hash.
+      const login = dbGet(sql.logins.select.login, { id })?.message;
+      if (login && login.isAccount) {
+        const targetDict = getTargetDict('mailserver', login.mailserver);
+        debugLog(
+          `Login ${id} is mail account ${login.mailbox}; updating the mailbox password instead of the (unused) scrypt hash`
+        );
+        results = await execAction(
+          'setup_email_update',
+          {
+            setup_path: targetDict.setupPath,
+            mailbox: login.mailbox,
+            password,
+          },
+          targetDict
+        );
+        if (results.returncode) {
+          const ErrorMsg = await formatDMSError(
+            'setup_email_update',
+            results.stderr
+          );
+          errorLog(ErrorMsg);
+          return { success: false, error: ErrorMsg };
+        }
+        successLog(
+          `Password updated for mailbox ${login.mailbox} (isAccount login ${id})`
+        );
+        return {
+          success: true,
+          message: `Password updated for ${login.mailbox}`,
+        };
+      }
+
+      // non-account login (admin/local): the scrypt hash IS the credential
       debugLog(`Updating password for ${id} in ${table}...`);
       result = dbRun(
         sql.logins.update.password,
