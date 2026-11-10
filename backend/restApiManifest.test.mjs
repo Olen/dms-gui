@@ -79,6 +79,7 @@ describe('REST_API_MANIFEST required-IDs', () => {
       'curl_rspamd_stat',
       'curl_rspamd_history',
       'redis_eval_bayes_users',
+      'valkey_eval_bayes_users',
       'rspamd_learn',
       'rspamd_unlearn',
       'doveadm_search_message_id',

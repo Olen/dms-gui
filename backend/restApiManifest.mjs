@@ -27,6 +27,16 @@
 const DMS_CONFIG_PATH = process.env.DMS_CONFIG_PATH || '/tmp/docker-mailserver';
 const POSTFIX_REGEXP_FILE = `${DMS_CONFIG_PATH}/postfix-regexp.cf`;
 
+// Arguments after the CLI name for the Bayes-users EVAL; redis-cli and
+// valkey-cli accept the same ones. No per-call substitution needed.
+const BAYES_USERS_EVAL_ARGS = [
+  '--no-auth-warning',
+  '--raw', // preserve newlines in output; without this the CLI escapes them as backslash-n, breaking JS .split('\n')
+  'EVAL',
+  "local result = {} local keys = redis.call('KEYS', 'RS*') for _, k in ipairs(keys) do local user = k:sub(3) if user:find('@') and not user:find('_[%dA-Fa-f]') then local ham = redis.call('HGET', k, 'learns_ham') or '0' local spam = redis.call('HGET', k, 'learns_spam') or '0' table.insert(result, user .. ' ' .. ham .. ' ' .. spam) end end table.sort(result) return table.concat(result, '\\n')",
+  '0',
+];
+
 // Validator presets reused across multiple actions. Centralised here so
 // regex tweaks (e.g. aligning with common.mjs regexEmailStrict) are made
 // in one place rather than fanned across every action that takes a
@@ -743,21 +753,18 @@ export const REST_API_MANIFEST = [
     ],
   },
 
-  // ---- settings.mjs: Redis Bayes EVAL ----
+  // ---- rspamd.mjs: Bayes users EVAL ----
 
-  // Single Redis EVAL that lists per-user Bayes learn counts. The Lua script
-  // is baked in verbatim (after the .replace(/\n\s*/g,' ').trim() applied in
-  // settings.mjs). No per-call substitution needed.
+  // One EVAL that lists per-user Bayes learn counts, run with the CLI the DMS
+  // release ships: redis-cli up to v16, valkey-cli from v17 (Valkey replaced
+  // Redis). rspamd.mjs picks the action from DMS_RELEASE.
   {
     id: 'redis_eval_bayes_users',
-    argv: [
-      'redis-cli',
-      '--no-auth-warning',
-      '--raw', // preserve newlines in output; without this redis-cli escapes them as backslash-n, breaking JS .split('\n')
-      'EVAL',
-      "local result = {} local keys = redis.call('KEYS', 'RS*') for _, k in ipairs(keys) do local user = k:sub(3) if user:find('@') and not user:find('_[%dA-Fa-f]') then local ham = redis.call('HGET', k, 'learns_ham') or '0' local spam = redis.call('HGET', k, 'learns_spam') or '0' table.insert(result, user .. ' ' .. ham .. ' ' .. spam) end end table.sort(result) return table.concat(result, '\\n')",
-      '0',
-    ],
+    argv: ['redis-cli', ...BAYES_USERS_EVAL_ARGS],
+  },
+  {
+    id: 'valkey_eval_bayes_users',
+    argv: ['valkey-cli', ...BAYES_USERS_EVAL_ARGS],
   },
 
   // ---- settings.mjs: rspamd-learn pipeline ----

@@ -3,6 +3,7 @@
 // #82 split — about 600 lines, by far the biggest cohesive group.
 // Re-exported from settings.mjs so existing call sites don't churn.
 
+import { arrayOfStringToDict } from '../common.mjs';
 import { debugLog, errorLog, execAction } from './backend.mjs';
 import { demoResponse, demoWriteResponse } from './demoMode.mjs';
 import { dbAll, dbGet, dbRun, getTargetDict, sql } from './db.mjs';
@@ -153,7 +154,37 @@ export const getRspamdConfig = async (
   }
 };
 
-// Per-user Bayes learn statistics from Redis
+// DMS v17 replaced Redis with Valkey, which ships valkey-cli instead of redis-cli.
+const FIRST_VALKEY_DMS_MAJOR = 17;
+
+// Manifest action that runs the Bayes-users EVAL with the CLI this DMS release ships.
+export const bayesUsersActionFor = (dmsRelease) => {
+  // Images built from master report 'edge', which is newer than any release.
+  if (dmsRelease === 'edge') return 'valkey_eval_bayes_users';
+
+  const match = /^v?(\d+)\./.exec(String(dmsRelease));
+  if (!match) {
+    throw new Error(`Unknown DMS_RELEASE '${dmsRelease}'`);
+  }
+  const major = parseInt(match[1], 10);
+  if (major >= FIRST_VALKEY_DMS_MAJOR) {
+    return 'valkey_eval_bayes_users';
+  } else {
+    return 'redis_eval_bayes_users';
+  }
+};
+
+// Read DMS_RELEASE live: a cached value would be stale right after a DMS upgrade.
+const pullDmsRelease = async (targetDict) => {
+  const result = await execAction('print_env', {}, targetDict);
+  if (result.returncode) {
+    throw new Error(result.stderr || 'print_env failed');
+  }
+  const envs = arrayOfStringToDict(result.stdout, '=');
+  return envs.DMS_RELEASE;
+};
+
+// Per-user Bayes learn statistics from Redis/Valkey
 // Returns an array of { user, ham, spam } sorted by user, plus a _total row
 export const getRspamdBayesUsers = async (
   plugin = 'mailserver',
@@ -172,13 +203,18 @@ export const getRspamdBayesUsers = async (
   try {
     const targetDict = getTargetDict(plugin, containerName);
 
-    // The Lua script is baked into the manifest's redis_eval_bayes_users argv.
-    const result = await execAction('redis_eval_bayes_users', {}, targetDict, {
+    // The Lua script is baked into the manifest's *_eval_bayes_users argv.
+    const dmsRelease = await pullDmsRelease(targetDict);
+    const action = bayesUsersActionFor(dmsRelease);
+    const result = await execAction(action, {}, targetDict, {
       timeout: 10,
     });
 
     if (result.returncode) {
-      return { success: false, error: result.stderr || 'Redis query failed' };
+      return {
+        success: false,
+        error: result.stderr || 'Bayes users query failed',
+      };
     }
 
     const lines = (result.stdout || '')

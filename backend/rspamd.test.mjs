@@ -23,7 +23,11 @@ vi.mock('./demoMode.mjs', () => ({
   demoWriteResponse: vi.fn(() => null),
 }));
 
-import { getRspamdConfig } from './rspamd.mjs';
+import {
+  bayesUsersActionFor,
+  getRspamdBayesUsers,
+  getRspamdConfig,
+} from './rspamd.mjs';
 
 beforeEach(() => {
   vi.clearAllMocks();
@@ -145,5 +149,81 @@ describe('getRspamdConfig — classifier-bayes.conf precedence', () => {
       greylist: 4,
       rewrite_subject: 10,
     });
+  });
+});
+
+describe('bayesUsersActionFor', () => {
+  it('uses redis-cli up to DMS v16', () => {
+    expect(bayesUsersActionFor('v15.1.0')).toBe('redis_eval_bayes_users');
+    expect(bayesUsersActionFor('v16.0.1')).toBe('redis_eval_bayes_users');
+  });
+
+  it('uses valkey-cli from DMS v17', () => {
+    expect(bayesUsersActionFor('v17.0.0')).toBe('valkey_eval_bayes_users');
+    expect(bayesUsersActionFor('v18.2.3')).toBe('valkey_eval_bayes_users');
+  });
+
+  it('uses valkey-cli for edge builds', () => {
+    expect(bayesUsersActionFor('edge')).toBe('valkey_eval_bayes_users');
+  });
+
+  it('rejects an unknown or missing release', () => {
+    expect(() => bayesUsersActionFor(undefined)).toThrow(
+      "Unknown DMS_RELEASE 'undefined'"
+    );
+    expect(() => bayesUsersActionFor('latest')).toThrow(
+      "Unknown DMS_RELEASE 'latest'"
+    );
+  });
+});
+
+describe('getRspamdBayesUsers', () => {
+  const EVAL_OUTPUT = 'anja@nytt.no 469 243\nolen@nytt.no 120 80\n';
+
+  const execForRelease = (dmsRelease) => async (action) => {
+    if (action === 'print_env') {
+      return {
+        returncode: 0,
+        stdout: `HOSTNAME=mail\nDMS_RELEASE=${dmsRelease}\n`,
+        stderr: '',
+      };
+    }
+    return { returncode: 0, stdout: EVAL_OUTPUT, stderr: '' };
+  };
+
+  it('queries Valkey on DMS v17 and parses the counts', async () => {
+    mockExecAction.mockImplementation(execForRelease('v17.0.0'));
+    const result = await getRspamdBayesUsers('mailserver', 'mail');
+    expect(mockExecAction.mock.calls.map((call) => call[0])).toEqual([
+      'print_env',
+      'valkey_eval_bayes_users',
+    ]);
+    expect(result).toEqual({
+      success: true,
+      message: [
+        { user: 'anja@nytt.no', ham: 469, spam: 243 },
+        { user: 'olen@nytt.no', ham: 120, spam: 80 },
+      ],
+    });
+  });
+
+  it('queries Redis on DMS v16', async () => {
+    mockExecAction.mockImplementation(execForRelease('v16.0.1'));
+    await getRspamdBayesUsers('mailserver', 'mail');
+    expect(mockExecAction.mock.calls[1][0]).toBe('redis_eval_bayes_users');
+  });
+
+  it('fails without querying when DMS_RELEASE is missing', async () => {
+    mockExecAction.mockResolvedValue({
+      returncode: 0,
+      stdout: 'HOSTNAME=mail\n',
+      stderr: '',
+    });
+    const result = await getRspamdBayesUsers('mailserver', 'mail');
+    expect(result).toEqual({
+      success: false,
+      error: "Unknown DMS_RELEASE 'undefined'",
+    });
+    expect(mockExecAction).toHaveBeenCalledTimes(1);
   });
 });
