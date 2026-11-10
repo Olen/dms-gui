@@ -588,7 +588,6 @@ export const changePassword = async (
       results = await execAction(
         'setup_email_update',
         {
-          setup_path: targetDict.setupPath,
           mailbox: id,
           password,
         },
@@ -634,7 +633,6 @@ export const changePassword = async (
         results = await execAction(
           'setup_email_update',
           {
-            setup_path: targetDict.setupPath,
             mailbox: login.mailbox,
             password,
           },

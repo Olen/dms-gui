@@ -30,7 +30,6 @@ const mockGetTargetDict = vi.fn(() => ({
   protocol: 'http',
   port: 8888,
   Authorization: 'test-key',
-  setupPath: '/usr/local/bin/setup',
 }));
 
 vi.mock('./db.mjs', () => ({
@@ -106,7 +105,6 @@ describe('updateAlias', () => {
     expect(execAction).toHaveBeenCalledWith(
       'setup_alias_add',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'info@example.com',
         destination: 'b@example.com',
       },
@@ -149,7 +147,6 @@ describe('updateAlias', () => {
     expect(execAction).toHaveBeenCalledWith(
       'setup_alias_del',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'info@example.com',
         destination: 'b@example.com',
       },
@@ -188,7 +185,6 @@ describe('updateAlias', () => {
     expect(execAction.mock.calls[0]).toEqual([
       'setup_alias_del',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'info@example.com',
         destination: 'a@example.com',
       },
@@ -197,7 +193,6 @@ describe('updateAlias', () => {
     expect(execAction.mock.calls[1]).toEqual([
       'setup_alias_add',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'info@example.com',
         destination: 'c@example.com',
       },
@@ -451,7 +446,6 @@ describe('addAlias — email path', () => {
     expect(execAction).toHaveBeenCalledWith(
       'setup_alias_add',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'alias@example.com',
         destination: 'user@example.com',
       },
@@ -615,7 +609,6 @@ describe('deleteAlias — email path', () => {
     expect(execAction).toHaveBeenCalledWith(
       'setup_alias_del',
       {
-        setup_path: '/usr/local/bin/setup',
         source: 'alias@example.com',
         destination: 'user@example.com',
       },

@@ -450,11 +450,7 @@ export const getServerStatus = async (
       const targetDict = getTargetDict(plugin, containerName, settings);
       // debugLog('ddebug targetDict', redactKey(targetDict));
       if (targetDict?.Authorization) {
-        results = await execAction(
-          'setup_help',
-          { setup_path: targetDict.setupPath },
-          targetDict
-        );
+        results = await execAction('setup_help', {}, targetDict);
         if (!results.returncode) {
           status.status.status = 'running';
         } else {

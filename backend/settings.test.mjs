@@ -118,7 +118,6 @@ describe('classifyMissingAuthTargetDict', () => {
       host: 'mailserver',
       port: '8888',
       Authorization: null,
-      setupPath: '/usr/local/bin/setup',
       timeout: 4,
       schema: 'dms',
       scope: 'dms-gui',
@@ -148,7 +147,6 @@ describe('generateDkim dispatch', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     getTargetDict.mockReturnValue({
-      setupPath: '/usr/local/bin/setup',
       Authorization: 'Bearer test',
     });
     // mkdir_p (the first call) succeeds; the keygen call short-circuits with a

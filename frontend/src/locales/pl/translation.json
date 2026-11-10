@@ -134,8 +134,6 @@
     "saveSettings": "Zapisz Ustawienia",
     "saveSuccess": "Ustawienia zostały zapisane pomyślnie!",
     "settingsSaved": "Ustawienia zostały zapisane pomyślnie!",
-    "setupPath": "Ścieżka do skryptu setup.sh",
-    "setupPathHelp": "Pełna ścieżka do skryptu setup.sh w instalacji docker-mailserver.",
     "title": "Ustawienia",
     "titleUserConfig": "Ustawienia użytkownika",
     "version": "Wersja",

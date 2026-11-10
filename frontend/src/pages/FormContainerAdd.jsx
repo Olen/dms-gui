@@ -62,7 +62,6 @@ function FormContainerAdd() {
     { name: 'DMS_API_PORT', value: '8888' },
     { name: 'DMS_API_KEY', value: '' },
     { name: 'timeout', value: '4' },
-    { name: 'setupPath', value: '/usr/local/bin/setup' },
   ]);
 
   // const [dnsProviders, setDnsProviders] = useState([
@@ -77,7 +76,6 @@ function FormContainerAdd() {
   //       {name: 'DMS_API_PORT', value: '8888'},
   //       {name: 'DMS_API_KEY', value: ''},
   //       {name: 'timeout', value: '4'},
-  //       {name: 'setupPath', value: '/usr/local/bin/setup'},
   //     ]);
 
   // };
@@ -647,14 +645,6 @@ function FormContainerAdd() {
       errors.DMS_API_KEY = 'settings.DMS_API_KEYRequired';
     }
 
-    // if (formValues.setupPath.length == 0) {
-    if (
-      !formValues.find((item) => item['name'] == 'setupPath') ||
-      !formValues.find((item) => item['name'] == 'setupPath').value.length
-    ) {
-      errors.setupPath = 'settings.setupPathRequired';
-    }
-
     // if (formValues.timeout.length == 0) {
     if (
       !formValues.find((item) => item['name'] == 'timeout') ||
@@ -745,7 +735,6 @@ function FormContainerAdd() {
   //   icon="hdd-network"
   //   title={t('settings.apiTest')}
   //   onClick={() => handleAPITest()}
-  //   disabled={!getValueFromArrayOfObj(formValues, 'setupPath')}
   // />
 
   return (

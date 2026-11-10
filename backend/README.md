@@ -32,7 +32,6 @@ Configure the `.dms-gui.env` file with the appropriate environment variables:
 ## Only the defaults used in dms-gui will be mentionned here.
 ## Don't set those variables as they will not be read
 ## DMS_CONTAINER=dms
-## DMS_SETUP_SCRIPT=/usr/local/bin/setup
 ## DMS_API_PORT=8888
 ## DMS_API_KEY=matches "dms-uuid" set in dms-gui
 ## DMS_API_SIZE=1024 / max body size accepted

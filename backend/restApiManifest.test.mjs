@@ -122,57 +122,36 @@ function actionPlaceholders(action) {
   return all;
 }
 
-describe('SETUP_PATH_VALIDATOR', () => {
-  // Look up the action and regex inside a beforeAll, not at describe-
-  // definition time. If the manifest entry or validator is missing/
-  // renamed, this surfaces as a normal test failure with a clear
-  // assertion message rather than a TypeError that crashes the entire
-  // file's module evaluation and skips every other test.
-  let re;
-  beforeAll(() => {
-    const action = REST_API_MANIFEST.find((a) => a.id === 'setup_email_list');
-    expect(action, 'manifest must contain setup_email_list').toBeDefined();
-    expect(
-      action.validate?.setup_path?.regex,
-      'setup_email_list must validate setup_path'
-    ).toBeDefined();
-    re = new RegExp(action.validate.setup_path.regex);
+describe('executables', () => {
+  it('setup actions run the fixed DMS setup script', () => {
+    const setupActions = REST_API_MANIFEST.filter((a) =>
+      a.id.startsWith('setup_')
+    );
+    expect(setupActions.length).toBeGreaterThan(0);
+    for (const a of setupActions) {
+      expect(a.argv[0], a.id).toBe('/usr/local/bin/setup');
+      expect(a.validate?.setup_path, a.id).toBeUndefined();
+    }
   });
 
-  it('accepts the standard /usr/local/bin/setup', () => {
-    expect(re.test('/usr/local/bin/setup')).toBe(true);
+  it('no action takes its executable from a caller-supplied placeholder', () => {
+    for (const a of REST_API_MANIFEST) {
+      const stages = a.argv ? [a.argv] : a.pipeline.map((s) => s.argv);
+      for (const argv of stages) {
+        expect(argv[0], a.id).not.toMatch(/\{/);
+      }
+    }
   });
+});
 
-  it('accepts /usr/local/bin/setup.sh (with extension)', () => {
-    expect(re.test('/usr/local/bin/setup.sh')).toBe(true);
-  });
-
-  it('accepts /setup (single segment, no extension)', () => {
-    expect(re.test('/setup')).toBe(true);
-  });
-
-  it('accepts /foo.bar.baz (multiple extensions)', () => {
-    expect(re.test('/foo.bar.baz')).toBe(true);
-  });
-
-  it('rejects path traversal via ..', () => {
-    expect(re.test('/tmp/../../usr/bin/foo')).toBe(false);
-  });
-
-  it('rejects double-dot in a single segment', () => {
-    expect(re.test('/foo..bar/setup')).toBe(false);
-  });
-
-  it('rejects relative paths', () => {
-    expect(re.test('setup')).toBe(false);
-  });
-
-  it('rejects empty path', () => {
-    expect(re.test('')).toBe(false);
-  });
-
-  it('rejects path consisting of only a slash', () => {
-    expect(re.test('/')).toBe(false);
+describe('Bayes users actions', () => {
+  it('walk the keyspace with SCAN instead of a blocking KEYS', () => {
+    for (const id of ['redis_eval_bayes_users', 'valkey_eval_bayes_users']) {
+      const action = REST_API_MANIFEST.find((a) => a.id === id);
+      const tokens = action.pipeline.flatMap((s) => s.argv);
+      expect(tokens, id).toContain('--scan');
+      expect(tokens.join(' '), id).not.toContain("redis.call('KEYS'");
+    }
   });
 });
 

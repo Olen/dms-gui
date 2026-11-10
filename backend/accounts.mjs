@@ -186,11 +186,7 @@ export const pullAccountsFromDMS = async (containerName = null) => {
       // Redact the DMS API key before it reaches the log stream.
       Authorization: redactKey(targetDict.Authorization),
     });
-    const results = await execAction(
-      'setup_email_list',
-      { setup_path: targetDict.setupPath },
-      targetDict
-    );
+    const results = await execAction('setup_email_list', {}, targetDict);
     if (!results.returncode) {
       // Parse multiline output with regex to extract email and size information
       // const emailLineValidChars = /[\x00-\x1F\x7F-\x9F\x20-\x7E]/g;
@@ -300,7 +296,7 @@ export const addAccount = async (
     if (schema === 'dms')
       results = await execAction(
         'setup_email_add',
-        { setup_path: targetDict.setupPath, mailbox, password },
+        { mailbox, password },
         targetDict
       );
 
@@ -388,11 +384,7 @@ export const deleteAccount = async (
     // dms setup could take who know how long when mailbox is large
     targetDict.timeout = 60;
     if (schema === 'dms')
-      results = await execAction(
-        'setup_email_del',
-        { setup_path: targetDict.setupPath, mailbox },
-        targetDict
-      );
+      results = await execAction('setup_email_del', { mailbox }, targetDict);
     debugLog('ddebug execAction', results);
 
     if (!results.returncode) {
@@ -686,16 +678,12 @@ export const setQuota = async (
 
     if (!quota || quota === '0') {
       debugLog(`Removing quota for ${mailbox}`);
-      results = await execAction(
-        'setup_quota_del',
-        { setup_path: targetDict.setupPath, mailbox },
-        targetDict
-      );
+      results = await execAction('setup_quota_del', { mailbox }, targetDict);
     } else {
       debugLog(`Setting quota for ${mailbox} to ${quota}`);
       results = await execAction(
         'setup_quota_set',
-        { setup_path: targetDict.setupPath, mailbox, quota },
+        { mailbox, quota },
         targetDict
       );
     }

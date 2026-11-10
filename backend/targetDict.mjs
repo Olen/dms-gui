@@ -143,7 +143,6 @@ export const getTargetDict = (
         host,
         port: portStr,
         Authorization: getValueFromArrayOfObj(settings, 'DMS_API_KEY'),
-        setupPath: getValueFromArrayOfObj(settings, 'setupPath'),
         timeout: getValueFromArrayOfObj(settings, 'timeout'),
         scope: 'dms-gui',
       };
@@ -212,7 +211,6 @@ export const getTargetDict = (
           host,
           port: portStr,
           Authorization: getValueFromArrayOfObj(result.message, 'DMS_API_KEY'),
-          setupPath: getValueFromArrayOfObj(result.message, 'setupPath'),
           timeout: getValueFromArrayOfObj(result.message, 'timeout'),
           schema: schema,
           scope: 'dms-gui',

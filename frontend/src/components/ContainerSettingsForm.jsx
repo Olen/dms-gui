@@ -175,19 +175,6 @@ const ContainerSettingsForm = ({
         required
       />
 
-      <FormField
-        type="text"
-        id="setupPath"
-        name="setupPath"
-        label="settings.setupPath"
-        value={getValueFromArrayOfObj(formValues, 'setupPath')}
-        onChange={onChangeSettings}
-        placeholder="/usr/local/bin/setup"
-        error={formErrors.setupPath}
-        helpText="settings.setupPathHelp"
-        required
-      />
-
       <div className="d-flex align-items-center">
         <Button
           variant={(apiInjected && 'success') || 'info'}

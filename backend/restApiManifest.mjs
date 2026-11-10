@@ -15,10 +15,8 @@
 //     redirect:  { mode: 'write'|'append', file: <path-template> } — optional file redirect
 //   }
 //
-// setup_path is supplied per-call from targetDict.setupPath (populated by
-// getTargetDict() from the per-container settings DB, defaulting to
-// env.DMS_SETUP_SCRIPT). This preserves per-container overrides via the
-// settings UI that a hardcoded constant would silently ignore.
+// The DMS setup script is a fixed path, never taken from a request, so a
+// caller can't choose which executable runs.
 
 // DMS config path — the directory where postfix-regexp.cf lives. Read
 // from process.env directly (rather than ./env.mjs) to avoid the
@@ -26,21 +24,48 @@
 // cause. Default matches env.mjs's DMS_CONFIG_PATH default.
 const DMS_CONFIG_PATH = process.env.DMS_CONFIG_PATH || '/tmp/docker-mailserver';
 const POSTFIX_REGEXP_FILE = `${DMS_CONFIG_PATH}/postfix-regexp.cf`;
+const DMS_SETUP_SCRIPT = '/usr/local/bin/setup';
 
-// Arguments after the CLI name for the Bayes-users EVAL; redis-cli and
-// valkey-cli accept the same ones. No per-call substitution needed.
-const BAYES_USERS_EVAL_ARGS = [
-  '--no-auth-warning',
-  '--raw', // preserve newlines in output; without this the CLI escapes them as backslash-n, breaking JS .split('\n')
-  'EVAL',
-  "local result = {} local keys = redis.call('KEYS', 'RS*') for _, k in ipairs(keys) do local user = k:sub(3) if user:find('@') and not user:find('_[%dA-Fa-f]') then local ham = redis.call('HGET', k, 'learns_ham') or '0' local spam = redis.call('HGET', k, 'learns_spam') or '0' table.insert(result, user .. ' ' .. ham .. ' ' .. spam) end end table.sort(result) return table.concat(result, '\\n')",
-  '0',
+// Per-user Bayes learn counts without blocking Redis/Valkey: SCAN walks the
+// keyspace in small steps, so rspamd's own queries are served in between, and
+// returns only per-user keys (they end in a domain; token keys end in a
+// decimal hash). A short EVAL then reads the counts of just those keys.
+const BAYES_USER_KEY_PATTERN = 'RS*@*[A-Za-z]';
+const BAYES_USERS_LUA =
+  "local result = {} for _, k in ipairs(ARGV) do local user = k:sub(3) if user:find('@') and not user:find('_[%dA-Fa-f]') and redis.call('TYPE', k)['ok'] == 'hash' then local ham = redis.call('HGET', k, 'learns_ham') or '0' local spam = redis.call('HGET', k, 'learns_spam') or '0' table.insert(result, user .. ' ' .. ham .. ' ' .. spam) end end table.sort(result) return table.concat(result, '\\n')";
+
+const bayesUsersPipeline = (cli) => [
+  {
+    argv: [
+      cli,
+      '--no-auth-warning',
+      '--scan',
+      '--count',
+      '1000',
+      '--pattern',
+      BAYES_USER_KEY_PATTERN,
+    ],
+  },
+  {
+    argv: [
+      'xargs',
+      '-r',
+      '-d',
+      '\\n',
+      cli,
+      '--no-auth-warning',
+      '--raw', // preserve newlines in output; without this the CLI escapes them as backslash-n, breaking JS .split('\n')
+      'EVAL',
+      BAYES_USERS_LUA,
+      '0',
+    ],
+  },
 ];
 
 // Validator presets reused across multiple actions. Centralised here so
 // regex tweaks (e.g. aligning with common.mjs regexEmailStrict) are made
 // in one place rather than fanned across every action that takes a
-// mailbox/box/setup_path arg.
+// mailbox/box arg.
 //
 // Mailbox regex aligned with regexEmailStrict from common.mjs — accepts
 // 'user@domain' (no TLD required) so local-only setups work, but still
@@ -49,22 +74,12 @@ const MAILBOX_VALIDATOR = {
   regex: '^[\\w.\\-_]+@[\\w.\\-_]+$',
   maxlen: 254,
 };
-// setup.sh path. Absolute path; no consecutive dots (no `..` traversal,
-// no `foo..bar` shapes). Path segments are alphanumeric+_-, optionally
-// with `.ext` suffixes (e.g. setup.sh) — the structure positively
-// matches "valid path" rather than negatively rejecting `..`, which
-// closes lookahead-bypass corner cases.
-const SETUP_PATH_VALIDATOR = {
-  regex:
-    '^/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*(/[A-Za-z0-9_-]+(\\.[A-Za-z0-9_-]+)*)*$',
-  maxlen: 256,
-};
 // dovecot folder names + mask patterns: alphanumeric + ./-_ + slash + space + glob chars (* % ?).
 // Leading '-' / space disallowed to prevent the value from being parsed
 // as an option flag by doveadm when positional.
 //
 // Note: this regex DOES allow '..' sequences (e.g. 'INBOX/../Private').
-// Unlike SETUP_PATH_VALIDATOR — which guards a filesystem path —
+// Unlike DKIM_DIR_VALIDATOR — which guards a filesystem path —
 // dovecot mailbox names are flat strings interpreted by the namespace
 // mapping, NOT by the filesystem. '..' has no special meaning to
 // doveadm; it's just two dots. doveadm will reject invalid mailbox
@@ -161,7 +176,7 @@ const DKIM_BASE_RE = escapeRegex(DKIM_BASE);
 // DKIM keys tree: absolute paths under the rspamd dkim base directory.
 // Positive-match grammar: segments are [A-Za-z0-9_-] with optional `.ext`
 // suffixes. Consecutive dots are structurally impossible → `..` traversal
-// blocked. Mirrors SETUP_PATH_VALIDATOR.
+// blocked.
 // The trailing `*` (rather than `+`) allows the base dir itself to
 // match, so ls_dir on the DKIM base directory works.
 //
@@ -181,18 +196,12 @@ export const REST_API_MANIFEST = [
   // ---- Setup-based actions ----
   {
     id: 'setup_email_list',
-    argv: ['{setup_path}', 'email', 'list'],
-    validate: {
-      // setup_path is supplied by execAction callers from targetDict.setupPath,
-      // so per-container overrides via the settings UI keep working.
-      setup_path: SETUP_PATH_VALIDATOR,
-    },
+    argv: [DMS_SETUP_SCRIPT, 'email', 'list'],
   },
   {
     id: 'setup_email_add',
-    argv: ['{setup_path}', 'email', 'add', '{mailbox}', '{password}'],
+    argv: [DMS_SETUP_SCRIPT, 'email', 'add', '{mailbox}', '{password}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
       password: PASSWORD_VALIDATOR,
     },
@@ -203,34 +212,30 @@ export const REST_API_MANIFEST = [
     // argv shape as setup_email_add (mailbox + password), with
     // `update` as the verb.
     id: 'setup_email_update',
-    argv: ['{setup_path}', 'email', 'update', '{mailbox}', '{password}'],
+    argv: [DMS_SETUP_SCRIPT, 'email', 'update', '{mailbox}', '{password}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
       password: PASSWORD_VALIDATOR,
     },
   },
   {
     id: 'setup_email_del',
-    argv: ['{setup_path}', 'email', 'del', '-y', '{mailbox}'],
+    argv: [DMS_SETUP_SCRIPT, 'email', 'del', '-y', '{mailbox}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'setup_quota_del',
-    argv: ['{setup_path}', 'quota', 'del', '{mailbox}'],
+    argv: [DMS_SETUP_SCRIPT, 'quota', 'del', '{mailbox}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
     },
   },
   {
     id: 'setup_quota_set',
-    argv: ['{setup_path}', 'quota', 'set', '{mailbox}', '{quota}'],
+    argv: [DMS_SETUP_SCRIPT, 'quota', 'set', '{mailbox}', '{quota}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       mailbox: MAILBOX_VALIDATOR,
       // setup quota set accepts strings like '1G', '500M', or 'unlimited'.
       quota: { regex: '^(?:[0-9]+[BKMGT]?|unlimited)$', maxlen: 16 },
@@ -337,25 +342,20 @@ export const REST_API_MANIFEST = [
   // ---- aliases.mjs actions ----
   {
     id: 'setup_alias_list',
-    argv: ['{setup_path}', 'alias', 'list'],
-    validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-    },
+    argv: [DMS_SETUP_SCRIPT, 'alias', 'list'],
   },
   {
     id: 'setup_alias_add',
-    argv: ['{setup_path}', 'alias', 'add', '{source}', '{destination}'],
+    argv: [DMS_SETUP_SCRIPT, 'alias', 'add', '{source}', '{destination}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       source: ALIAS_SOURCE_VALIDATOR,
       destination: ALIAS_DESTINATION_VALIDATOR,
     },
   },
   {
     id: 'setup_alias_del',
-    argv: ['{setup_path}', 'alias', 'del', '{source}', '{destination}'],
+    argv: [DMS_SETUP_SCRIPT, 'alias', 'del', '{source}', '{destination}'],
     validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
       source: ALIAS_SOURCE_VALIDATOR,
       destination: ALIAS_DESTINATION_VALIDATOR,
     },
@@ -573,10 +573,7 @@ export const REST_API_MANIFEST = [
   // `setup help` — used by getServerStatus to probe the DMS setup script.
   {
     id: 'setup_help',
-    argv: ['{setup_path}', 'help'],
-    validate: {
-      setup_path: SETUP_PATH_VALIDATOR,
-    },
+    argv: [DMS_SETUP_SCRIPT, 'help'],
   },
   // Generate an RSA DKIM key with rspamd's native keygen, writing the private
   // key straight into the rspamd keys/ layout (`-k {keypath}`). We use rspamadm
@@ -753,18 +750,18 @@ export const REST_API_MANIFEST = [
     ],
   },
 
-  // ---- rspamd.mjs: Bayes users EVAL ----
+  // ---- rspamd.mjs: Bayes users ----
 
-  // One EVAL that lists per-user Bayes learn counts, run with the CLI the DMS
-  // release ships: redis-cli up to v16, valkey-cli from v17 (Valkey replaced
-  // Redis). rspamd.mjs picks the action from DMS_RELEASE.
+  // Per-user Bayes learn counts (see bayesUsersPipeline), run with the CLI the
+  // DMS release ships: redis-cli up to v16, valkey-cli from v17 (Valkey
+  // replaced Redis). rspamd.mjs picks the action from DMS_RELEASE.
   {
     id: 'redis_eval_bayes_users',
-    argv: ['redis-cli', ...BAYES_USERS_EVAL_ARGS],
+    pipeline: bayesUsersPipeline('redis-cli'),
   },
   {
     id: 'valkey_eval_bayes_users',
-    argv: ['valkey-cli', ...BAYES_USERS_EVAL_ARGS],
+    pipeline: bayesUsersPipeline('valkey-cli'),
   },
 
   // ---- settings.mjs: rspamd-learn pipeline ----

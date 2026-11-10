@@ -68,9 +68,6 @@ export const env = {
   isImmutable: 0,
 
   // other DMS internals defaults
-  DMS_SETUP_SCRIPT: process.env.DMS_SETUP_SCRIPT
-    ? process.env.DMS_SETUP_SCRIPT
-    : '/usr/local/bin/setup',
   DMS_CONFIG_PATH: process.env.DMS_CONFIG_PATH
     ? process.env.DMS_CONFIG_PATH
     : '/tmp/docker-mailserver',
@@ -278,7 +275,6 @@ export const plugins = {
         host: 'containerName',
         port: 'DMS_API_PORT',
         Authorization: 'DMS_API_KEY',
-        setupPath: 'setupPath',
         timeout: 'timeout',
       },
       defaults: {
@@ -286,7 +282,6 @@ export const plugins = {
         protocol: env.protocol,
         DMS_API_PORT: env.DMS_API_PORT,
         DMS_API_KEY: env.DMS_API_KEY,
-        setupPath: env.DMS_SETUP_SCRIPT,
         timeout: env.timeout,
       },
     },

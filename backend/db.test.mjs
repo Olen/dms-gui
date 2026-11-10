@@ -146,7 +146,6 @@ describe('getTargetDict — protocol allowlist (SSRF defense)', () => {
     { name: 'containerName', value: 'mailserver' },
     { name: 'DMS_API_PORT', value: '8888' },
     { name: 'DMS_API_KEY', value: 'k' },
-    { name: 'setupPath', value: '/usr/local/bin/setup' },
     { name: 'timeout', value: '4' },
   ];
 
@@ -199,7 +198,6 @@ describe('getTargetDict — host allowlist (SSRF defense, CodeQL #68)', () => {
     { name: 'containerName', value: host },
     { name: 'DMS_API_PORT', value: '8888' },
     { name: 'DMS_API_KEY', value: 'k' },
-    { name: 'setupPath', value: '/usr/local/bin/setup' },
     { name: 'timeout', value: '4' },
   ];
 
@@ -272,7 +270,6 @@ describe('getTargetDict — port validation', () => {
     { name: 'containerName', value: 'mailserver' },
     { name: 'DMS_API_PORT', value: port },
     { name: 'DMS_API_KEY', value: 'k' },
-    { name: 'setupPath', value: '/usr/local/bin/setup' },
     { name: 'timeout', value: '4' },
   ];
 

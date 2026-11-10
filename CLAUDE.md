@@ -217,7 +217,7 @@ Backend is split into modular route files + business-logic modules:
 - `frontend/src/components/DnsblResultModal.jsx` — DNSBL lookup result table.
 - `frontend/src/components/DnsBadge.jsx` — `DnsBadge` and `OptionalBadge` (status pills for the domain list).
 - `frontend/src/components/NewLoginForm.jsx` — Add-a-login form. Pure JSX shell; state lives in the parent.
-- `frontend/src/components/ContainerSettingsForm.jsx` — Schema/containerName/protocol/port/key/timeout/setupPath form + ping/inject/test/save buttons. Pure JSX shell; state lives in the parent.
+- `frontend/src/components/ContainerSettingsForm.jsx` — Schema/containerName/protocol/port/key/timeout form + ping/inject/test/save buttons. Pure JSX shell; state lives in the parent.
 
 ## Security notes
 - **Action protocol**: rest-api.py runs no shell. Token-level substitution into `argv` from manifest, `subprocess.Popen(shell=False)`. See "REST API" above.

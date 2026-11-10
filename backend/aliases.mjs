@@ -231,11 +231,7 @@ export const pullAliasesFromDMS = async (containerName = null) => {
       // Redact the DMS API key before it reaches the log stream.
       Authorization: redactKey(targetDict.Authorization),
     });
-    const results = await execAction(
-      'setup_alias_list',
-      { setup_path: targetDict.setupPath },
-      targetDict
-    );
+    const results = await execAction('setup_alias_list', {}, targetDict);
 
     if (!results.returncode) {
       aliases = await parseAliasesFromDMS(results.stdout);
@@ -404,7 +400,7 @@ export const addAlias = async (
       for (const dest of destinations) {
         results = await execAction(
           'setup_alias_add',
-          { setup_path: targetDict.setupPath, source, destination: dest },
+          { source, destination: dest },
           targetDict
         );
         if (results.returncode) {
@@ -529,7 +525,7 @@ export const deleteAlias = async (
       for (const dest of destinations) {
         results = await execAction(
           'setup_alias_del',
-          { setup_path: targetDict.setupPath, source, destination: dest },
+          { source, destination: dest },
           targetDict
         );
         debugLog(
@@ -739,7 +735,7 @@ export const updateAlias = async (
     for (const dest of removed) {
       const r = await execAction(
         'setup_alias_del',
-        { setup_path: targetDict.setupPath, source, destination: dest },
+        { source, destination: dest },
         targetDict
       );
       if (r.returncode) {
@@ -752,7 +748,7 @@ export const updateAlias = async (
     for (const dest of added) {
       const r = await execAction(
         'setup_alias_add',
-        { setup_path: targetDict.setupPath, source, destination: dest },
+        { source, destination: dest },
         targetDict
       );
       if (r.returncode) {

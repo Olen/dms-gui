@@ -225,6 +225,8 @@ export const getRspamdBayesUsers = async (
       const [user, ham, spam] = line.trim().split(/\s+/);
       return { user, ham: parseInt(ham) || 0, spam: parseInt(spam) || 0 };
     });
+    // xargs may split many keys over several EVALs, each sorted on its own.
+    users.sort((a, b) => a.user.localeCompare(b.user));
 
     return { success: true, message: users };
   } catch (error) {

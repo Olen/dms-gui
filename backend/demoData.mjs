@@ -525,7 +525,6 @@ const settings = [
   { name: 'protocol', value: 'http' },
   { name: 'DMS_API_PORT', value: '8888' },
   { name: 'DMS_API_KEY', value: 'demo-key' },
-  { name: 'setupPath', value: '/usr/local/bin/setup' },
   { name: 'timeout', value: '4' },
   { name: 'schema', value: 'dms' },
 ];

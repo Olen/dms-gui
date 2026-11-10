@@ -12,7 +12,6 @@ vi.mock('./db.mjs', () => ({
   getTargetDict: vi.fn(() => ({
     host: 'localhost',
     timeout: 10,
-    setupPath: '/usr/local/bin/setup',
   })),
 }));
 
