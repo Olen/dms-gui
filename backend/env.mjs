@@ -155,9 +155,12 @@ export const env = {
   // not mean plaintext fallback, only that we accept a self-signed
   // peer.
   SMTP_TLS_VERIFY: resolveSmtpTlsVerify(process.env),
+  // Sender of password reset emails; defaults to noreply@<RESET_BASE_URL host>.
+  SMTP_FROM: process.env.SMTP_FROM || '',
 
-  // Base URL for password reset links (e.g., https://epost.example.com)
-  // If not set, derived from X-Forwarded-Proto/Host headers (set by reverse proxy)
+  // Base URL for password reset links (e.g., https://epost.example.com).
+  // Required: without it, the reset route refuses to send mail. Its host is
+  // also the SMTP HELO name and the default sender domain.
   RESET_BASE_URL: process.env.RESET_BASE_URL || '',
 
   LOG_COLORS:

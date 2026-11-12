@@ -131,7 +131,7 @@ One-click download of Thunderbird autoconfig (XML) and Apple .mobileconfig profi
 
 ### 🔑 Password Reset
 
-Forgot your password? The login page has a self-service reset link that sends a time-limited token (1 hour) to your email. Rate-limited to 3 requests per 15 minutes.
+Forgot your password? The login page has a self-service reset link: enter your username, mailbox, the email address stored on your login, or an alias of your mailbox. A time-limited token (1 hour) is sent to the address stored on the login (its mailbox when none is stored), never to what was typed. Rate-limited to 3 requests per 15 minutes.
 
 ---
 
@@ -225,6 +225,7 @@ docker compose up -d
 | `RESET_BASE_URL` | — | **Required for password reset.** Public base URL of your dms-gui (e.g. `https://epost.example.com`). See [Why this is required](#why-reset_base_url-is-required) below. |
 | `SMTP_HOST` | `mailserver` | SMTP host used to send password-reset emails. Default is the local DMS Docker container. |
 | `SMTP_PORT` | `25` | SMTP port (STARTTLS upgrade is required regardless). |
+| `SMTP_FROM` | `noreply@<RESET_BASE_URL host>` | Sender of password-reset emails. The SMTP HELO name is always the `RESET_BASE_URL` host, since mail servers reject a bare container hostname. |
 | `SMTP_TLS_VERIFY` | depends on `SMTP_HOST` | Validate the SMTP server's TLS certificate against the system CA bundle. **Default-resolution rules:** if you set `SMTP_TLS_VERIFY=true\|false` explicitly, that wins. Otherwise: when `SMTP_HOST` is set explicitly, the default is `true` (proper CA validation — the assumption is you've configured a real relay with a real cert). When `SMTP_HOST` is unset (i.e., using the default `mailserver` Docker container), the default is `false` (the container's self-signed cert won't validate by hostname). STARTTLS is still required either way — verification disabled does not mean plaintext fallback. |
 | `ACCESS_TOKEN_EXPIRY` | `1h` | JWT access token lifetime |
 | `REFRESH_TOKEN_EXPIRY` | `1d` | JWT refresh token lifetime |

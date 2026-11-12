@@ -177,6 +177,7 @@ export const sql = {
       loginByMailbox: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND mailbox = @mailbox`,
       loginByUsername: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND username = @username`,
       loginGuess: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND (mailbox = @mailbox OR username = @username)`,
+      loginsByEmail: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND email = @email`,
       logins: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1`,
       admins: `SELECT id, username, email, isAdmin, isActive, isAccount, mailserver, roles, mailbox, language from logins WHERE 1=1 AND isAdmin = 1`,
       roles: `SELECT roles from logins WHERE 1=1 AND id = @id`,

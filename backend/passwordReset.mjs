@@ -18,6 +18,8 @@ let transporter = null;
 export const buildSmtpTransportConfig = (smtpEnv) => ({
   host: smtpEnv.SMTP_HOST,
   port: smtpEnv.SMTP_PORT,
+  // HELO name: mail servers reject a bare container hostname like 'dms-gui'
+  name: new URL(smtpEnv.RESET_BASE_URL).hostname,
   secure: false,
   // requireTLS forces STARTTLS upgrade — without it, an attacker
   // who can MITM the SMTP path could strip the upgrade and trick
@@ -42,39 +44,71 @@ const hashToken = (token) => {
   return crypto.createHash('sha256').update(token).digest('hex');
 };
 
-export const requestPasswordReset = async (email, origin) => {
+// The reset link goes to the address stored on the login, never to what was
+// typed into the form: local logins (like the initial admin) have a
+// placeholder mailbox and their real address in `email`.
+export const resetRecipient = (login) => {
+  if (login.email) return login.email;
+  return login.mailbox;
+};
+
+export const resetFromAddress = (smtpEnv) => {
+  if (smtpEnv.SMTP_FROM) return smtpEnv.SMTP_FROM;
+  return `noreply@${new URL(smtpEnv.RESET_BASE_URL).hostname}`;
+};
+
+const isFoundLogin = (result) =>
+  result.success && result.message && typeof result.message !== 'string';
+
+// Finds the login for what the user typed: username or mailbox, then the
+// stored email address, then a mail alias of a mailbox. Returns null when
+// nothing (or more than one login) matches.
+export const findLoginForReset = async (identifier) => {
+  const direct = await getLogin(identifier, true);
+  if (isFoundLogin(direct)) return direct.message;
+
+  const byEmail = dbAll(sql.logins.select.loginsByEmail, { email: identifier });
+  if (byEmail.success && byEmail.message?.length === 1) {
+    return byEmail.message[0];
+  }
+  if (byEmail.success && byEmail.message?.length > 1) {
+    errorLog(
+      `Password reset: ${byEmail.message.length} logins have the stored address ${identifier}; not sending`
+    );
+    return null;
+  }
+
+  const aliasResult = dbAll(
+    `SELECT DISTINCT a.destination FROM aliases a
+     JOIN configs c ON c.id = a.configID
+     WHERE c.plugin = 'mailserver' AND a.source = ?`,
+    {},
+    identifier
+  );
+  if (aliasResult.success && aliasResult.message?.length) {
+    // Use the first destination mailbox
+    const byAlias = await getLogin(aliasResult.message[0].destination, true);
+    if (isFoundLogin(byAlias)) return byAlias.message;
+  }
+  return null;
+};
+
+export const requestPasswordReset = async (identifier, origin) => {
   const genericResponse = {
     success: true,
     message: 'If that account exists, a reset link has been sent.',
   };
 
   try {
-    if (!email || typeof email !== 'string') return genericResponse;
+    if (!identifier || typeof identifier !== 'string') return genericResponse;
 
-    // Try direct login lookup (matches by mailbox or username)
-    let login = await getLogin(email, true);
-
-    // If not found, check if the email is an alias and resolve to the real mailbox
-    if (!login.success || !login.message || typeof login.message === 'string') {
-      const aliasResult = dbAll(
-        `SELECT DISTINCT a.destination FROM aliases a
-         JOIN configs c ON c.id = a.configID
-         WHERE c.plugin = 'mailserver' AND a.source = ?`,
-        {},
-        email
-      );
-      if (aliasResult.success && aliasResult.message?.length) {
-        // Use the first destination mailbox
-        login = await getLogin(aliasResult.message[0].destination, true);
-      }
-    }
-
-    if (!login.success || !login.message || typeof login.message === 'string') {
-      debugLog(`Password reset requested for unknown address: ${email}`);
+    const login = await findLoginForReset(identifier);
+    if (!login) {
+      debugLog(`Password reset requested for unknown login: ${identifier}`);
       return genericResponse;
     }
 
-    const loginId = login.message.id;
+    const loginId = login.id;
     const now = Date.now();
 
     // Rate limit: max RATE_LIMIT_MAX requests per RATE_LIMIT_WINDOW_MS per mailbox
@@ -89,7 +123,7 @@ export const requestPasswordReset = async (email, origin) => {
       recentResult.message &&
       recentResult.message.count >= RATE_LIMIT_MAX
     ) {
-      debugLog(`Password reset rate limited for ${email}`);
+      debugLog(`Password reset rate limited for ${identifier}`);
       return genericResponse; // silent rate limit — same response
     }
 
@@ -108,19 +142,18 @@ export const requestPasswordReset = async (email, origin) => {
       now
     );
 
-    // Build reset link using the Origin header from the request
+    // origin is RESET_BASE_URL (the route refuses to run without it)
     const resetUrl = `${origin}/reset-password?token=${rawToken}`;
-    const mailboxDomain = login.message.mailbox.split('@')[1];
-    const fromAddress = `noreply@${mailboxDomain}`;
+    const recipient = resetRecipient(login);
 
     // Send email
     try {
       await getTransporter().sendMail({
-        from: fromAddress,
-        to: email,
+        from: resetFromAddress(env),
+        to: recipient,
         subject: 'Password Reset Request',
         text: [
-          `A password reset was requested for your account.`,
+          `A password reset was requested for the login "${login.username}".`,
           ``,
           `Click the link below to reset your password (valid for 1 hour):`,
           `${resetUrl}`,
@@ -128,10 +161,12 @@ export const requestPasswordReset = async (email, origin) => {
           `If you did not request this, you can safely ignore this email.`,
         ].join('\n'),
       });
-      infoLog(`Password reset email sent to ${email}`);
+      infoLog(
+        `Password reset email for login ${login.username} sent to ${recipient}`
+      );
     } catch (mailError) {
       errorLog(
-        `Failed to send password reset email to ${email}: ${mailError.message}`
+        `Failed to send password reset email for login ${login.username} to ${recipient}: ${mailError.message}`
       );
     }
 
